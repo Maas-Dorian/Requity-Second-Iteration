@@ -146,6 +146,18 @@ window.REQUITY_CONFIG = {
   API routes reject unauthenticated calls (401) and wrong roles (403), and the
   agent/reviewer dashboards require a real Supabase Auth session. Missing config
   is treated as setup incomplete — verify with the health endpoints.
+- **Reviewer dashboard is live-only:** the reviewer matching queue no longer
+  shows any demo/sample data and there is no "Run Demo" tour. The queue is
+  populated only from `GET /api/reviewer/matches` and renders one of three
+  states — live matches, a clean empty state ("No pending matches yet."), or a
+  clean error state ("We couldn't load reviewer matches. Please try again.").
+  Approvals (and the optional Auto run) call `POST /api/reviewer/approve-match`;
+  no client-side scheduling is simulated. The **Incomplete Assessments** section
+  remains live via `GET /api/reviewer/assessment-leads`.
+- **Agent weekly chart is illustrative:** the "Assessment activity" bar chart on
+  the agent dashboard still uses static placeholder values and is illustrative
+  only (no wording implies it is live/real-time). It stays as-is until per-day
+  activity analytics are added to the dashboard API.
 
 ---
 
