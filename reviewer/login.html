@@ -100,12 +100,6 @@
     .auth-foot a { color: var(--primary-blue); text-decoration: none; font-weight: 600; }
     .auth-foot a:hover { text-decoration: underline; }
 
-    .demo-note {
-      margin-top: 1rem; padding: 0.85rem; border-radius: var(--radius-sm); background: var(--soft-blue);
-      color: var(--secondary-text); font-size: 0.82rem; text-align: center;
-    }
-    .demo-note a { color: var(--primary-blue); font-weight: 600; text-decoration: none; }
-
     .role-switch { display: none; text-align: center; }
     .role-switch.show { display: block; }
     .role-switch p { color: var(--secondary-text); font-size: 0.92rem; margin-bottom: 1.1rem; }
@@ -155,10 +149,6 @@
       </form>
 
       <div class="helper-text">Access is limited to approved REQUITY reviewers and admins.</div>
-
-      <div class="demo-note" id="demo-note" style="display:none;">
-        Demo mode is on — no account needed. <a href="index.html">Continue to reviewer dashboard &rarr;</a>
-      </div>
     </div>
 
     <div class="auth-foot">
@@ -180,18 +170,12 @@
       }
       function clearMsg() { msg.className = "auth-msg"; }
 
-      // Demo affordance when no backend/demo is configured.
-      if (!API || API.isDemoAllowed()) {
-        document.getElementById("demo-note").style.display = "block";
-      }
-
       // Signed in without reviewer access: present a clean panel + Agent Dashboard
       // button. The agent session stays valid so the button works immediately.
       function showAgentSwitch() {
         clearMsg();
         form.style.display = "none";
         document.querySelector(".helper-text").style.display = "none";
-        document.getElementById("demo-note").style.display = "none";
         document.getElementById("role-switch").classList.add("show");
       }
 

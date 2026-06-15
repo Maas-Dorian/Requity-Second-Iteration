@@ -50,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         leadId,
         status,
         notes,
-        reviewerId: reviewer.demo ? null : reviewer.profileId,
+        reviewerId: reviewer.profileId,
       });
       sendJson(res, 200, { lead });
     } catch (error) {

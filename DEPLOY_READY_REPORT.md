@@ -86,7 +86,6 @@ From Supabase → **Settings → API**:
 ### Exact frontend config values needed (`frontend/shared/config.js`)
 ```js
 window.REQUITY_CONFIG = {
-  demoMode: false,                               // MUST be false in production
   apiBaseUrl: "/api",
   supabaseUrl: "https://YOUR-PROJECT.supabase.co",
   supabaseAnonKey: "YOUR-ANON-PUBLIC-KEY",       // public anon key ONLY
@@ -104,8 +103,7 @@ window.REQUITY_CONFIG = {
 3. Supabase → SQL Editor → run `backend/supabase/schema.sql` (expect "Success").
 4. Push the repo to Git and import it into Vercel (framework: **Other**).
 5. Add all Vercel env vars (server + public) for Production.
-6. Create `frontend/shared/config.js` from the example with public values
-   (`demoMode: false`).
+6. Create `frontend/shared/config.js` from the example with real public values.
 7. Deploy (or redeploy after env + config are set).
 8. Verify health endpoints (see "Order to test").
 9. Create the first agent account, then promote a reviewer/admin in Supabase SQL.
@@ -144,9 +142,10 @@ window.REQUITY_CONFIG = {
   re-run, but they will NOT add new columns to pre-existing tables. If a project
   ran an older schema, either start a **fresh Supabase project** or apply the
   missing columns manually with `ALTER TABLE`.
-- **Demo fallback must be OFF in production:** set `demoMode: false` in
-  `config.js`. With `NODE_ENV=production`, the API also rejects unauthenticated
-  protected calls regardless. Demo mode is for local/static use only.
+- **No demo mode:** real Supabase credentials are required everywhere. Protected
+  API routes reject unauthenticated calls (401) and wrong roles (403), and the
+  agent/reviewer dashboards require a real Supabase Auth session. Missing config
+  is treated as setup incomplete — verify with the health endpoints.
 
 ---
 

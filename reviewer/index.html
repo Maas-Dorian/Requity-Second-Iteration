@@ -251,19 +251,26 @@
 
     <script src="script.js"></script>
 
-    <!-- Optional Supabase/API config. Falls back to demo sample data if absent. -->
+    <!-- Supabase/API config (copy frontend/shared/config.example.js to config.js with real public values). -->
     <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
     <script src="../frontend/shared/api.js"></script>
 
-    <!-- Auth gate: require reviewer/admin session unless demo mode is allowed. -->
+    <!-- Auth gate: always require a real reviewer/admin Supabase session. -->
     <script>
+    var REVIEWER_LOGIN_URL = 'login.html';
+
     window.__reviewerGate = (function () {
         var API = window.RequityAPI;
-        if (!API) return Promise.resolve({ ok: true, demo: true });
+        var cfg = window.REQUITY_CONFIG || {};
+        // No API/config means setup is incomplete — send to the reviewer sign in.
+        if (!API || !cfg.apiBaseUrl) {
+            window.location.href = REVIEWER_LOGIN_URL;
+            return Promise.resolve({ ok: false, reason: 'no_config' });
+        }
         return Promise.resolve(API.requireReviewerSession()).then(function (session) {
             if (!session.ok) {
                 handleReviewerNoAccess(session);
-            } else if (!session.demo) {
+            } else {
                 addReviewerSignOut(API);
             }
             return session;
@@ -273,8 +280,6 @@
             return s;
         });
     })();
-
-    var REVIEWER_LOGIN_URL = 'login.html';
 
     function handleReviewerNoAccess(session) {
         var reason = session && session.reason;
@@ -325,7 +330,7 @@
     }
     </script>
 
-    <!-- Incomplete Assessments: live data via RequityAPI, demo samples otherwise. -->
+    <!-- Incomplete Assessments: live data via RequityAPI only. -->
     <script>
     (function () {
         var listEl = document.getElementById('leads-list');
@@ -334,12 +339,6 @@
         var sourceEl = document.getElementById('leads-filter-source');
         var searchEl = document.getElementById('leads-search');
         var searchTimer = null;
-
-        var SAMPLE = [
-            { id: 'sample-1', full_name: 'Jordan Avery', email: 'jordan.avery@email.com', phone: '(555) 014-2231', source: 'reviewer', status: 'in_progress', started_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(), last_activity_at: new Date(Date.now() - 40 * 60 * 1000).toISOString(), answered_count: 7, archetype: null, agent_name: null, notes: null },
-            { id: 'sample-2', full_name: 'Riley Chen', email: 'riley.chen@email.com', phone: '(555) 220-8890', source: 'qr', status: 'started', started_at: new Date(Date.now() - 26 * 3600 * 1000).toISOString(), last_activity_at: new Date(Date.now() - 25 * 3600 * 1000).toISOString(), answered_count: 2, archetype: null, agent_name: 'Taylor Brooks', notes: null },
-            { id: 'sample-3', full_name: 'Morgan Diaz', email: 'morgan.diaz@email.com', phone: '(555) 771-3360', source: 'agent_link', status: 'abandoned', started_at: new Date(Date.now() - 50 * 3600 * 1000).toISOString(), last_activity_at: new Date(Date.now() - 48 * 3600 * 1000).toISOString(), answered_count: 11, archetype: 'The Planner', agent_name: 'Jamie Rivera', notes: 'Left a voicemail, awaiting callback.' }
-        ];
 
         function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
         function fmtDate(s) { if (!s) return '—'; try { var d = new Date(s); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return s; } }
@@ -380,9 +379,8 @@
             });
         }
 
-        function isLive() { return window.RequityAPI && !window.RequityAPI.isDemoMode(); }
-
         function onAction(lead, act) {
+            if (!window.RequityAPI) return;
             var payload = { leadId: lead.id };
             if (act === 'note') {
                 var note = prompt('Follow-up note for ' + (lead.full_name || 'lead') + ':', lead.notes || '');
@@ -391,38 +389,25 @@
             } else {
                 payload.status = act;
             }
-            if (!isLive()) {
-                if (payload.status) lead.status = payload.status;
-                if (payload.notes != null) lead.notes = payload.notes;
-                load();
-                return;
-            }
             Promise.resolve(window.RequityAPI.updateReviewerAssessmentLead(payload)).then(load).catch(function (e) { console.warn(e); });
         }
 
         function filters() { return { status: statusEl.value || null, source: sourceEl.value || null, search: (searchEl.value || '').trim() || null, limit: 100 }; }
 
         function loadInner() {
-            if (!isLive()) {
-                var f = filters();
-                var rows = SAMPLE.filter(function (l) {
-                    return (!f.status || l.status === f.status) &&
-                        (!f.source || l.source === f.source) &&
-                        (!f.search || (l.full_name + ' ' + l.email + ' ' + l.phone).toLowerCase().indexOf(f.search.toLowerCase()) >= 0);
-                });
-                render(rows);
-                return;
-            }
+            if (!window.RequityAPI) return;
             Promise.resolve(window.RequityAPI.fetchReviewerAssessmentLeads(filters())).then(function (leads) {
-                render(leads === null ? SAMPLE : leads);
-            }).catch(function () { render(SAMPLE); });
+                render(leads || []);
+            }).catch(function () {
+                listEl.innerHTML = '<div class="leads-empty">We could not load incomplete assessments. Please refresh or try again later.</div>';
+            });
         }
 
-        // Only load once the auth gate confirms access (or there is no gate).
+        // Only load once the auth gate confirms reviewer/admin access.
         function load() {
-            var gate = window.__reviewerGate || Promise.resolve({ ok: true, demo: true });
+            var gate = window.__reviewerGate || Promise.resolve({ ok: false });
             Promise.resolve(gate).then(function (g) {
-                if (g && g.ok === false) return; // blocked: never render data
+                if (!g || g.ok === false) return; // blocked: never render data
                 loadInner();
             });
         }

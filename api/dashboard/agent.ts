@@ -16,8 +16,7 @@ const ROUTE = "dashboard/agent";
 /**
  * GET /api/dashboard/agent?agentId=...
  * Requires agent auth. An agent may only load their own dashboard; admins may
- * load any agentId. Demo mode (NODE_ENV !== production) falls back to the query
- * param so the static demo keeps working locally.
+ * load any agentId via the query param.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {
@@ -26,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const profile = await requireAgent(req);
     let agentId: string;
-    if (profile.role === "admin" || profile.demo) {
+    if (profile.role === "admin") {
       agentId = requireQueryParam(req, "agentId");
     } else if (profile.agentId) {
       agentId = profile.agentId;

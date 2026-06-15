@@ -91,13 +91,16 @@ and filling in the **public** values only:
 
 ```js
 window.REQUITY_CONFIG = {
-  demoMode: false,
   apiBaseUrl: "/api",
   supabaseUrl: "https://YOUR-PROJECT.supabase.co",
   supabaseAnonKey: "YOUR-ANON-PUBLIC-KEY",
   frontendUrl: "https://YOUR-APP.vercel.app",
 };
 ```
+
+> Real Supabase credentials are required. Agent and reviewer dashboards need a
+> Supabase Auth session; there is no demo mode. If `config.js` is missing or
+> blank, treat the setup as incomplete and verify it with the health endpoints.
 
 > `config.js` only ever holds PUBLIC values. The service role key never goes here.
 

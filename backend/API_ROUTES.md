@@ -2,9 +2,9 @@
 
 Secure Vercel serverless functions in `api/`. All routes use the Supabase
 **service role key** on the server only (via `backend/lib/supabaseAdmin.ts`); the
-key is never sent to the browser. The static frontend calls these routes when
-`apiBaseUrl` is configured, and falls back to Supabase REST (anon) / demo data
-otherwise.
+key is never sent to the browser. The static frontend always calls these routes
+via `apiBaseUrl` (usually `/api`). Real Supabase credentials are required; there
+is no demo mode or sample-data fallback.
 
 Conventions:
 - JSON in / JSON out. Errors: `{ "error": string }` with a 4xx/5xx status.

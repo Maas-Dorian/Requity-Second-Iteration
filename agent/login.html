@@ -102,12 +102,6 @@
     .auth-foot a { color: var(--primary-blue); text-decoration: none; font-weight: 600; }
     .auth-foot a:hover { text-decoration: underline; }
 
-    .demo-note {
-      margin-top: 1rem; padding: 0.85rem; border-radius: var(--radius-sm); background: var(--soft-blue);
-      color: var(--secondary-text); font-size: 0.82rem; text-align: center;
-    }
-    .demo-note a { color: var(--primary-blue); font-weight: 600; text-decoration: none; }
-
     .role-switch { display: none; text-align: center; }
     .role-switch.show { display: block; }
     .role-switch p { color: var(--secondary-text); font-size: 0.92rem; margin-bottom: 1.1rem; }
@@ -165,29 +159,15 @@
           <label for="su-password">Password</label>
           <input type="password" id="su-password" autocomplete="new-password" minlength="8" required />
         </div>
-        <div class="row">
-          <div class="field">
-            <label for="su-phone">Phone <span class="opt">(optional)</span></label>
-            <input type="tel" id="su-phone" autocomplete="tel" />
-          </div>
-          <div class="field">
-            <label for="su-brokerage">Brokerage <span class="opt">(optional)</span></label>
-            <input type="text" id="su-brokerage" />
-          </div>
-        </div>
         <div class="field">
-          <label for="su-license">License number <span class="opt">(optional)</span></label>
-          <input type="text" id="su-license" />
+          <label for="su-phone">Phone <span class="opt">(optional)</span></label>
+          <input type="tel" id="su-phone" autocomplete="tel" />
         </div>
         <button class="btn-primary" type="submit" id="signup-btn">Create agent account</button>
       </form>
 
       <div class="auth-foot">
         <span>New to REQUITY? <a href="#" id="to-signup">Create an account</a></span>
-      </div>
-
-      <div class="demo-note" id="demo-note" style="display:none;">
-        Demo mode is on — no account needed. <a href="dashboard.html">Continue to dashboard &rarr;</a>
       </div>
     </div>
   </div>
@@ -217,11 +197,6 @@
       tabs.forEach(function (t) { t.addEventListener("click", function () { setTab(t.dataset.tab); }); });
       document.getElementById("to-signup").addEventListener("click", function (e) { e.preventDefault(); setTab("signup"); });
 
-      // Show demo affordance when no backend/demo is configured.
-      if (!API || API.isDemoAllowed()) {
-        document.getElementById("demo-note").style.display = "block";
-      }
-
       function showReviewerSwitch() {
         clearMsg();
         // Hide the auth forms/tabs and present a clean "go to reviewer portal" panel.
@@ -229,7 +204,6 @@
         signinForm.classList.remove("active");
         signupForm.classList.remove("active");
         document.querySelector(".auth-foot").style.display = "none";
-        document.getElementById("demo-note").style.display = "none";
         document.getElementById("role-switch").classList.add("show");
       }
 
@@ -264,8 +238,6 @@
         var profile = {
           fullName: document.getElementById("su-name").value.trim(),
           phone: document.getElementById("su-phone").value.trim() || null,
-          brokerage: document.getElementById("su-brokerage").value.trim() || null,
-          licenseNumber: document.getElementById("su-license").value.trim() || null,
         };
         try {
           var result = await API.signUpAgent(

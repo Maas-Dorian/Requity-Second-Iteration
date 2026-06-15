@@ -13,10 +13,10 @@ frontend/shared/api.js    →  reviewerMatches / matching            → Brevo
                              messages / emailEvents                → email_events
 ```
 
-The static frontend talks to `frontend/shared/api.js`, which either calls
-Supabase REST (or a future `apiBaseUrl`) or falls back to **demo mode** when no
-config is present. The TypeScript modules in `backend/lib` are the authoritative,
-Supabase-ready service layer to wire into Edge Functions / API routes.
+The static frontend talks to `frontend/shared/api.js`, which calls the secure
+`/api` routes (`apiBaseUrl`). Real Supabase credentials are required — there is
+no demo mode. The TypeScript modules in `backend/lib` are the authoritative,
+Supabase-ready service layer used by the API routes.
 
 ## Supabase tables used
 
@@ -147,8 +147,8 @@ Dedupe / safety rules (`backend/lib/assessmentLeads.ts`):
 `GET /api/reviewer/assessment-leads` (reviewer/admin auth). It shows name, email,
 phone, source badge, status badge, started/last-activity, answered count, assigned
 agent (qr/agent_link), archetype if known, and notes. Actions (Mark Followed Up /
-Mark Abandoned / Add Note) call `POST /api/reviewer/assessment-leads/update`. When
-no API is configured, the section renders clean sample rows in demo mode.
+Mark Abandoned / Add Note) call `POST /api/reviewer/assessment-leads/update`. If
+the data cannot load, the section shows an error/empty state (no sample rows).
 
 **Follow-up email (disabled):** `createIncompleteAssessmentFollowUpDraft()` and
 `sendIncompleteAssessmentFollowUpEmail()` in `assessmentLeads.ts` are placeholders

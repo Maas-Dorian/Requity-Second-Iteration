@@ -463,7 +463,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         resultCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-    // Supabase-ready submission (demo fallback if config missing)
+    // Submit via the secure API (requires real config; no demo fallback)
     function submitAgentAssessment(result) {
         if (!window.RequityAPI) return;
         const payload = {

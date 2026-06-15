@@ -1,9 +1,13 @@
 /*
  * REQUITY frontend API helper (plain JS, no build step).
  *
- * Exposes `window.RequityAPI`. Every function tries the configured backend
- * (Supabase REST or an apiBaseUrl) and gracefully falls back to DEMO MODE when
- * config is missing or a request fails, so the static demo pages always work.
+ * Exposes `window.RequityAPI`. Every function talks to the secure backend:
+ *  - public assessment flows POST to the /api routes (service role stays server-side),
+ *  - agent/reviewer auth uses Supabase Auth (browser anon key) + the /api/auth routes.
+ *
+ * Real Supabase/API config is REQUIRED. There is no demo mode: when config is
+ * missing a clear setup error is thrown, and when a request fails the caller is
+ * expected to surface a real error/empty state (never synthetic sample data).
  *
  * Source rules mirrored from the backend:
  *  - QR / agent-link clients (source 'qr') attach to the agent, no reviewer queue.
@@ -20,19 +24,18 @@
       supabaseAnonKey: cfg.supabaseAnonKey || "",
       apiBaseUrl: cfg.apiBaseUrl || "",
       frontendUrl: cfg.frontendUrl || global.location.origin,
-      demoMode: cfg.demoMode === true,
     };
   }
 
-  // True only when no backend is configured at all (pure static demo).
-  function isDemoMode() {
+  // Throws a clear setup error when the secure API base URL is not configured.
+  function requireApi() {
     var c = getSupabaseConfig();
-    return !c.apiBaseUrl && (!c.supabaseUrl || !c.supabaseAnonKey);
-  }
-
-  // True when demo fallback is explicitly allowed, or no backend is configured.
-  function isDemoAllowed() {
-    return getSupabaseConfig().demoMode || isDemoMode();
+    if (!c.apiBaseUrl) {
+      throw new Error(
+        "REQUITY is not configured. Set apiBaseUrl (usually \"/api\") in frontend/shared/config.js."
+      );
+    }
+    return c;
   }
 
   // --- Supabase Auth session ---------------------------------------------
@@ -97,38 +100,6 @@
   }
 
   // --- Low-level transport ------------------------------------------------
-  function restHeaders(extra) {
-    var c = getSupabaseConfig();
-    var headers = {
-      "Content-Type": "application/json",
-      apikey: c.supabaseAnonKey,
-      Authorization: "Bearer " + c.supabaseAnonKey,
-    };
-    if (extra) Object.keys(extra).forEach(function (k) { headers[k] = extra[k]; });
-    return headers;
-  }
-
-  async function restInsert(table, row) {
-    var c = getSupabaseConfig();
-    var res = await fetch(c.supabaseUrl + "/rest/v1/" + table, {
-      method: "POST",
-      headers: restHeaders({ Prefer: "return=representation" }),
-      body: JSON.stringify(row),
-    });
-    if (!res.ok) throw new Error("Supabase insert " + table + " failed: " + res.status);
-    var data = await res.json();
-    return Array.isArray(data) ? data[0] : data;
-  }
-
-  async function restSelect(table, query) {
-    var c = getSupabaseConfig();
-    var res = await fetch(c.supabaseUrl + "/rest/v1/" + table + "?" + (query || ""), {
-      method: "GET",
-      headers: restHeaders(),
-    });
-    if (!res.ok) throw new Error("Supabase select " + table + " failed: " + res.status);
-    return res.json();
-  }
 
   // Attaches Authorization: Bearer <token> when a Supabase session exists.
   async function withAuthHeaders(headers) {
@@ -139,7 +110,7 @@
   }
 
   async function apiPost(path, body) {
-    var c = getSupabaseConfig();
+    var c = requireApi();
     var headers = await withAuthHeaders({ "Content-Type": "application/json" });
     var res = await fetch(c.apiBaseUrl.replace(/\/$/, "") + path, {
       method: "POST",
@@ -151,7 +122,7 @@
   }
 
   async function apiGet(path) {
-    var c = getSupabaseConfig();
+    var c = requireApi();
     var headers = await withAuthHeaders({});
     var res = await fetch(c.apiBaseUrl.replace(/\/$/, "") + path, { method: "GET", headers: headers });
     if (!res.ok) throw new Error("API " + path + " failed: " + res.status);
@@ -234,209 +205,55 @@
   /**
    * Create a shareable client assessment link/token for an agent or reviewer flow.
    * payload: { source:"qr"|"agent_link"|"reviewer", agentId?, agentToken?, frontendUrl? }
-   * Returns: { demo, token, surveyUrl, source, agentId }
+   * Returns the API response: { token, surveyUrl, source, agentId }
    */
   async function createClientAssessmentLink(payload) {
-    var c = getSupabaseConfig();
-    if (c.apiBaseUrl) {
-      try {
-        return Object.assign({ demo: false }, await apiPost("/client-assessment/create", payload));
-      } catch (err) {
-        console.warn("[RequityAPI] createClientAssessmentLink failed:", err.message);
-      }
-    }
-    // Demo / fallback: build a best-effort local link.
-    var base = (c.frontendUrl || global.location.origin).replace(/\/$/, "");
-    var token = "demo-" + Math.random().toString(36).slice(2, 10);
-    var qp = payload.agentToken ? "agent=" + encodeURIComponent(payload.agentToken) : "token=" + token;
-    return {
-      demo: true,
-      token: token,
-      surveyUrl: base + "/client/assessment.html?" + qp + "&source=" + (payload.source || "reviewer"),
-      source: payload.source || "reviewer",
-      agentId: payload.agentId || null,
-    };
-  }
-
-  // Map an API-style source to the database client_source enum.
-  function dbSourceOf(source) {
-    return source === "reviewer" ? "requity_reviewer" : "qr";
+    return apiPost("/client-assessment/create", payload);
   }
 
   /**
-   * Submit a client assessment. Prefers /api routes, then Supabase REST, then demo.
-   * payload: { token?, contact:{fullName,email,phone,dateOfBirth}, answers:{}, source, agentId, agentToken }
-   * Returns: { demo, archetype, orientation, style, stressResponse, source, status }
+   * Submit a client assessment via the secure API. Throws on failure so the
+   * caller can show a real error state.
+   * payload: { token?, contact:{fullName,email,phone,dateOfBirth}, answers:{}, source, agentId, agentToken, leadId? }
+   * Returns: { archetype, orientation, style, stressResponse, source, status, ... }
    */
   async function submitClientAssessment(payload) {
     var source = payload.source || "reviewer";
     var result = calculateClientArchetype(payload.answers || {});
-    var base = {
-      archetype: result.archetype,
-      orientation: result.orientation,
-      style: result.style,
-      stressResponse: result.stressResponse,
-      source: source,
-      status: source === "reviewer" ? "reviewer_matching" : "assigned",
-    };
-
-    if (isDemoMode()) return Object.assign({ demo: true }, base);
-
-    var c = getSupabaseConfig();
-    // Preferred path: secure API route (service role stays on the server).
-    if (c.apiBaseUrl) {
-      try {
-        return Object.assign({ demo: false }, await apiPost("/client-assessment/submit",
-          Object.assign({ result: result }, payload)));
-      } catch (err) {
-        console.warn("[RequityAPI] submitClientAssessment API failed, trying REST:", err.message);
-      }
-    }
-    // Fallback: direct Supabase REST (local demo / no API configured).
-    try {
-      var dbSource = dbSourceOf(source);
-      var assignedAgentId = source !== "reviewer" ? (payload.agentId || null) : null;
-      var client = await restInsert("clients", {
-        assigned_agent_id: assignedAgentId,
-        source: dbSource,
-        full_name: payload.contact.fullName,
-        email: payload.contact.email || null,
-        phone: payload.contact.phone || null,
-        date_of_birth: payload.contact.dateOfBirth || null,
-        archetype: result.archetype,
-        orientation: result.orientation,
-        style: result.style,
-        stress_response: result.stressResponse,
-        status: base.status,
-      });
-      await restInsert("assessments", {
-        client_id: client.id,
-        agent_id: assignedAgentId,
-        assessment_type: "client",
-        answers: payload.answers || {},
-        result: result,
-        status: "completed",
-        completed_at: new Date().toISOString(),
-      });
-      return Object.assign({ demo: false, clientId: client.id }, base);
-    } catch (err) {
-      console.warn("[RequityAPI] submitClientAssessment fell back to demo:", err.message);
-      return Object.assign({ demo: true, error: err.message }, base);
-    }
+    return apiPost("/client-assessment/submit", Object.assign({ result: result, source: source }, payload));
   }
 
   /**
-   * Submit an agent assessment.
+   * Submit an agent assessment via the secure API. Throws on failure.
    * payload: { contact:{name,email,phone,dateOfBirth}, answers:{}, result:{archetype,...} }
    */
   async function submitAgentAssessment(payload) {
-    var result = payload.result || {};
-    var base = { archetype: result.archetype || "Relationship-Fit Agent" };
-
-    if (isDemoMode()) return Object.assign({ demo: true }, base);
-
-    var c = getSupabaseConfig();
-    if (c.apiBaseUrl) {
-      try {
-        return Object.assign({ demo: false }, await apiPost("/agent-assessment/submit", payload));
-      } catch (err) {
-        console.warn("[RequityAPI] submitAgentAssessment API failed, trying REST:", err.message);
-      }
-    }
-    try {
-      var agent = await restInsert("agents", {
-        display_name: payload.contact.name,
-        email: payload.contact.email,
-        phone: payload.contact.phone || null,
-        archetype: result.archetype || null,
-        interaction_style: result.interactionStyle || null,
-        focus: result.focus || null,
-        stress_response: result.stressResponse || null,
-        perceived_value: result.perceivedValue || null,
-        negotiation_style: result.negotiationStyle || null,
-      });
-      await restInsert("assessments", {
-        agent_id: agent.id,
-        assessment_type: "agent",
-        answers: payload.answers || {},
-        result: result,
-        status: "completed",
-        completed_at: new Date().toISOString(),
-      });
-      return Object.assign({ demo: false, agentId: agent.id }, base);
-    } catch (err) {
-      console.warn("[RequityAPI] submitAgentAssessment fell back to demo:", err.message);
-      return Object.assign({ demo: true, error: err.message }, base);
-    }
+    return apiPost("/agent-assessment/submit", payload);
   }
 
-  /** Full dashboard payload. Returns null in demo mode (keep existing UI). */
+  /** Full dashboard payload for an agent. Throws on failure. */
   async function fetchAgentDashboard(agentId) {
-    if (isDemoMode() || !agentId) return null;
-    var c = getSupabaseConfig();
-    try {
-      if (c.apiBaseUrl) return await apiGet("/dashboard/agent?agentId=" + encodeURIComponent(agentId));
-      var clients = await restSelect(
-        "clients",
-        "assigned_agent_id=eq." + agentId + "&select=id,status,source"
-      );
-      return { clientAssessmentDetail: clients };
-    } catch (err) {
-      console.warn("[RequityAPI] fetchAgentDashboard demo fallback:", err.message);
-      return null;
-    }
+    if (!agentId) return null;
+    return apiGet("/dashboard/agent?agentId=" + encodeURIComponent(agentId));
   }
 
-  /** Client assessments assigned to an agent. Returns array or null (demo). */
+  /** Client assessments assigned to an agent. Returns an array. Throws on failure. */
   async function fetchClientAssessments(agentId) {
-    if (isDemoMode() || !agentId) return null;
-    var c = getSupabaseConfig();
-    try {
-      if (c.apiBaseUrl) {
-        var dash = await apiGet("/dashboard/agent?agentId=" + encodeURIComponent(agentId));
-        return (dash && dash.clientAssessmentDetail) || [];
-      }
-      return await restSelect(
-        "clients",
-        "assigned_agent_id=eq." + agentId +
-          "&select=*,assessments(*)&order=created_at.desc"
-      );
-    } catch (err) {
-      console.warn("[RequityAPI] fetchClientAssessments demo fallback:", err.message);
-      return null;
-    }
+    if (!agentId) return [];
+    var dash = await apiGet("/dashboard/agent?agentId=" + encodeURIComponent(agentId));
+    return (dash && dash.clientAssessmentDetail) || [];
   }
 
-  /** Agent notifications. Returns array or null (demo). */
+  /** Agent notifications. Returns an array. Throws on failure. */
   async function fetchMessages(agentId) {
-    if (isDemoMode() || !agentId) return null;
-    var c = getSupabaseConfig();
-    try {
-      if (c.apiBaseUrl) {
-        var data = await apiGet("/messages/list?agentId=" + encodeURIComponent(agentId));
-        return (data && data.messages) || [];
-      }
-      return await restSelect(
-        "messages",
-        "agent_id=eq." + agentId + "&select=*&order=created_at.desc"
-      );
-    } catch (err) {
-      console.warn("[RequityAPI] fetchMessages demo fallback:", err.message);
-      return null;
-    }
+    if (!agentId) return [];
+    var data = await apiGet("/messages/list?agentId=" + encodeURIComponent(agentId));
+    return (data && data.messages) || [];
   }
 
-  /** Mark a single notification read. Prefers the API route. */
+  /** Mark a single notification read. Throws on failure. */
   async function markNotificationRead(messageId) {
-    var c = getSupabaseConfig();
-    if (c.apiBaseUrl) {
-      try {
-        return await apiPost("/messages/mark-read", { messageId: messageId });
-      } catch (err) {
-        console.warn("[RequityAPI] markNotificationRead API failed:", err.message);
-      }
-    }
-    return { demo: true, messageId: messageId };
+    return apiPost("/messages/mark-read", { messageId: messageId });
   }
 
   // --- Incomplete assessment lead capture ---------------------------------
@@ -444,38 +261,29 @@
   /**
    * Start (or reuse) an incomplete lead when the client begins the assessment.
    * payload: { source, fullName, email, phone?, agentId?, agentToken?, reviewerId? }
-   * Returns: { demo, leadId } — never throws (lead capture must not block the flow).
+   * Best-effort: returns { leadId } or null on failure (must not block the flow).
    */
   async function startAssessmentLead(payload) {
-    var c = getSupabaseConfig();
-    if (c.apiBaseUrl) {
-      try {
-        var data = await apiPost("/assessment-leads/start", payload);
-        return Object.assign({ demo: false }, data);
-      } catch (err) {
-        console.warn("[RequityAPI] startAssessmentLead failed:", err.message);
-      }
+    try {
+      return await apiPost("/assessment-leads/start", payload);
+    } catch (err) {
+      console.warn("[RequityAPI] startAssessmentLead failed:", err.message);
+      return null;
     }
-    return { demo: true, leadId: "demo-lead-" + Math.random().toString(36).slice(2, 10) };
   }
 
   /**
-   * Update incomplete-lead progress. Best-effort; ignores demo leads and errors.
+   * Update incomplete-lead progress. Best-effort; ignores missing leadId and errors.
    * payload: { leadId, answeredCount?, partialAnswers?, archetype? }
    */
   async function updateAssessmentLeadProgress(payload) {
-    var c = getSupabaseConfig();
-    if (!payload || !payload.leadId || String(payload.leadId).indexOf("demo-lead-") === 0) {
-      return { demo: true };
+    if (!payload || !payload.leadId) return null;
+    try {
+      return await apiPost("/assessment-leads/progress", payload);
+    } catch (err) {
+      console.warn("[RequityAPI] updateAssessmentLeadProgress failed:", err.message);
+      return null;
     }
-    if (c.apiBaseUrl) {
-      try {
-        return await apiPost("/assessment-leads/progress", payload);
-      } catch (err) {
-        console.warn("[RequityAPI] updateAssessmentLeadProgress failed:", err.message);
-      }
-    }
-    return { demo: true };
   }
 
   /**
@@ -483,61 +291,35 @@
    * but exposed for direct use. Best-effort.
    */
   async function completeAssessmentLead(payload) {
-    var c = getSupabaseConfig();
-    if (c.apiBaseUrl) {
-      try {
-        return await apiPost("/assessment-leads/complete", payload);
-      } catch (err) {
-        console.warn("[RequityAPI] completeAssessmentLead failed:", err.message);
-      }
+    try {
+      return await apiPost("/assessment-leads/complete", payload);
+    } catch (err) {
+      console.warn("[RequityAPI] completeAssessmentLead failed:", err.message);
+      return null;
     }
-    return { demo: true };
   }
 
   /**
-   * Reviewer: list incomplete/assessment leads. Returns array or null (demo).
+   * Reviewer: list incomplete/assessment leads. Returns an array. Throws on failure.
    * filters: { status?, source?, search?, limit? }
    */
   async function fetchReviewerAssessmentLeads(filters) {
-    if (isDemoMode()) return null;
-    var c = getSupabaseConfig();
     var f = filters || {};
     var qs = [];
     if (f.status) qs.push("status=" + encodeURIComponent(f.status));
     if (f.source) qs.push("source=" + encodeURIComponent(f.source));
     if (f.search) qs.push("search=" + encodeURIComponent(f.search));
     if (f.limit) qs.push("limit=" + encodeURIComponent(f.limit));
-    try {
-      if (c.apiBaseUrl) {
-        var data = await apiGet("/reviewer/assessment-leads" + (qs.length ? "?" + qs.join("&") : ""));
-        return (data && data.leads) || [];
-      }
-      return await restSelect(
-        "assessment_leads",
-        "select=*&order=last_activity_at.desc" +
-          (f.status ? "&status=eq." + encodeURIComponent(f.status) : "") +
-          (f.source ? "&source=eq." + encodeURIComponent(f.source) : "")
-      );
-    } catch (err) {
-      console.warn("[RequityAPI] fetchReviewerAssessmentLeads demo fallback:", err.message);
-      return null;
-    }
+    var data = await apiGet("/reviewer/assessment-leads" + (qs.length ? "?" + qs.join("&") : ""));
+    return (data && data.leads) || [];
   }
 
   /**
-   * Reviewer: update a lead's follow-up status and/or notes.
+   * Reviewer: update a lead's follow-up status and/or notes. Throws on failure.
    * payload: { leadId, status?, notes? }
    */
   async function updateReviewerAssessmentLead(payload) {
-    var c = getSupabaseConfig();
-    if (c.apiBaseUrl) {
-      try {
-        return await apiPost("/reviewer/assessment-leads/update", payload);
-      } catch (err) {
-        console.warn("[RequityAPI] updateReviewerAssessmentLead failed:", err.message);
-      }
-    }
-    return { demo: true };
+    return apiPost("/reviewer/assessment-leads/update", payload);
   }
 
   // --- Auth (Supabase Auth via REST) -------------------------------------
@@ -562,8 +344,6 @@
         data: {
           full_name: meta.fullName || null,
           phone: meta.phone || null,
-          brokerage: meta.brokerage || null,
-          license_number: meta.licenseNumber || null,
         },
       }),
     });
@@ -610,61 +390,48 @@
     return true;
   }
 
-  /** Returns { user, role, profile, agent, needsBootstrap } from /api/auth/me. */
+  /** Returns { user, role, profile, agent, needsBootstrap } from /api/auth/me, or null. */
   async function getCurrentUser() {
     if (!hasSession()) return null;
-    var c = getSupabaseConfig();
-    if (c.apiBaseUrl) {
-      try { return await apiGet("/api/auth/me"); }
-      catch (e) { return null; }
-    }
-    // No API configured: fall back to the locally stored user (no role known).
-    var s = getSession();
-    return s ? { user: s.user, role: null, profile: null, agent: null, needsBootstrap: true } : null;
+    try { return await apiGet("/auth/me"); }
+    catch (e) { return null; }
   }
 
-  /** Create/refresh the caller's profile + agent row. Requires a session. */
+  /** Create/refresh the caller's profile + agent row. Requires a session + API. */
   async function bootstrapAgentProfile(profile) {
-    var c = getSupabaseConfig();
-    if (!c.apiBaseUrl) return { demo: true };
+    var c = requireApi();
     var meta = profile || {};
-    return apiPost("/api/auth/bootstrap-agent", {
+    return apiPost("/auth/bootstrap-agent", {
       fullName: meta.fullName || null,
       phone: meta.phone || null,
-      brokerage: meta.brokerage || null,
-      licenseNumber: meta.licenseNumber || null,
       frontendUrl: c.frontendUrl,
     });
   }
 
   /**
    * Resolve the current session for an agent page.
-   * Returns { ok, demo, me } — { ok:false } means redirect to sign-in.
+   * Returns { ok, me } — { ok:false, reason } means redirect to sign-in.
    */
   async function requireAgentSession() {
-    if (!hasSession()) {
-      return isDemoAllowed() ? { ok: true, demo: true, me: null } : { ok: false, reason: "no_session" };
-    }
+    if (!hasSession()) return { ok: false, reason: "no_session" };
     var me = await getCurrentUser();
-    if (!me) return isDemoAllowed() ? { ok: true, demo: true, me: null } : { ok: false, reason: "no_session" };
+    if (!me) return { ok: false, reason: "no_session" };
     if (me.needsBootstrap) {
       try { await bootstrapAgentProfile(null); me = await getCurrentUser(); } catch (e) { /* ignore */ }
     }
-    if (me && (me.role === "agent" || me.role === "admin")) return { ok: true, demo: false, me: me };
+    if (me && (me.role === "agent" || me.role === "admin")) return { ok: true, me: me };
     return { ok: false, reason: "role_mismatch", me: me };
   }
 
   /**
    * Resolve the current session for the reviewer page.
-   * Returns { ok, demo, me } — { ok:false, reason } drives access-denied UI.
+   * Returns { ok, me } — { ok:false, reason } drives access-denied UI.
    */
   async function requireReviewerSession() {
-    if (!hasSession()) {
-      return isDemoAllowed() ? { ok: true, demo: true, me: null } : { ok: false, reason: "no_session" };
-    }
+    if (!hasSession()) return { ok: false, reason: "no_session" };
     var me = await getCurrentUser();
-    if (!me) return isDemoAllowed() ? { ok: true, demo: true, me: null } : { ok: false, reason: "no_session" };
-    if (me.role === "reviewer" || me.role === "admin") return { ok: true, demo: false, me: me };
+    if (!me) return { ok: false, reason: "no_session" };
+    if (me.role === "reviewer" || me.role === "admin") return { ok: true, me: me };
     return { ok: false, reason: "role_mismatch", me: me };
   }
 
@@ -683,8 +450,6 @@
 
   global.RequityAPI = {
     getSupabaseConfig: getSupabaseConfig,
-    isDemoMode: isDemoMode,
-    isDemoAllowed: isDemoAllowed,
     hasSession: hasSession,
     getAccessToken: getAccessToken,
     signUpAgent: signUpAgent,

@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Supabase-ready submission (demo fallback if config missing) ---
+    // --- Submit via the secure API (requires real config; no demo fallback) ---
     function getClientSource() {
         const params = new URLSearchParams(window.location.search);
         const token = params.get('token') || null;

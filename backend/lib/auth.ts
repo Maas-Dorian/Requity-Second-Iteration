@@ -6,9 +6,8 @@ import { getSupabaseAdmin } from "./supabaseAdmin";
  * Verifies a Supabase `Authorization: Bearer <access_token>` against Supabase
  * Auth (server-side, service role) and maps the user to a REQUITY profile/role.
  *
- * Demo mode: when no token is present AND NODE_ENV !== "production", the
- * `require*` helpers return a synthetic demo profile so local/static demos keep
- * working. In production a missing/invalid token is rejected.
+ * Auth is always required: a missing/invalid token returns 401 and an
+ * insufficient role returns 403. There is no demo bypass.
  */
 
 export type UserRole = "client" | "agent" | "reviewer" | "admin";
@@ -21,8 +20,6 @@ export type AuthedProfile = {
   role: UserRole;
   email: string | null;
   agentId: string | null;
-  /** True when this profile was synthesized for local demo mode. */
-  demo: boolean;
 };
 
 /** Minimal request shape so this module does not depend on @vercel/node. */
@@ -90,7 +87,6 @@ export async function mapSupabaseUserToProfile(
     role: profile.role as UserRole,
     email: profile.email ?? user.email,
     agentId,
-    demo: false,
   };
 }
 
@@ -100,41 +96,27 @@ async function resolveProfile(req: RequestLike): Promise<AuthedProfile | null> {
   return mapSupabaseUserToProfile(user);
 }
 
-function demoProfile(role: UserRole): AuthedProfile {
-  return {
-    userId: "demo-user",
-    profileId: "demo-profile",
-    role,
-    email: "demo@requity.app",
-    agentId: null,
-    demo: true,
-  };
-}
-
-async function requireRole(req: RequestLike, allowed: UserRole[], demoRole: UserRole) {
+async function requireRole(req: RequestLike, allowed: UserRole[]) {
   const profile = await resolveProfile(req);
-  if (profile) {
-    if (!allowed.includes(profile.role)) {
-      throw new AuthError(403, `Access denied. Requires one of: ${allowed.join(", ")}.`);
-    }
-    return profile;
+  // No valid token / no profile → always unauthenticated.
+  if (!profile) throw new AuthError(401, "Authentication required.");
+  if (!allowed.includes(profile.role)) {
+    throw new AuthError(403, `Access denied. Requires one of: ${allowed.join(", ")}.`);
   }
-  // No valid token.
-  if (!isProduction()) return demoProfile(demoRole);
-  throw new AuthError(401, "Authentication required.");
+  return profile;
 }
 
 /** Require an authenticated agent (admins also allowed). */
 export function requireAgent(req: RequestLike): Promise<AuthedProfile> {
-  return requireRole(req, ["agent", "admin"], "agent");
+  return requireRole(req, ["agent", "admin"]);
 }
 
 /** Require a reviewer (admins also allowed). */
 export function requireReviewer(req: RequestLike): Promise<AuthedProfile> {
-  return requireRole(req, ["reviewer", "admin"], "reviewer");
+  return requireRole(req, ["reviewer", "admin"]);
 }
 
 /** Require an admin. */
 export function requireAdmin(req: RequestLike): Promise<AuthedProfile> {
-  return requireRole(req, ["admin"], "admin");
+  return requireRole(req, ["admin"]);
 }

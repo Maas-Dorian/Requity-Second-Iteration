@@ -1031,10 +1031,10 @@
       </div>
       <div class="sidebar-bottom">
         <div class="agent-profile">
-          <div class="avatar">DA</div>
+          <div class="avatar">RE</div>
           <div class="agent-info">
-            <span class="agent-name">Demo Agent</span>
-            <span class="agent-email">demo@requity.app</span>
+            <span class="agent-name">Agent</span>
+            <span class="agent-email"></span>
           </div>
         </div>
       </div>
@@ -1043,7 +1043,7 @@
     <main class="main-content">
       <header class="top-bar">
         <div class="header-text">
-          <h1>Welcome back, Demo Agent</h1>
+          <h1>Welcome back</h1>
           <p>Share your client assessment and track client activity.</p>
         </div>
         <div class="header-actions">
@@ -1058,7 +1058,7 @@
           <div class="card-body">
             <p class="card-desc">Share this link with clients so they can complete your assessment intake. Clients who come through your QR code stay in your dashboard for you to manage directly; they are not sent to a REQUITY reviewer.</p>
             <div class="link-field-group">
-              <input type="text" readonly value="https://requity.app/survey/demo-agent" class="link-input" id="assessmentLink" />
+              <input type="text" readonly value="" placeholder="Your client assessment link will appear here" class="link-input" id="assessmentLink" />
               <button class="btn-secondary" id="copyLinkBtn">Copy link</button>
               <button class="btn-outline" id="openPreviewBtn">Open preview</button>
             </div>
@@ -1130,11 +1130,8 @@
               <thead>
                 <tr><th>Client</th><th>Status</th><th>Updated</th></tr>
               </thead>
-              <tbody>
-                <tr><td class="font-medium">Jordan Miller</td><td><span class="status-badge success">Assessment completed</span></td><td class="text-secondary">Today</td></tr>
-                <tr><td class="font-medium">Avery Collins</td><td><span class="status-badge pending">Profile saved</span></td><td class="text-secondary">Yesterday</td></tr>
-                <tr><td class="font-medium">Riley Morgan</td><td><span class="status-badge neutral">Link opened</span></td><td class="text-secondary">Jun 14</td></tr>
-                <tr><td class="font-medium">Casey Brooks</td><td><span class="status-badge active">Assessment started</span></td><td class="text-secondary">Jun 13</td></tr>
+              <tbody id="recent-updates-body">
+                <tr><td colspan="3" class="text-secondary" style="padding:1rem 1.5rem;">No client activity yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -1144,9 +1141,8 @@
           <div class="card-header"><h2>Messages</h2></div>
           <div class="card-body flex-grow">
             <p class="card-desc mb-4">REQUITY match notices, client assessment updates, and account notifications will appear here.</p>
-            <div class="message-list">
-              <div class="message-item"><div class="message-dot"></div><div class="message-content">You’ve received a client match from REQUITY!</div></div>
-              <div class="message-item"><div class="message-dot"></div><div class="message-content">Avery Collins completed the assessment.</div></div>
+            <div class="message-list" id="overview-message-list">
+              <div class="message-item"><div class="message-content text-secondary">No messages yet.</div></div>
             </div>
           </div>
           <div class="card-footer"><a href="#" class="link-action">View all messages &rarr;</a></div>
@@ -1160,186 +1156,10 @@
             <h2>Client Assessments</h2>
             <p>Detailed client profile activity, archetype guidance, dashboard status, and latest updates.</p>
           </div>
-          <span class="subtle-pill">Demo data</span>
         </div>
 
         <div class="client-detail-grid">
-
-          <article class="client-detail-card">
-            <div class="client-card-top">
-              <div>
-                <h3>Naomi Reed</h3>
-                <p>Client archetype: <strong>The Planner</strong></p>
-              </div>
-              <div class="client-status-stack">
-                <span class="requity-match-badge">REQUITY Client Match</span>
-                <span class="status-badge pending">Reviewer matched</span>
-              </div>
-            </div>
-            <div class="client-meta-grid">
-              <div><span>Decision style</span><strong>Careful, structured, evidence-led</strong></div>
-              <div><span>Communication</span><strong>Written summaries and clear next steps</strong></div>
-              <div><span>Support need</span><strong>Organization, timing, and reassurance</strong></div>
-              <div><span>Source</span><strong>Received from REQUITY reviewer</strong></div>
-            </div>
-            <div class="client-guidance-grid">
-              <div class="guidance-panel avoid-panel">
-                <div class="guidance-heading avoid-heading"><span class="x-mark">×</span> What to avoid with this client</div>
-                <div class="guidance-list">
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Do not rush the client into a decision without giving them time to compare options.</p></div>
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Avoid vague updates, missing details, or unclear timelines.</p></div>
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Do not rely on emotional urgency when the client needs structure and proof.</p></div>
-                </div>
-              </div>
-              <div class="guidance-panel recommended-panel">
-                <div class="guidance-heading recommended-heading"><span class="check-mark">✓</span> Recommended approach</div>
-                <div class="guidance-list">
-                  <div class="guidance-row"><span class="check-mark">✓</span><p>Send clear written recaps with deadlines, documents, and next steps.</p></div>
-                  <div class="guidance-row"><span class="check-mark">✓</span><p>Use comparison tables, practical reasoning, and calm guidance.</p></div>
-                </div>
-              </div>
-            </div>
-            <div class="client-update-list" style="margin-top:1rem;">
-              <div class="update-row"><span class="update-icon match"><svg viewBox="0 0 24 24"><path d="M12 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7-4.2-2.2L7.8 16l.8-4.7L5.2 8l4.7-.7L12 3z"/></svg></span><p>You’ve received a client match from REQUITY!</p></div>
-              <div class="update-row"><span class="update-icon mail"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span><p>If you have any issues, message requity@support.com.</p></div>
-              <div class="update-row"><span class="update-icon note"><svg viewBox="0 0 24 24"><path d="M8 7h8M8 11h8M8 15h5"/><rect x="4" y="3" width="16" height="18" rx="2"/></svg></span><p>Thank you for working with us.</p></div>
-            </div>
-          </article>
-          <article class="client-detail-card">
-            <div class="client-card-top">
-              <div>
-                <h3>Jordan Miller</h3>
-                <p>Client archetype: <strong>The Trailblazer</strong></p>
-              </div>
-              <span class="status-badge success">Assessment completed</span>
-            </div>
-            <div class="client-meta-grid">
-              <div><span>Decision style</span><strong>Fast, direct, action-oriented</strong></div>
-              <div><span>Communication</span><strong>Short, vivid updates</strong></div>
-              <div><span>Support need</span><strong>Momentum and confidence</strong></div>
-              <div><span>Source</span><strong>QR code client — stays in dashboard</strong></div>
-            </div>
-            <div class="client-guidance-grid">
-              <div class="guidance-panel avoid-panel">
-                <div class="guidance-heading avoid-heading"><span class="x-mark">×</span> What to avoid with this client</div>
-                <div class="guidance-list">
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Lengthy emails that overload working memory.</p></div>
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Frequent check-ins that interrupt their flow or reduce autonomy.</p></div>
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Too many options, detailed risk lists, or conservative advice that slows momentum.</p></div>
-                </div>
-              </div>
-              <div class="guidance-panel recommended-panel">
-                <div class="guidance-heading recommended-heading"><span class="check-mark">✓</span> Recommended approach</div>
-                <div class="guidance-list">
-                  <div class="guidance-row"><span class="check-mark">✓</span><p>Use short voice/video updates and bold, visual progress cues.</p></div>
-                  <div class="guidance-row"><span class="check-mark">✓</span><p>Present two or three clear choices with immediate next steps.</p></div>
-                </div>
-              </div>
-            </div>
-            <div class="client-update-list" style="margin-top:1rem;">
-              <div class="update-row"><span class="update-icon file"><svg viewBox="0 0 24 24"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/></svg></span><p>Assessment completed today.</p></div>
-              <div class="update-row"><span class="update-icon file"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><p>Relational profile is saved in your dashboard.</p></div>
-              <div class="update-row"><span class="update-icon lock"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><p>This QR client stays with you unless you request support.</p></div>
-            </div>
-          </article>
-
-          <article class="client-detail-card">
-            <div class="client-card-top">
-              <div>
-                <h3>Avery Collins</h3>
-                <p>Client archetype: <strong>The Harmonizer</strong></p>
-              </div>
-              <span class="status-badge pending">Profile saved</span>
-            </div>
-            <div class="client-meta-grid">
-              <div><span>Decision style</span><strong>Collaborative and relational</strong></div>
-              <div><span>Communication</span><strong>Gentle, supportive updates</strong></div>
-              <div><span>Support need</span><strong>Peace of mind and emotional clarity</strong></div>
-              <div><span>Source</span><strong>QR code client — stays in dashboard</strong></div>
-            </div>
-            <div class="client-guidance-grid">
-              <div class="guidance-panel avoid-panel">
-                <div class="guidance-heading avoid-heading"><span class="x-mark">×</span> What to avoid with this client</div>
-                <div class="guidance-list">
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Harsh, confrontational communication or pressure tactics.</p></div>
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Competitive bidding scenarios that create unnecessary anxiety or conflict.</p></div>
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Excluding family members or key stakeholders from important discussions.</p></div>
-                </div>
-              </div>
-              <div class="guidance-panel recommended-panel">
-                <div class="guidance-heading recommended-heading"><span class="check-mark">✓</span> Recommended approach</div>
-                <div class="guidance-list">
-                  <div class="guidance-row"><span class="check-mark">✓</span><p>Use calming reassurance and collaborative planning.</p></div>
-                  <div class="guidance-row"><span class="check-mark">✓</span><p>Give regular check-ins focused on comfort, trust, and clarity.</p></div>
-                </div>
-              </div>
-            </div>
-            <div class="client-update-list" style="margin-top:1rem;">
-              <div class="update-row"><span class="update-icon file"><svg viewBox="0 0 24 24"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/></svg></span><p>Assessment completed yesterday.</p></div>
-              <div class="update-row"><span class="update-icon file"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><p>Client profile is saved to your dashboard for follow-up.</p></div>
-              <div class="update-row"><span class="update-icon lock"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><p>This QR client was not routed to a reviewer.</p></div>
-            </div>
-          </article>
-
-          <article class="client-detail-card">
-            <div class="client-card-top">
-              <div>
-                <h3>Riley Morgan</h3>
-                <p>Client archetype: <strong>Pending</strong></p>
-              </div>
-              <span class="status-badge neutral">Link opened</span>
-            </div>
-            <div class="client-meta-grid">
-              <div><span>Decision style</span><strong>Not available yet</strong></div>
-              <div><span>Communication</span><strong>Waiting on assessment</strong></div>
-              <div><span>Support need</span><strong>Waiting on assessment</strong></div>
-              <div><span>Source</span><strong>QR code client — not sent to reviewer</strong></div>
-            </div>
-            <div class="client-guidance-grid">
-              <div class="guidance-panel avoid-panel">
-                <div class="guidance-heading avoid-heading"><span class="x-mark">×</span> What to avoid right now</div>
-                <div class="guidance-list">
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Do not assume their style before the assessment is complete.</p></div>
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Avoid pushing for decisions before REQUITY has a relational profile.</p></div>
-                </div>
-              </div>
-            </div>
-            <div class="client-update-list" style="margin-top:1rem;">
-              <div class="update-row"><span class="update-icon mail"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><p>Client opened the assessment link on Jun 14.</p></div>
-              <div class="update-row"><span class="update-icon wait"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><p>Client has not started the assessment yet.</p></div>
-              <div class="update-row"><span class="update-icon wait"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><p>No archetype is available yet.</p></div>
-            </div>
-          </article>
-
-          <article class="client-detail-card">
-            <div class="client-card-top">
-              <div>
-                <h3>Casey Brooks</h3>
-                <p>Client archetype: <strong>In progress</strong></p>
-              </div>
-              <span class="status-badge active">Assessment started</span>
-            </div>
-            <div class="client-meta-grid">
-              <div><span>Decision style</span><strong>Partially captured</strong></div>
-              <div><span>Communication</span><strong>Partially captured</strong></div>
-              <div><span>Support need</span><strong>Assessment incomplete</strong></div>
-              <div><span>Source</span><strong>QR code client — not sent to reviewer</strong></div>
-            </div>
-            <div class="client-guidance-grid">
-              <div class="guidance-panel avoid-panel">
-                <div class="guidance-heading avoid-heading"><span class="x-mark">×</span> What to avoid right now</div>
-                <div class="guidance-list">
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Do not over-interpret partial answers or create a fit recommendation early.</p></div>
-                  <div class="guidance-row"><span class="x-mark">×</span><p>Avoid treating the client as fully understood until submission is complete.</p></div>
-                </div>
-              </div>
-            </div>
-            <div class="client-update-list" style="margin-top:1rem;">
-              <div class="update-row"><span class="update-icon file"><svg viewBox="0 0 24 24"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/></svg></span><p>Assessment started on Jun 13.</p></div>
-              <div class="update-row"><span class="update-icon wait"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><p>Client has not submitted final answers yet.</p></div>
-              <div class="update-row"><span class="update-icon lock"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><p>The completed profile will stay in your dashboard after submission.</p></div>
-            </div>
-          </article>
+          <p class="card-desc" id="clients-empty">No client assessments yet. Share your assessment link to start collecting clients.</p>
         </div>
       </section>
 
@@ -1353,36 +1173,7 @@
         </div>
         <div class="messages-shell card">
           <div class="notification-thread">
-            <div class="notification-message priority">
-              <span class="message-time">Today, 10:24 AM</span>
-              <h3>You’ve received a client match from REQUITY!</h3>
-              <p>You’ve received a client match from REQUITY! If you have any issues, message requity@support.com. Thank you for working with us.</p>
-            </div>
-            <div class="notification-message priority">
-              <span class="message-time">Today, 9:42 AM</span>
-              <h3>Jordan Miller assessment completed</h3>
-              <p>The client assessment has been completed and saved to your dashboard. This client came from your QR code, so they remain assigned to you.</p>
-            </div>
-            <div class="notification-message">
-              <span class="message-time">Today, 8:18 AM</span>
-              <h3>Your Agent Archetype is ready</h3>
-              <p>Your assessment is complete. Your Agent Archetype will help REQUITY understand your strengths when future client matches are reviewed.</p>
-            </div>
-            <div class="notification-message">
-              <span class="message-time">Yesterday, 4:05 PM</span>
-              <h3>Avery Collins completed the assessment</h3>
-              <p>The client profile has been saved in your dashboard. This QR client is yours to follow up with directly.</p>
-            </div>
-            <div class="notification-message">
-              <span class="message-time">Jun 14, 2:20 PM</span>
-              <h3>Riley Morgan opened the assessment link</h3>
-              <p>The client has viewed your shared assessment link but has not started the assessment yet.</p>
-            </div>
-            <div class="notification-message">
-              <span class="message-time">Jun 13, 11:11 AM</span>
-              <h3>Casey Brooks started the assessment</h3>
-              <p>Answers are being collected. The client profile will update after submission.</p>
-            </div>
+            <div class="notification-message"><p id="messages-empty">No messages yet. REQUITY notifications and client activity will appear here.</p></div>
           </div>
           <div class="message-readonly-note">This inbox is read-only. REQUITY notifications, client activity, and match updates will appear here automatically.</div>
         </div>
@@ -1399,8 +1190,8 @@
         <div class="settings-grid">
           <article class="settings-card card">
             <h3>Account email</h3>
-            <p>Current login email connected to the demo agent account.</p>
-            <div class="settings-field">demo@requity.app</div>
+            <p>The login email connected to your REQUITY agent account.</p>
+            <div class="settings-field" id="settings-account-email">—</div>
             <button class="btn-secondary settings-action" data-toast="Email reset link sent.">Send email reset link</button>
           </article>
           <article class="settings-card card">
@@ -1421,7 +1212,7 @@
           <article class="settings-card card">
             <h3>Connected Supabase account</h3>
             <p>The Supabase identity this dashboard is linked to once login is wired.</p>
-            <div class="settings-field" id="supabase-account-field">Not connected (demo mode)</div>
+            <div class="settings-field" id="supabase-account-field">Not connected</div>
             <button class="btn-secondary settings-action" data-toast="Supabase connection is configured via environment variables.">Manage connection</button>
           </article>
         </div>
@@ -1431,7 +1222,7 @@
 
   <div id="toast-container"></div>
 
-  <!-- Optional Supabase config (copy frontend/shared/config.example.js to config.js). Falls back to demo mode if absent. -->
+  <!-- Supabase config (copy frontend/shared/config.example.js to config.js with real public values). -->
   <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
   <script src="../frontend/shared/api.js"></script>
 
@@ -1675,63 +1466,80 @@
     });
   </script>
 
-  <!-- Auth gate + progressive enhancement: load live Supabase data when configured. Demo content stays untouched otherwise. -->
+  <!-- Auth gate + live data. Requires a real Supabase agent session; no demo bypass. -->
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
       const API = window.RequityAPI;
-      if (!API) return;
-
       const cfg = (window.REQUITY_CONFIG || {});
+      const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-      // Settings: reflect connection status.
+      // Settings: reflect the configured Supabase host.
       const accountField = document.getElementById('supabase-account-field');
-      if (accountField && !API.isDemoMode()) {
+      if (accountField && cfg.supabaseUrl) {
         try { accountField.textContent = 'Connected: ' + new URL(cfg.supabaseUrl).host; } catch (e) {}
       }
 
-      // Require an agent session unless demo mode is explicitly allowed.
-      let agentId = null;
-      try {
-        const session = await API.requireAgentSession();
-        if (!session.ok) {
-          if (session.reason === 'role_mismatch' && session.me && session.me.role === 'reviewer') {
-            window.location.href = '../reviewer/index.html';
-            return;
-          }
-          window.location.href = 'login.html';
-          return;
-        }
-        if (session.demo) return; // keep demo DOM
-        const me = session.me;
-        agentId = me && me.agent ? me.agent.id : null;
-        // Personalize the shell from the authenticated profile.
-        if (me && me.agent) {
-          const nameEl = document.querySelector('.agent-name');
-          const emailEl = document.querySelector('.agent-email');
-          const welcomeEl = document.querySelector('.header-text h1');
-          if (nameEl && me.agent.displayName) nameEl.textContent = me.agent.displayName;
-          if (emailEl && me.agent.email) emailEl.textContent = me.agent.email;
-          if (welcomeEl && me.agent.displayName) welcomeEl.textContent = 'Welcome back, ' + me.agent.displayName;
-        }
-        // Add a sign-out control for authenticated agents (demo DOM left as-is).
-        const sidebarBottom = document.querySelector('.sidebar-bottom');
-        if (sidebarBottom && !document.getElementById('sign-out-btn')) {
-          const signOut = document.createElement('button');
-          signOut.id = 'sign-out-btn';
-          signOut.className = 'btn-outline btn-sm';
-          signOut.style.cssText = 'margin-top:1rem;width:100%;';
-          signOut.textContent = 'Sign out';
-          signOut.addEventListener('click', async () => {
-            try { await API.signOut(); } catch (e) {}
-            window.location.href = 'login.html';
-          });
-          sidebarBottom.appendChild(signOut);
-        }
-      } catch (e) {
-        return; // never break the page on auth errors
+      // If RequityAPI/config is missing, the dashboard cannot load real data.
+      if (!API || !cfg.apiBaseUrl) {
+        window.location.href = 'login.html';
+        return;
       }
 
-      if (!agentId) return; // no agent row yet; keep demo DOM
+      // Require a real agent session. No demo bypass.
+      let agentId = null;
+      let session;
+      try {
+        session = await API.requireAgentSession();
+      } catch (e) {
+        window.location.href = 'login.html';
+        return;
+      }
+      if (!session.ok) {
+        if (session.reason === 'role_mismatch' && session.me &&
+            (session.me.role === 'reviewer' || session.me.role === 'admin')) {
+          window.location.href = '../reviewer/index.html';
+          return;
+        }
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const me = session.me;
+      agentId = me && me.agent ? me.agent.id : null;
+
+      // Personalize the shell from the authenticated profile.
+      if (me && me.agent) {
+        const nameEl = document.querySelector('.agent-name');
+        const emailEl = document.querySelector('.agent-email');
+        const welcomeEl = document.querySelector('.header-text h1');
+        const avatarEl = document.querySelector('.agent-profile .avatar');
+        if (nameEl && me.agent.displayName) nameEl.textContent = me.agent.displayName;
+        if (emailEl && me.agent.email) emailEl.textContent = me.agent.email;
+        if (welcomeEl && me.agent.displayName) welcomeEl.textContent = 'Welcome back, ' + me.agent.displayName;
+        if (avatarEl && me.agent.displayName) {
+          avatarEl.textContent = me.agent.displayName.trim().slice(0, 2).toUpperCase();
+        }
+        const acctEmail = document.getElementById('settings-account-email');
+        if (acctEmail && me.agent.email) acctEmail.textContent = me.agent.email;
+      }
+
+      // Sign-out control for the authenticated agent.
+      const sidebarBottom = document.querySelector('.sidebar-bottom');
+      if (sidebarBottom && !document.getElementById('sign-out-btn')) {
+        const signOut = document.createElement('button');
+        signOut.id = 'sign-out-btn';
+        signOut.className = 'btn-outline btn-sm';
+        signOut.style.cssText = 'margin-top:1rem;width:100%;';
+        signOut.textContent = 'Sign out';
+        signOut.addEventListener('click', async () => {
+          try { await API.signOut(); } catch (e) {}
+          window.location.href = 'login.html';
+        });
+        sidebarBottom.appendChild(signOut);
+      }
+
+      if (!agentId) return; // profile created but no agent row yet; keep empty states
 
       const STATUS_MAP = {
         assigned: { cls: 'success', label: 'Assigned' },
@@ -1740,12 +1548,14 @@
         started: { cls: 'active', label: 'Assessment started' },
         draft: { cls: 'neutral', label: 'Link opened' }
       };
-      const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
       function renderClients(clients) {
         const grid = document.querySelector('#clients-view .client-detail-grid');
-        if (!grid || !Array.isArray(clients) || !clients.length) return;
+        if (!grid) return;
+        if (!Array.isArray(clients) || !clients.length) {
+          grid.innerHTML = '<p class="card-desc" id="clients-empty">No client assessments yet. Share your assessment link to start collecting clients.</p>';
+          return;
+        }
         grid.innerHTML = clients.map((c) => {
           const st = STATUS_MAP[c.status] || STATUS_MAP.draft;
           const isReviewer = c.source === 'requity_reviewer';
@@ -1772,7 +1582,11 @@
 
       function renderMessages(messages) {
         const thread = document.querySelector('#messages-view .notification-thread');
-        if (!thread || !Array.isArray(messages) || !messages.length) return;
+        if (!thread) return;
+        if (!Array.isArray(messages) || !messages.length) {
+          thread.innerHTML = '<div class="notification-message"><p>No messages yet. REQUITY notifications and client activity will appear here.</p></div>';
+          return;
+        }
         thread.innerHTML = messages.map((m) => {
           const priority = (m.type === 'reviewer_match') ? ' priority' : '';
           const when = m.created_at ? new Date(m.created_at).toLocaleString() : '';
@@ -1786,8 +1600,65 @@
         }).join('');
       }
 
-      Promise.resolve(API.fetchClientAssessments(agentId)).then(renderClients).catch(() => {});
-      Promise.resolve(API.fetchMessages(agentId)).then(renderMessages).catch(() => {});
+      function renderRecent(recent) {
+        const body = document.getElementById('recent-updates-body');
+        if (!body) return;
+        if (!Array.isArray(recent) || !recent.length) {
+          body.innerHTML = '<tr><td colspan="3" class="text-secondary" style="padding:1rem 1.5rem;">No client activity yet.</td></tr>';
+          return;
+        }
+        body.innerHTML = recent.map((c) => {
+          const st = STATUS_MAP[c.status] || STATUS_MAP.draft;
+          const when = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : '';
+          return '<tr><td class="font-medium">' + esc(c.name) + '</td>' +
+            '<td><span class="status-badge ' + st.cls + '">' + st.label + '</span></td>' +
+            '<td class="text-secondary">' + esc(when) + '</td></tr>';
+        }).join('');
+      }
+
+      function renderOverviewMessages(messages) {
+        const list = document.getElementById('overview-message-list');
+        if (!list) return;
+        if (!Array.isArray(messages) || !messages.length) {
+          list.innerHTML = '<div class="message-item"><div class="message-content text-secondary">No messages yet.</div></div>';
+          return;
+        }
+        list.innerHTML = messages.slice(0, 4).map((m) =>
+          '<div class="message-item"><div class="message-dot"></div><div class="message-content">' + esc(m.title) + '</div></div>'
+        ).join('');
+      }
+
+      function renderFlow(activity, flow) {
+        const items = document.querySelectorAll('#dashboard-view .flow-list .flow-item');
+        if (!items.length) return;
+        const values = [flow.total, activity.started, activity.completed, flow.assigned];
+        const max = Math.max(1, flow.total);
+        items.forEach((item, i) => {
+          if (i >= values.length) return;
+          const strong = item.querySelector('strong');
+          const fill = item.querySelector('.flow-fill');
+          if (strong) strong.textContent = values[i];
+          if (fill) fill.style.width = Math.round((values[i] / max) * 100) + '%';
+        });
+      }
+
+      try {
+        const dash = await API.fetchAgentDashboard(agentId);
+        if (!dash) return;
+        const linkInput = document.getElementById('assessmentLink');
+        if (linkInput && dash.assessmentLink) linkInput.value = dash.assessmentLink;
+        renderClients(dash.clientAssessmentDetail);
+        renderMessages(dash.messages);
+        renderRecent(dash.recentClients);
+        renderOverviewMessages(dash.messages);
+        if (dash.assessmentActivity && dash.clientFlowCounts) {
+          renderFlow(dash.assessmentActivity, dash.clientFlowCounts);
+        }
+      } catch (e) {
+        console.warn('[dashboard] failed to load live data:', e.message);
+        const clientsEmpty = document.getElementById('clients-empty');
+        if (clientsEmpty) clientsEmpty.textContent = 'We could not load your dashboard data. Please refresh or try again later.';
+      }
     });
   </script>
 </body>

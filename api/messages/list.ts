@@ -16,7 +16,7 @@ const ROUTE = "messages/list";
 /**
  * GET /api/messages/list?agentId=...&unreadOnly=true
  * Requires agent auth. An agent only sees their own notifications; admins may
- * pass any agentId. Demo mode falls back to the query param locally.
+ * pass any agentId.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {
@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const profile = await requireAgent(req);
     let agentId: string;
-    if (profile.role === "admin" || profile.demo) {
+    if (profile.role === "admin") {
       agentId = requireQueryParam(req, "agentId");
     } else if (profile.agentId) {
       agentId = profile.agentId;

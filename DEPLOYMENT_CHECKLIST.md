@@ -20,7 +20,7 @@ Production hardening + Vercel deployment guide for the secure API layer.
 | `BREVO_SENDER_EMAIL` | Verified Brevo sender |
 | `BREVO_SENDER_NAME` | Display name for outbound email |
 | `VERCEL_FRONTEND_URL` | Used for CORS origin + building share links |
-| `NODE_ENV` | Vercel sets `production` automatically. Demo fallback is OFF in production. |
+| `NODE_ENV` | Vercel sets `production` automatically. Auth is always required (no demo mode). |
 
 ### Public (safe for the browser)
 | Variable | Notes |
@@ -83,7 +83,8 @@ to a `profiles` row (`role` = `agent` | `reviewer` | `admin`); agents also get a
      agents must confirm before they can sign in).
 2. Frontend auth needs `supabaseUrl` + `supabaseAnonKey` in
    `frontend/shared/config.js` **even when `apiBaseUrl` is set**, because the
-   browser talks to Supabase Auth directly. Keep `demoMode: false` in production.
+   browser talks to Supabase Auth directly. Real Supabase credentials are
+   required — there is no demo mode.
 3. Agent flow (self-serve): agent visits `agent/login.html` → "Create account" →
    `signUpAgent()` creates the auth user, then `POST /api/auth/bootstrap-agent`
    creates the profile (`role='agent'`) + agent row. Sign-in routes agents to
@@ -168,7 +169,10 @@ A submission is valid if it includes **either** an `assessmentToken`/`token`
 - [ ] **Cross-portal links** — the agent landing shows a discreet "Reviewer
       Portal" link; the reviewer login shows an "Agent Portal" link.
 - [ ] **Unauthenticated reviewer redirect** — opening `reviewer/index.html` with
-      no session (and `demoMode=false`) redirects to `reviewer/login.html`.
+      no session redirects to `reviewer/login.html` (no demo bypass).
+- [ ] **Unauthenticated agent redirect** — opening `agent/dashboard.html` with no
+      session redirects to `agent/login.html` (no demo bypass).
+- [ ] **Root URL** — opening `/` redirects to `/client/index.html`.
 - [ ] **Agent cannot access reviewer** — an `agent` opening `reviewer/index.html`
       sees the "Access restricted" screen and no reviewer data loads.
 - [ ] **Reviewer/admin promotion** — after running the `update public.profiles
@@ -207,8 +211,10 @@ A submission is valid if it includes **either** an `assessmentToken`/`token`
       lists not-completed leads first; Mark Followed Up / Abandoned / Add Note work.
 - [ ] **Brevo email send** — confirm an `email_events` row with `status=sent`.
 - [ ] **Rate limiting** — rapid repeated public submissions return `429`.
-- [ ] **Demo fallback OFF in production** — protected routes reject missing auth
-      (`NODE_ENV=production`). Demo fallback only works locally.
+- [ ] **No demo mode** — there is no demo bypass anywhere. Protected routes reject
+      missing/invalid auth with 401 and wrong-role with 403; dashboards require a
+      real Supabase session; failed data loads show an error/empty state (never
+      sample data).
 
 ---
 

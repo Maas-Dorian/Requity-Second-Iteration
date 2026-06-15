@@ -48,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         agentId,
         score,
         reason: optionalString(body, "reason"),
-        reviewerId: optionalString(body, "reviewerId") ?? (reviewer.demo ? null : reviewer.profileId),
+        reviewerId: optionalString(body, "reviewerId") ?? reviewer.profileId,
       });
       sendJson(res, 200, result);
     } catch (error) {
