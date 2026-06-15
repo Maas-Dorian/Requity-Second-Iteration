@@ -4,6 +4,7 @@
   "private": true,
   "description": "REQUITY platform: static frontend + secure Vercel API routes over Supabase.",
   "scripts": {
+    "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
