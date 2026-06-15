@@ -1,0 +1,18 @@
+{
+  "name": "requity-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "REQUITY backend foundation: Supabase clients, matching engine, and Brevo email.",
+  "type": "module",
+  "main": "lib/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.5.0"
+  }
+}

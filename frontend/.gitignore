@@ -1,0 +1,2 @@
+# Local frontend config (copy from config.example.js). Never commit real keys.
+shared/config.js

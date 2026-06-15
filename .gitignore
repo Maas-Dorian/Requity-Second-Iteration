@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Environment files (keep .env.example committed)
+.env
+.env.local
+.env.*.local
+
+# Vercel
+.vercel
+
+# Frontend runtime config with real keys (commit only config.example.js)
+frontend/shared/config.js
+
+# Build output
+dist/
+*.tsbuildinfo

@@ -180,6 +180,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedGoal = null;
     let userAnswers = {};
     let isDemoRunning = false;
+    let leadId = null; // incomplete-assessment lead id (for follow-up capture)
+    let leadProgressTimer = null;
 
     // --- DOM Elements ---
     const views = {
@@ -242,9 +244,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
     startAssessmentBtn.addEventListener('click', () => {
         currentStepIndex = 0;
+        startLeadCapture();
         renderQuestion(currentStepIndex);
         showView('assessment');
     });
+
+    // --- Incomplete-assessment lead capture (does not block the flow) ---
+    function startLeadCapture() {
+        if (!window.RequityAPI || leadId) return;
+        const src = getClientSource();
+        const email = inputs[2].value.trim();
+        const payload = {
+            source: src.source,
+            fullName: `${inputs[0].value.trim()} ${inputs[1].value.trim()}`.trim(),
+            email: email,
+            phone: (document.getElementById('phone') || {}).value || null,
+            agentId: src.agentId,
+            agentToken: src.agentToken,
+        };
+        // Reuse a recent lead id for this email if we have one cached.
+        try {
+            const cached = JSON.parse(localStorage.getItem('requity_lead') || 'null');
+            if (cached && cached.email === email && cached.leadId &&
+                (Date.now() - (cached.ts || 0)) < 24 * 60 * 60 * 1000) {
+                leadId = cached.leadId;
+                return;
+            }
+        } catch (e) { /* ignore */ }
+
+        Promise.resolve(window.RequityAPI.startAssessmentLead(payload))
+            .then(res => {
+                if (res && res.leadId) {
+                    leadId = res.leadId;
+                    try {
+                        localStorage.setItem('requity_lead', JSON.stringify({
+                            leadId: leadId, email: email, ts: Date.now()
+                        }));
+                    } catch (e) { /* ignore */ }
+                }
+            })
+            .catch(err => console.warn('[REQUITY] startAssessmentLead error:', err));
+    }
+
+    function queueLeadProgress() {
+        if (!window.RequityAPI || !leadId) return;
+        if (leadProgressTimer) clearTimeout(leadProgressTimer);
+        // Debounce so rapid answer changes do not spam the API.
+        leadProgressTimer = setTimeout(() => {
+            const partial = {};
+            Object.keys(userAnswers).forEach(idx => { partial[Number(idx) + 1] = userAnswers[idx]; });
+            let archetype = null;
+            try {
+                if (window.RequityAPI.calculateClientArchetype) {
+                    archetype = window.RequityAPI.calculateClientArchetype(partial).archetype;
+                }
+            } catch (e) { /* ignore */ }
+            Promise.resolve(window.RequityAPI.updateAssessmentLeadProgress({
+                leadId: leadId,
+                answeredCount: Object.keys(userAnswers).length,
+                partialAnswers: partial,
+                archetype: archetype,
+            })).catch(() => { /* never block the assessment */ });
+        }, 1200);
+    }
 
     // --- Assessment Logic ---
     function renderQuestion(index) {
@@ -292,6 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cardElement.classList.add('selected');
         
         continueBtn.disabled = false;
+        queueLeadProgress();
     }
 
     continueBtn.addEventListener('click', () => {
@@ -301,9 +364,59 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // Assessment Complete
             currentStepIndex = consumerAssessmentQuestions.length;
+            submitAssessment();
             showWaitingPage();
         }
     });
+
+    // --- Supabase-ready submission (demo fallback if config missing) ---
+    function getClientSource() {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token') || null;
+        const agentToken = params.get('agent') || params.get('a') || params.get('agentToken') || null;
+        const explicit = (params.get('source') || '').toLowerCase();
+        if (explicit === 'reviewer' || explicit === 'requity_reviewer') {
+            return { source: 'reviewer', token: token, agentToken: null, agentId: null };
+        }
+        if (agentToken || explicit === 'qr' || explicit === 'agent_link') {
+            return {
+                source: explicit === 'agent_link' ? 'agent_link' : 'qr',
+                token: token,
+                agentToken: agentToken,
+                agentId: params.get('agentId') || null,
+            };
+        }
+        return { source: 'reviewer', token: token, agentToken: null, agentId: null };
+    }
+
+    function submitAssessment() {
+        if (!window.RequityAPI) return;
+        const answers = {};
+        Object.keys(userAnswers).forEach(idx => { answers[Number(idx) + 1] = userAnswers[idx]; });
+        const src = getClientSource();
+        const payload = {
+            token: src.token,
+            leadId: leadId,
+            contact: {
+                fullName: `${inputs[0].value.trim()} ${inputs[1].value.trim()}`.trim(),
+                email: inputs[2].value.trim(),
+                phone: (document.getElementById('phone') || {}).value || null,
+                dateOfBirth: (document.getElementById('birthday') || {}).value || null,
+            },
+            goal: selectedGoal,
+            answers: answers,
+            source: src.source,
+            agentId: src.agentId,
+            agentToken: src.agentToken,
+        };
+        Promise.resolve(window.RequityAPI.submitClientAssessment(payload))
+            .then(res => {
+                console.log('[REQUITY] Client assessment submitted:', res);
+                // Lead is now completed server-side; drop the cached lead id.
+                try { localStorage.removeItem('requity_lead'); } catch (e) { /* ignore */ }
+            })
+            .catch(err => console.warn('[REQUITY] Client assessment submission error:', err));
+    }
 
     backBtn.addEventListener('click', () => {
         if(currentStepIndex > 0) {
@@ -350,6 +463,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentStepIndex = -1;
         selectedGoal = null;
         userAnswers = {};
+        leadId = null;
+        try { localStorage.removeItem('requity_lead'); } catch (e) { /* ignore */ }
         inputs.forEach(i => i.value = '');
         goalOptions.forEach(c => c.classList.remove('selected'));
         startAssessmentBtn.disabled = true;

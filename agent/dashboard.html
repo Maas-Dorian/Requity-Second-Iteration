@@ -1418,12 +1418,22 @@
               <div><span>Email login</span><strong>Enabled</strong></div>
             </div>
           </article>
+          <article class="settings-card card">
+            <h3>Connected Supabase account</h3>
+            <p>The Supabase identity this dashboard is linked to once login is wired.</p>
+            <div class="settings-field" id="supabase-account-field">Not connected (demo mode)</div>
+            <button class="btn-secondary settings-action" data-toast="Supabase connection is configured via environment variables.">Manage connection</button>
+          </article>
         </div>
       </section>
     </main>
   </div>
 
   <div id="toast-container"></div>
+
+  <!-- Optional Supabase config (copy frontend/shared/config.example.js to config.js). Falls back to demo mode if absent. -->
+  <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
+  <script src="../frontend/shared/api.js"></script>
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -1662,6 +1672,122 @@
         const messagesItem = document.querySelector('[data-view="messages-view"]');
         messagesItem?.click();
       });
+    });
+  </script>
+
+  <!-- Auth gate + progressive enhancement: load live Supabase data when configured. Demo content stays untouched otherwise. -->
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const API = window.RequityAPI;
+      if (!API) return;
+
+      const cfg = (window.REQUITY_CONFIG || {});
+
+      // Settings: reflect connection status.
+      const accountField = document.getElementById('supabase-account-field');
+      if (accountField && !API.isDemoMode()) {
+        try { accountField.textContent = 'Connected: ' + new URL(cfg.supabaseUrl).host; } catch (e) {}
+      }
+
+      // Require an agent session unless demo mode is explicitly allowed.
+      let agentId = null;
+      try {
+        const session = await API.requireAgentSession();
+        if (!session.ok) {
+          if (session.reason === 'role_mismatch' && session.me && session.me.role === 'reviewer') {
+            window.location.href = '../reviewer/index.html';
+            return;
+          }
+          window.location.href = 'login.html';
+          return;
+        }
+        if (session.demo) return; // keep demo DOM
+        const me = session.me;
+        agentId = me && me.agent ? me.agent.id : null;
+        // Personalize the shell from the authenticated profile.
+        if (me && me.agent) {
+          const nameEl = document.querySelector('.agent-name');
+          const emailEl = document.querySelector('.agent-email');
+          const welcomeEl = document.querySelector('.header-text h1');
+          if (nameEl && me.agent.displayName) nameEl.textContent = me.agent.displayName;
+          if (emailEl && me.agent.email) emailEl.textContent = me.agent.email;
+          if (welcomeEl && me.agent.displayName) welcomeEl.textContent = 'Welcome back, ' + me.agent.displayName;
+        }
+        // Add a sign-out control for authenticated agents (demo DOM left as-is).
+        const sidebarBottom = document.querySelector('.sidebar-bottom');
+        if (sidebarBottom && !document.getElementById('sign-out-btn')) {
+          const signOut = document.createElement('button');
+          signOut.id = 'sign-out-btn';
+          signOut.className = 'btn-outline btn-sm';
+          signOut.style.cssText = 'margin-top:1rem;width:100%;';
+          signOut.textContent = 'Sign out';
+          signOut.addEventListener('click', async () => {
+            try { await API.signOut(); } catch (e) {}
+            window.location.href = 'login.html';
+          });
+          sidebarBottom.appendChild(signOut);
+        }
+      } catch (e) {
+        return; // never break the page on auth errors
+      }
+
+      if (!agentId) return; // no agent row yet; keep demo DOM
+
+      const STATUS_MAP = {
+        assigned: { cls: 'success', label: 'Assigned' },
+        reviewer_matching: { cls: 'pending', label: 'Reviewer matching' },
+        completed: { cls: 'success', label: 'Assessment completed' },
+        started: { cls: 'active', label: 'Assessment started' },
+        draft: { cls: 'neutral', label: 'Link opened' }
+      };
+      const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+      function renderClients(clients) {
+        const grid = document.querySelector('#clients-view .client-detail-grid');
+        if (!grid || !Array.isArray(clients) || !clients.length) return;
+        grid.innerHTML = clients.map((c) => {
+          const st = STATUS_MAP[c.status] || STATUS_MAP.draft;
+          const isReviewer = c.source === 'requity_reviewer';
+          const badge = isReviewer ? '<span class="requity-match-badge">REQUITY Client Match</span>' : '';
+          const sourceText = isReviewer ? 'Received from REQUITY reviewer' : 'QR code client — stays in dashboard';
+          return (
+            '<article class="client-detail-card">' +
+              '<div class="client-card-top">' +
+                '<div><h3>' + esc(c.full_name) + '</h3><p>Client archetype: <strong>' + esc(c.archetype || 'Pending') + '</strong></p></div>' +
+                '<div class="client-status-stack">' + badge +
+                  '<span class="status-badge ' + st.cls + '">' + st.label + '</span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="client-meta-grid">' +
+                '<div><span>Orientation</span><strong>' + esc(c.orientation || 'Pending') + '</strong></div>' +
+                '<div><span>Style</span><strong>' + esc(c.style || 'Pending') + '</strong></div>' +
+                '<div><span>Under stress</span><strong>' + esc(c.stress_response || 'Pending') + '</strong></div>' +
+                '<div><span>Source</span><strong>' + sourceText + '</strong></div>' +
+              '</div>' +
+            '</article>'
+          );
+        }).join('');
+      }
+
+      function renderMessages(messages) {
+        const thread = document.querySelector('#messages-view .notification-thread');
+        if (!thread || !Array.isArray(messages) || !messages.length) return;
+        thread.innerHTML = messages.map((m) => {
+          const priority = (m.type === 'reviewer_match') ? ' priority' : '';
+          const when = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+          return (
+            '<div class="notification-message' + priority + '">' +
+              '<span class="message-time">' + esc(when) + '</span>' +
+              '<h3>' + esc(m.title) + '</h3>' +
+              '<p>' + esc(m.body) + '</p>' +
+            '</div>'
+          );
+        }).join('');
+      }
+
+      Promise.resolve(API.fetchClientAssessments(agentId)).then(renderClients).catch(() => {});
+      Promise.resolve(API.fetchMessages(agentId)).then(renderMessages).catch(() => {});
     });
   </script>
 </body>

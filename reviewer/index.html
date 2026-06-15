@@ -91,6 +91,34 @@
                     </div>
                 </section>
 
+                <!-- 6b. Incomplete Assessments -->
+                <section id="leads-section" class="section">
+                    <div class="leads-header">
+                        <h2 class="section-title">Incomplete Assessments</h2>
+                        <div class="leads-filters">
+                            <select id="leads-filter-status" class="leads-select" aria-label="Filter by status">
+                                <option value="">All statuses</option>
+                                <option value="started">Started</option>
+                                <option value="in_progress">In progress</option>
+                                <option value="abandoned">Abandoned</option>
+                                <option value="followed_up">Followed up</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                            <select id="leads-filter-source" class="leads-select" aria-label="Filter by source">
+                                <option value="">All sources</option>
+                                <option value="qr">QR</option>
+                                <option value="agent_link">Agent link</option>
+                                <option value="reviewer">Reviewer</option>
+                            </select>
+                            <input id="leads-search" class="leads-search" type="search" placeholder="Search name, email, phone">
+                        </div>
+                    </div>
+                    <p class="helper-text mb-3">Clients who started an assessment but haven’t finished. Follow up to help them complete it.</p>
+                    <div id="leads-list" class="leads-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </section>
+
             </div>
 
             <!-- Right Column -->
@@ -222,5 +250,189 @@
     </div>
 
     <script src="script.js"></script>
+
+    <!-- Optional Supabase/API config. Falls back to demo sample data if absent. -->
+    <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
+    <script src="../frontend/shared/api.js"></script>
+
+    <!-- Auth gate: require reviewer/admin session unless demo mode is allowed. -->
+    <script>
+    window.__reviewerGate = (function () {
+        var API = window.RequityAPI;
+        if (!API) return Promise.resolve({ ok: true, demo: true });
+        return Promise.resolve(API.requireReviewerSession()).then(function (session) {
+            if (!session.ok) {
+                handleReviewerNoAccess(session);
+            } else if (!session.demo) {
+                addReviewerSignOut(API);
+            }
+            return session;
+        }).catch(function () {
+            var s = { ok: false, reason: 'error' };
+            handleReviewerNoAccess(s);
+            return s;
+        });
+    })();
+
+    var REVIEWER_LOGIN_URL = 'login.html';
+
+    function handleReviewerNoAccess(session) {
+        var reason = session && session.reason;
+        // No session (or an unexpected error): send them to the reviewer login.
+        if (reason !== 'role_mismatch') {
+            window.location.href = REVIEWER_LOGIN_URL;
+            return;
+        }
+        // Signed in but wrong role: show a clean access-denied screen.
+        showReviewerAccessDenied(session);
+    }
+
+    function showReviewerAccessDenied(session) {
+        var layout = document.querySelector('.dashboard-layout');
+        if (layout) layout.style.display = 'none';
+        var header = document.querySelector('.header .header-right');
+        if (header) header.style.display = 'none';
+        var overlay = document.createElement('div');
+        overlay.id = 'reviewer-access-denied';
+        overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#F3F7FC;z-index:9999;padding:1.5rem;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;';
+        overlay.innerHTML =
+            '<div style="max-width:420px;width:100%;background:#fff;border:1px solid #D3E0F2;border-radius:16px;box-shadow:0 4px 20px rgba(7,54,110,0.06);padding:2rem;text-align:center;">' +
+                '<h1 style="font-size:1.3rem;color:#07366E;margin:0 0 0.5rem;">Access restricted</h1>' +
+                '<p style="color:#4A607C;font-size:0.92rem;margin:0 0 1.5rem;">This account does not have reviewer access. This area is for REQUITY reviewers and admins.</p>' +
+                '<a href="' + REVIEWER_LOGIN_URL + '" style="display:inline-block;background:#FF7500;color:#fff;padding:0.75rem 1.5rem;border-radius:8px;text-decoration:none;font-weight:600;font-size:0.9rem;">Go to reviewer sign in</a>' +
+                '<div style="margin-top:1rem;"><a href="#" id="rad-signout" style="color:#1E3F7A;font-size:0.85rem;text-decoration:none;font-weight:600;">Sign out</a></div>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        var so = document.getElementById('rad-signout');
+        if (so) so.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (window.RequityAPI) { window.RequityAPI.signOut().finally(function () { window.location.href = REVIEWER_LOGIN_URL; }); }
+            else { window.location.href = REVIEWER_LOGIN_URL; }
+        });
+    }
+
+    function addReviewerSignOut(API) {
+        var header = document.querySelector('.header .header-right');
+        if (!header || document.getElementById('reviewer-signout')) return;
+        var btn = document.createElement('button');
+        btn.id = 'reviewer-signout';
+        btn.className = 'btn btn-outline';
+        btn.textContent = 'Sign out';
+        btn.addEventListener('click', function () {
+            API.signOut().finally(function () { window.location.href = REVIEWER_LOGIN_URL; });
+        });
+        header.appendChild(btn);
+    }
+    </script>
+
+    <!-- Incomplete Assessments: live data via RequityAPI, demo samples otherwise. -->
+    <script>
+    (function () {
+        var listEl = document.getElementById('leads-list');
+        if (!listEl) return;
+        var statusEl = document.getElementById('leads-filter-status');
+        var sourceEl = document.getElementById('leads-filter-source');
+        var searchEl = document.getElementById('leads-search');
+        var searchTimer = null;
+
+        var SAMPLE = [
+            { id: 'sample-1', full_name: 'Jordan Avery', email: 'jordan.avery@email.com', phone: '(555) 014-2231', source: 'reviewer', status: 'in_progress', started_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(), last_activity_at: new Date(Date.now() - 40 * 60 * 1000).toISOString(), answered_count: 7, archetype: null, agent_name: null, notes: null },
+            { id: 'sample-2', full_name: 'Riley Chen', email: 'riley.chen@email.com', phone: '(555) 220-8890', source: 'qr', status: 'started', started_at: new Date(Date.now() - 26 * 3600 * 1000).toISOString(), last_activity_at: new Date(Date.now() - 25 * 3600 * 1000).toISOString(), answered_count: 2, archetype: null, agent_name: 'Taylor Brooks', notes: null },
+            { id: 'sample-3', full_name: 'Morgan Diaz', email: 'morgan.diaz@email.com', phone: '(555) 771-3360', source: 'agent_link', status: 'abandoned', started_at: new Date(Date.now() - 50 * 3600 * 1000).toISOString(), last_activity_at: new Date(Date.now() - 48 * 3600 * 1000).toISOString(), answered_count: 11, archetype: 'The Planner', agent_name: 'Jamie Rivera', notes: 'Left a voicemail, awaiting callback.' }
+        ];
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+        function fmtDate(s) { if (!s) return '—'; try { var d = new Date(s); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return s; } }
+        function sourceLabel(s) { return s === 'qr' ? 'QR' : (s === 'agent_link' ? 'Agent Link' : 'Reviewer'); }
+        function statusLabel(s) { return ({ started: 'Started', in_progress: 'In Progress', abandoned: 'Abandoned', followed_up: 'Followed Up', completed: 'Completed' })[s] || s; }
+
+        function render(leads) {
+            listEl.innerHTML = '';
+            if (!leads || !leads.length) { listEl.innerHTML = '<div class="leads-empty">No incomplete assessments right now.</div>'; return; }
+            leads.forEach(function (l) {
+                var agent = l.agent_name || l.agentName || null;
+                var card = document.createElement('div');
+                card.className = 'lead-card';
+                card.innerHTML =
+                    '<div class="lead-top">' +
+                        '<div><div class="lead-name">' + esc(l.full_name || 'Unknown') + '</div>' +
+                        '<div class="lead-contact">' + esc(l.email || 'no email') + (l.phone ? (' &middot; ' + esc(l.phone)) : '') + '</div></div>' +
+                        '<div class="lead-badges"><span class="badge badge-source">' + sourceLabel(l.source) + '</span>' +
+                        '<span class="badge badge-status-' + esc(l.status) + '">' + statusLabel(l.status) + '</span></div>' +
+                    '</div>' +
+                    '<div class="lead-meta">' +
+                        '<span>Started <strong>' + fmtDate(l.started_at) + '</strong></span>' +
+                        '<span>Last activity <strong>' + fmtDate(l.last_activity_at) + '</strong></span>' +
+                        '<span>Answered <strong>' + (l.answered_count || 0) + '</strong></span>' +
+                        (agent ? ('<span>Agent <strong>' + esc(agent) + '</strong></span>') : '') +
+                        (l.archetype ? ('<span>Archetype <strong>' + esc(l.archetype) + '</strong></span>') : '') +
+                    '</div>' +
+                    (l.notes ? ('<div class="lead-note">' + esc(l.notes) + '</div>') : '') +
+                    '<div class="lead-actions">' +
+                        '<button class="btn btn-outline" data-act="followed_up">Mark Followed Up</button>' +
+                        '<button class="btn btn-outline" data-act="abandoned">Mark Abandoned</button>' +
+                        '<button class="btn btn-outline" data-act="note">Add/Edit Note</button>' +
+                    '</div>';
+                card.querySelectorAll('[data-act]').forEach(function (btn) {
+                    btn.addEventListener('click', function () { onAction(l, btn.getAttribute('data-act')); });
+                });
+                listEl.appendChild(card);
+            });
+        }
+
+        function isLive() { return window.RequityAPI && !window.RequityAPI.isDemoMode(); }
+
+        function onAction(lead, act) {
+            var payload = { leadId: lead.id };
+            if (act === 'note') {
+                var note = prompt('Follow-up note for ' + (lead.full_name || 'lead') + ':', lead.notes || '');
+                if (note === null) return;
+                payload.notes = note;
+            } else {
+                payload.status = act;
+            }
+            if (!isLive()) {
+                if (payload.status) lead.status = payload.status;
+                if (payload.notes != null) lead.notes = payload.notes;
+                load();
+                return;
+            }
+            Promise.resolve(window.RequityAPI.updateReviewerAssessmentLead(payload)).then(load).catch(function (e) { console.warn(e); });
+        }
+
+        function filters() { return { status: statusEl.value || null, source: sourceEl.value || null, search: (searchEl.value || '').trim() || null, limit: 100 }; }
+
+        function loadInner() {
+            if (!isLive()) {
+                var f = filters();
+                var rows = SAMPLE.filter(function (l) {
+                    return (!f.status || l.status === f.status) &&
+                        (!f.source || l.source === f.source) &&
+                        (!f.search || (l.full_name + ' ' + l.email + ' ' + l.phone).toLowerCase().indexOf(f.search.toLowerCase()) >= 0);
+                });
+                render(rows);
+                return;
+            }
+            Promise.resolve(window.RequityAPI.fetchReviewerAssessmentLeads(filters())).then(function (leads) {
+                render(leads === null ? SAMPLE : leads);
+            }).catch(function () { render(SAMPLE); });
+        }
+
+        // Only load once the auth gate confirms access (or there is no gate).
+        function load() {
+            var gate = window.__reviewerGate || Promise.resolve({ ok: true, demo: true });
+            Promise.resolve(gate).then(function (g) {
+                if (g && g.ok === false) return; // blocked: never render data
+                loadInner();
+            });
+        }
+
+        statusEl.addEventListener('change', load);
+        sourceEl.addEventListener('change', load);
+        searchEl.addEventListener('input', function () { if (searchTimer) clearTimeout(searchTimer); searchTimer = setTimeout(load, 300); });
+
+        load();
+    })();
+    </script>
 </body>
 </html>

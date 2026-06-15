@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Environment files (keep .env.example committed)
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+*.tsbuildinfo

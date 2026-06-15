@@ -453,7 +453,8 @@ window.addEventListener('DOMContentLoaded', () => {
         return result;
     }
     function showResult() {
-        calculateResult();
+        const result = calculateResult();
+        submitAgentAssessment(result);
         card.hidden = true;
         resultCard.hidden = false;
         const summary = document.getElementById('agent-result-summary');
@@ -461,6 +462,23 @@ window.addEventListener('DOMContentLoaded', () => {
             summary.textContent = `${agentContact.name}, thank you for completing your agent assessment. A REQUITY reviewer will compare your responses with client profiles to identify strong relationship-fit opportunities. We’ll be in contact soon.`;
         }
         resultCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    // Supabase-ready submission (demo fallback if config missing)
+    function submitAgentAssessment(result) {
+        if (!window.RequityAPI) return;
+        const payload = {
+            contact: {
+                name: agentContact.name || '',
+                email: agentContact.email || '',
+                phone: agentContact.phone || null,
+                dateOfBirth: agentContact.dob || null,
+            },
+            answers: answers,
+            result: result,
+        };
+        Promise.resolve(window.RequityAPI.submitAgentAssessment(payload))
+            .then(res => console.log('[REQUITY] Agent assessment submitted:', res))
+            .catch(err => console.warn('[REQUITY] Agent assessment submission error:', err));
     }
     back.addEventListener('click', () => { if (current > 0) { current -= 1; renderQuestion(); } });
     next.addEventListener('click', () => {
