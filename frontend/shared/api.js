@@ -237,6 +237,16 @@
     return apiGet("/dashboard/agent?agentId=" + encodeURIComponent(agentId));
   }
 
+  /**
+   * Agent QR code for the signed-in agent's public assessment link.
+   * Returns { qrCodeDataUrl, assessmentLink, qrLink }. Throws on failure so the
+   * caller can show a real error/empty state. The data URL is a PNG, usable for
+   * both an <img> preview and a download link.
+   */
+  async function fetchAgentQr() {
+    return apiGet("/agent/qr?format=dataUrl");
+  }
+
   /** Client assessments assigned to an agent. Returns an array. Throws on failure. */
   async function fetchClientAssessments(agentId) {
     if (!agentId) return [];
@@ -481,6 +491,7 @@
     submitClientAssessment: submitClientAssessment,
     submitAgentAssessment: submitAgentAssessment,
     fetchAgentDashboard: fetchAgentDashboard,
+    fetchAgentQr: fetchAgentQr,
     fetchClientAssessments: fetchClientAssessments,
     fetchMessages: fetchMessages,
     markNotificationRead: markNotificationRead,

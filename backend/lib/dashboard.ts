@@ -46,6 +46,39 @@ export type AgentDashboard = {
   };
 };
 
+/**
+ * Build an agent's public assessment links from their token.
+ *  - assessmentLink: shareable link (source `agent_link`)
+ *  - qrLink: link encoded in the QR code (source `qr`)
+ * Both attach scanning/visiting clients directly to the agent — never the
+ * reviewer queue. Returns empty strings when the agent has no token.
+ */
+export function buildAgentAssessmentLinks(
+  token: string | null | undefined,
+  frontendUrl?: string
+): { assessmentLink: string; qrLink: string } {
+  const base = (frontendUrl || env.frontendUrl).replace(/\/$/, "");
+  const t = token ?? "";
+  return {
+    assessmentLink: t ? `${base}/client/assessment.html?agent=${t}&source=agent_link` : "",
+    qrLink: t ? `${base}/client/assessment.html?agent=${t}&source=qr` : "",
+  };
+}
+
+/** Look up an agent's public assessment links by agent id. */
+export async function getAgentAssessmentLinks(
+  agentId: string,
+  options: { frontendUrl?: string } = {}
+): Promise<{ assessmentLink: string; qrLink: string }> {
+  const supabase = getSupabaseAdmin();
+  const { data: agent } = await supabase
+    .from("agents")
+    .select("public_assessment_token")
+    .eq("id", agentId)
+    .maybeSingle();
+  return buildAgentAssessmentLinks(agent?.public_assessment_token, options.frontendUrl);
+}
+
 export async function getAgentDashboard(
   agentId: string,
   options: { frontendUrl?: string } = {}
@@ -67,14 +100,10 @@ export async function getAgentDashboard(
 
   const messages = await getAgentNotifications(agentId, { limit: 50 });
 
-  const base = (options.frontendUrl || env.frontendUrl).replace(/\/$/, "");
-  const token = agent?.public_assessment_token ?? "";
-  const assessmentLink = token
-    ? `${base}/client/assessment.html?agent=${token}&source=agent_link`
-    : "";
-  const qrLink = token
-    ? `${base}/client/assessment.html?agent=${token}&source=qr`
-    : "";
+  const { assessmentLink, qrLink } = buildAgentAssessmentLinks(
+    agent?.public_assessment_token,
+    options.frontendUrl
+  );
 
   const list = clients ?? [];
   const activity = { linkOpened: 0, started: 0, completed: 0 };

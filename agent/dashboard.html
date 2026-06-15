@@ -1070,7 +1070,8 @@
           <div class="card-body flex-col-center">
             <p class="card-desc">Use this in follow-up messages or open houses. QR clients stay assigned to your dashboard.</p>
             <div class="qr-placeholder">
-              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <img id="qrImage" alt="Your assessment QR code" style="display:none;width:100%;height:100%;object-fit:contain;" />
+              <svg id="qrPlaceholderSvg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                 <rect x="10" y="10" width="25" height="25" fill="none" stroke="currentColor" stroke-width="3"/>
                 <rect x="15" y="15" width="15" height="15" fill="currentColor"/>
                 <rect x="65" y="10" width="25" height="25" fill="none" stroke="currentColor" stroke-width="3"/>
@@ -1426,18 +1427,49 @@
         });
       }
 
+      // QR code: real PNG generated server-side from the agent's public link.
+      // qrState holds the live data URL + the link the QR encodes (source=qr).
+      const qrState = { dataUrl: '', link: '' };
       const downloadQrBtn = document.getElementById('downloadQrBtn');
       const copyQrBtn = document.getElementById('copyQrBtn');
       if (downloadQrBtn) {
         downloadQrBtn.addEventListener('click', () => {
+          if (!qrState.dataUrl) { showToast('QR code is not ready yet.'); return; }
+          const a = document.createElement('a');
+          a.href = qrState.dataUrl;
+          a.download = 'requity-assessment-qr.png';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
           handleButtonState(downloadQrBtn, 'Downloaded!', 'Download', 'QR code downloaded.');
         });
       }
       if (copyQrBtn) {
         copyQrBtn.addEventListener('click', () => {
-          handleButtonState(copyQrBtn, 'Copied!', 'Copy', 'QR code copied to clipboard.');
+          if (!qrState.link) { showToast('QR link is not ready yet.'); return; }
+          navigator.clipboard.writeText(qrState.link).catch(() => {});
+          handleButtonState(copyQrBtn, 'Copied!', 'Copy', 'QR link copied to clipboard.');
         });
       }
+
+      async function loadAgentQr() {
+        const api = window.RequityAPI;
+        if (!api || !api.fetchAgentQr || !api.hasSession || !api.hasSession()) return;
+        try {
+          const data = await api.fetchAgentQr();
+          if (!data || !data.qrCodeDataUrl) return;
+          qrState.dataUrl = data.qrCodeDataUrl;
+          qrState.link = data.qrLink || data.assessmentLink || '';
+          const img = document.getElementById('qrImage');
+          const svg = document.getElementById('qrPlaceholderSvg');
+          if (img) { img.src = data.qrCodeDataUrl; img.style.display = 'block'; }
+          if (svg) svg.style.display = 'none';
+        } catch (e) {
+          console.warn('[dashboard] failed to load QR code:', e.message);
+          // Leave the placeholder visual in place; the link card still works.
+        }
+      }
+      loadAgentQr();
 
       document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {

@@ -58,6 +58,11 @@ Replace `YOUR-APP` with your Vercel host (e.g. `requity.vercel.app`) throughout.
 ## 5. Copy the agent QR / public link
 - [ ] On the dashboard, copy the **client assessment link** and the **QR link**.
       They contain `?agent=<public_token>&source=agent_link` (or `source=qr`).
+- [ ] In the **QR code** card, a real QR image renders (REQUITY orange on white,
+      served by `GET /api/agent/qr`). **Download** saves `requity-assessment-qr.png`
+      and **Copy** copies the QR link. The QR encodes the `source=qr` link, so
+      clients who scan it attach directly to you and never go to the reviewer queue.
+      (QR generation is Vercel-safe — `qrcode` only, no `canvas`/`sharp`.)
 
 ## 6. Open the client link in incognito
 - [ ] Paste the agent link into a private window. The client assessment intro loads.

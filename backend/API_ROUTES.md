@@ -257,6 +257,30 @@ Aggregated agent dashboard payload.
 
 ---
 
+## GET `/api/agent/qr` (protected)
+
+QR code for the signed-in agent's public assessment link. The QR encodes the
+agent's `qr`-source link, so clients who scan it **attach directly to the agent
+(source `qr`) and never enter the reviewer queue**. Requires a real agent
+session (admins may target an agent via `?agentId=`).
+
+QR generation is **Vercel-safe**: it uses only the pure-JS `qrcode` package
+(PNG via `pngjs`). No `canvas`, no `sharp`, no Node native image dependencies.
+Only the public link is encoded — the Supabase service-role key is never exposed.
+
+- **Query:** `format` (`dataUrl` default, or `png`), `agentId` (required for admins), `frontendUrl` (optional)
+- **Response (`format=dataUrl`)**
+  ```json
+  { "qrCodeDataUrl": "data:image/png;base64,...", "assessmentLink": "string", "qrLink": "string" }
+  ```
+- **Response (`format=png`)**: `image/png` buffer (`Content-Disposition: attachment; filename="requity-assessment-qr.png"`)
+- **QR style:** REQUITY orange `#ea580c` on white, width `400`, margin `2`, error correction `H`
+- **Tables touched:** `agents` (read public token)
+- **Notification created:** none
+- **Brevo email:** no
+
+---
+
 ## GET `/api/messages/list?agentId=...`
 
 List an agent's notifications.

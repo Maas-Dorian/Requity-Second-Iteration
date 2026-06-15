@@ -205,6 +205,11 @@ A submission is valid if it includes **either** an `assessmentToken`/`token`
       computes + saves the archetype and creates a notification.
 - [ ] **Dashboard load** — `GET /api/dashboard/agent` requires agent auth;
       rejects with 401 when no token in production.
+- [ ] **Agent QR code** — `GET /api/agent/qr` requires agent auth. The QR encodes
+      the agent's public assessment link (`source=qr`), so scanning clients attach
+      directly to the agent and do **not** enter the reviewer queue. `format=dataUrl`
+      returns `{ qrCodeDataUrl, assessmentLink, qrLink }`; `format=png` returns a PNG
+      download. QR generation is Vercel-safe (`qrcode` only — no `canvas`/`sharp`).
 - [ ] **Messages load** — `GET /api/messages/list` requires agent auth, and the
       agent dashboard **Messages** tab renders the agent's notifications (e.g. the
       REQUITY Client Match message after a reviewer approval).
