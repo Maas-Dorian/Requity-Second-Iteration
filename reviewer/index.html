@@ -32,7 +32,6 @@
                 <div class="subtitle">Reviewed real estate agent matching</div>
             </div>
             <div class="header-right">
-                <button id="btn-run-demo" class="btn btn-outline">Run Demo</button>
                 <button id="btn-header-auto" class="btn btn-primary auto-off-state" onclick="openAutoModal()">Auto: Off</button>
                 <span class="badge badge-internal">Internal</span>
             </div>
@@ -44,11 +43,11 @@
         <!-- 2. Top Summary Row -->
         <section class="summary-row">
             <div class="summary-card">
-                <div class="summary-value" id="count-pending">3</div>
+                <div class="summary-value" id="count-pending">0</div>
                 <div class="summary-label">Pending Profiles</div>
             </div>
             <div class="summary-card">
-                <div class="summary-value" id="count-fits">8</div>
+                <div class="summary-value" id="count-fits">0</div>
                 <div class="summary-label">Recommended Fits</div>
             </div>
             <div class="summary-card">
@@ -148,13 +147,13 @@
                         
                         <div class="detail-row mb-3">
                             <span class="detail-label">Selected real estate agent:</span>
-                            <strong class="text-blue text-large" id="decision-selected-agent">Taylor Brooks</strong>
+                            <strong class="text-blue text-large" id="decision-selected-agent">—</strong>
                         </div>
 
                         <div id="decision-actions" class="action-stack">
                             <button class="btn btn-primary w-100" onclick="approveSelected()">Approve Selected</button>
                             <button class="btn btn-outline w-100" onclick="holdSelected()">Hold for Review</button>
-                            <button class="btn btn-outline w-100" onclick="alert('Select different real estate agent dialog opens here.')">Select Different Agent</button>
+                            <button class="btn btn-outline w-100" onclick="document.getElementById('fits-section').scrollIntoView({behavior:'smooth'})">Select Different Agent</button>
                         </div>
 
                         <div id="decision-success" class="success-message hidden mt-3">
@@ -168,22 +167,9 @@
                     <div class="card log-card">
                         <h2 class="section-title">Activity Log</h2>
                         <ul id="activity-log" class="log-list">
-                            <!-- Initial Log -->
                             <li>
                                 <div class="log-time">System</div>
                                 <div class="log-action">Waiting for reviewer action</div>
-                            </li>
-                            <li>
-                                <div class="log-time">System</div>
-                                <div class="log-action">Recommended real estate agent matches prepared</div>
-                            </li>
-                            <li>
-                                <div class="log-time">System</div>
-                                <div class="log-action">Client relationship profile created</div>
-                            </li>
-                            <li>
-                                <div class="log-time">System</div>
-                                <div class="log-action">Client profiles received</div>
                             </li>
                         </ul>
                     </div>

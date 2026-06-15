@@ -24,9 +24,19 @@ Replace `YOUR-APP` with your Vercel host (e.g. `requity.vercel.app`) throughout.
 > Agent accounts cannot access the reviewer dashboard; each login offers a
 > one-click switch to the correct portal on a role mismatch.
 
+> **Product wording reference** (visible copy you should see):
+> - Agent landing: "Become a REQUITY agent. Start getting referrals today." with
+>   the offer "Low $50 setup fee. Only 25% per closed deal." and CTA
+>   "Start getting referrals now".
+> - Client landing headline: "Find the perfect agent for you!"
+> - Client assessment header: "We need to learn a little more about you".
+
 ## 1. Deploy is live
-- [ ] `https://YOUR-APP/agent/index.html` loads the marketing page (with a
-      discreet "Reviewer Portal" link in the header).
+- [ ] `https://YOUR-APP/` redirects to `/client/index.html`.
+- [ ] `https://YOUR-APP/client/index.html` shows "Find the perfect agent for you!".
+- [ ] `https://YOUR-APP/agent/index.html` loads the marketing page showing the
+      "$50 setup fee / 25% per closed deal" offer and the "Start getting referrals
+      now" button (with a discreet "Reviewer Portal" link in the header).
 
 ## 2. Open agent login
 - [ ] Click **Sign in / Sign up** (or open `https://YOUR-APP/agent/login.html`).

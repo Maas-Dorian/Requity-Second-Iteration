@@ -145,6 +145,15 @@ A submission is valid if it includes **either** an `assessmentToken`/`token`
 
 ## 4. Test checklist (run against the deployed preview)
 
+### Content & wording (visible copy)
+- [ ] Root `/` redirects to `/client/index.html`.
+- [ ] Agent landing (`/agent/index.html`) shows the offer **$50 setup fee** and
+      **25% per closed REQUITY deal**, with the CTA "Start getting referrals now".
+- [ ] Client landing (`/client/index.html`) headline reads
+      "Find the perfect agent for you!".
+- [ ] Client assessment (`/client/assessment.html`) header reads
+      "We need to learn a little more about you".
+
 ### Health endpoints (no auth required)
 - [ ] **`GET /api/health`** → `ok:true`, `environment` correct, and presence
       booleans (`hasSupabaseUrl`, `hasSupabaseServiceRoleKey`, `hasBrevoApiKey`,

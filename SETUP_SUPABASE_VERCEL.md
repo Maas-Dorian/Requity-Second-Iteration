@@ -125,6 +125,13 @@ Open these URLs (replace the host with your deployment):
 > **`/reviewer/login.html`**. Agent accounts cannot access the reviewer dashboard;
 > each login page offers a one-click switch if you sign in with the other role.
 
+> **Product wording reference** (visible copy):
+> - Agent offer: **$50 setup fee** and **25% per closed REQUITY deal**; agent CTA
+>   reads "Start getting referrals now".
+> - Client landing headline: "Find the perfect agent for you!"
+> - Client assessment header: "We need to learn a little more about you".
+> - The root URL (`/`) redirects to `/client/index.html`.
+
 ### 10. Create the first agent account
 1. Open `https://YOUR-APP.vercel.app/agent/login.html`.
 2. **Create account** with full name + email + password.

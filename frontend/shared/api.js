@@ -322,6 +322,23 @@
     return apiPost("/reviewer/assessment-leads/update", payload);
   }
 
+  /**
+   * Reviewer: live matching queue. Returns an array of { client, rankings }.
+   * Throws on failure so the caller can show a real error state (never sample data).
+   */
+  async function fetchReviewerMatches() {
+    var data = await apiGet("/reviewer/matches");
+    return (data && data.queue) || [];
+  }
+
+  /**
+   * Reviewer: approve + assign a queued client to an agent. Throws on failure.
+   * payload: { clientId, agentId, score?, reason? }
+   */
+  async function approveReviewerMatch(payload) {
+    return apiPost("/reviewer/approve-match", payload);
+  }
+
   // --- Auth (Supabase Auth via REST) -------------------------------------
   function requireSupabaseAuth() {
     var c = getSupabaseConfig();
@@ -472,6 +489,8 @@
     completeAssessmentLead: completeAssessmentLead,
     fetchReviewerAssessmentLeads: fetchReviewerAssessmentLeads,
     updateReviewerAssessmentLead: updateReviewerAssessmentLead,
+    fetchReviewerMatches: fetchReviewerMatches,
+    approveReviewerMatch: approveReviewerMatch,
     copyAssessmentLink: copyAssessmentLink,
   };
 })(window);
