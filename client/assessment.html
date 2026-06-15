@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REQUITY | Client Assessment</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assessment-styles.css">
+</head>
+<body>
+
+    <!-- Top Navigation for Demo purposes -->
+    <nav class="demo-nav">
+        <div class="nav-content">
+            <div class="logo"><div class="requity-animated-logo" aria-label="REQUITY">
+    <span class="rq-re">RE</span>
+    <span class="rq-q-container" aria-hidden="true">
+        <span class="rq-q-ring"></span>
+        <span class="rq-q-tail"></span>
+        <svg class="rq-splash-wrap" viewBox="0 0 100 60">
+            <path class="rq-ripple rq-ripple-inner" d="M 35 15 Q 50 25 65 15" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+            <path class="rq-ripple rq-ripple-outer" d="M 20 25 Q 50 40 80 25" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+            <path class="rq-ripple rq-ripple-furthest" d="M 5 35 Q 50 55 95 35" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+        </svg>
+    </span>
+    <span class="rq-uity">UITY</span>
+</div></div>
+        </div>
+    </nav>
+
+    <!-- Main App Container -->
+    <main class="app-container">
+        
+        <!-- Center Card -->
+        <div class="card fade-in" id="mainCard">
+            <div class="card-top-accent"></div>
+            
+            <!-- STEP 1: CONTACT INFO -->
+            <div id="step-contact" class="step-view">
+                
+                <div class="section-header">
+                    <div class="icon-circle">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    </div>
+                    <h1>Client Assessment</h1>
+                    <p class="subtitle">Help us understand your preferences so we can provide a better experience.</p>
+                </div>
+
+                <div class="progress-container">
+                    <div class="progress-labels">
+                        <span class="p-label">Progress</span>
+                        <span class="p-status">Contact Info</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 5%;"></div>
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <div class="section-header">
+                    <div class="icon-circle">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </div>
+                    <h2>Let’s Get Your Contact Information</h2>
+                    <p class="subtitle">This helps us personalize your experience and stay in touch.</p>
+                </div>
+
+                <div class="form-grid">
+                    <div class="input-group">
+                        <label>First Name *</label>
+                        <input type="text" id="fname" placeholder="Enter your first name">
+                    </div>
+                    <div class="input-group">
+                        <label>Last Name *</label>
+                        <input type="text" id="lname" placeholder="Enter your last name">
+                    </div>
+                    <div class="input-group full-width">
+                        <label>Email Address *</label>
+                        <input type="email" id="email" placeholder="Enter your email address">
+                    </div>
+                    <div class="input-group">
+                        <label>Phone Number</label>
+                        <input type="tel" id="phone" placeholder="(555) 000-0000">
+                    </div>
+                    <div class="input-group">
+                        <label>Birthday</label>
+                        <input type="date" id="birthday">
+                    </div>
+                </div>
+
+                <div class="mt-l">
+                    <h3 class="mb-s">Are you looking to buy or sell?</h3>
+                    <p class="subtitle mb-m">This helps us tailor the assessment to your specific needs.</p>
+                    
+                    <div class="options-grid" id="goalOptions">
+                        <div class="option-card" data-goal="buy">
+                            <span class="opt-title">I'm looking to buy</span>
+                            <span class="opt-desc">Finding my next home or investment property</span>
+                        </div>
+                        <div class="option-card" data-goal="sell">
+                            <span class="opt-title">I'm looking to sell</span>
+                            <span class="opt-desc">Selling my current property</span>
+                        </div>
+                        <div class="option-card" data-goal="both">
+                            <span class="opt-title">Both buying and selling</span>
+                            <span class="opt-desc">Selling my current property and buying a new one</span>
+                        </div>
+                        <div class="option-card" data-goal="other">
+                            <span class="opt-title">Something else</span>
+                            <span class="opt-desc">I have a different real estate need</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-gradient btn-large full-width mt-l" id="startAssessmentBtn" disabled>
+                    Continue to Assessment
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </button>
+
+            </div>
+
+            <!-- STEP 2: ASSESSMENT QUESTIONS -->
+            <div id="step-assessment" class="step-view hidden">
+                
+                <div class="section-header">
+                    <div class="icon-circle">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    </div>
+                </div>
+
+                <div class="progress-container">
+                    <div class="progress-labels">
+                        <span class="p-label" id="qCounter">Question 1 of 16</span>
+                        <span class="p-status">Assessment</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="qProgress" style="width: 10%;"></div>
+                    </div>
+                </div>
+
+                <h2 class="question-title mt-m" id="questionText">Question text goes here?</h2>
+
+                <div class="options-grid one-col mt-m" id="questionOptions">
+                    <!-- Options injected via JS -->
+                </div>
+
+                <div class="actions-row mt-l">
+                    <button class="btn btn-text" id="backBtn">Back</button>
+                    <button class="btn btn-gradient" id="continueBtn" disabled>
+                        Continue
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- STEP 3: FINAL WAITING PAGE -->
+            <div id="step-waiting" class="step-view hidden text-center">
+                
+                <div class="icon-circle large-icon pulse-anim mx-auto mb-m">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </div>
+                
+                <h1 class="mb-s">You’re all set, we’re reviewing your match.</h1>
+                <p class="subtitle mx-auto mb-l" style="max-width: 480px;">We know finding the right real estate agent can feel stressful. A real REQUITY team member is carefully reviewing your profile, communication style, and home goals. We’ll notify you once your match is ready.</p>
+                
+                <div class="time-estimate mb-l">
+                    <span>Typical review time: 24 to 48 hours</span>
+                </div>
+
+                <div class="timeline-container mx-auto">
+                    <div class="timeline-step" id="tl-1">
+                        <div class="tl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+                        <div class="tl-text">Assessment received</div>
+                    </div>
+                    <div class="timeline-step" id="tl-2">
+                        <div class="tl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+                        <div class="tl-text">Profile under review</div>
+                    </div>
+                    <div class="timeline-step" id="tl-3">
+                        <div class="tl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+                        <div class="tl-text">Match being finalized</div>
+                    </div>
+                    <div class="timeline-step" id="tl-4">
+                        <div class="tl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+                        <div class="tl-text">You’ll be notified when ready</div>
+                    </div>
+                </div>
+
+                <button class="btn btn-outline mt-xl" id="restartDemoBtn">Restart Demo</button>
+            </div>
+
+        </div>
+    </main>
+
+    <script src="assessment-script.js"></script>
+</body>
+</html>

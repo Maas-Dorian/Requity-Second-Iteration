@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REQUITY - Agent Assessment</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="assessment-page">
+    <header id="header" class="scrolled">
+        <div class="container header-container">
+            <a href="index.html" class="logo-link"><div class="logo">
+    <span class="re">RE</span>
+
+    <div class="q-container">
+      <div class="q-ring"></div>
+      <div class="q-tail"></div>
+      
+      <svg class="splash-wrap" viewBox="0 0 100 60">
+        <path class="ripple ripple-inner" 
+              d="M 35 15 Q 50 25 65 15" 
+              fill="none" 
+              stroke="currentColor" 
+              stroke-width="5" 
+              stroke-linecap="round" />
+        
+        <path class="ripple ripple-outer" 
+              d="M 20 25 Q 50 40 80 25" 
+              fill="none" 
+              stroke="currentColor" 
+              stroke-width="6" 
+              stroke-linecap="round" />
+
+        <path class="ripple ripple-furthest" 
+              d="M 5 35 Q 50 55 95 35" 
+              fill="none" 
+              stroke="currentColor" 
+              stroke-width="5" 
+              stroke-linecap="round" />
+      </svg>
+    </div>
+
+    <span class="uity">UITY</span>
+  </div></a>
+            <nav class="main-nav">
+                <a href="index.html#why-requity">Why REQUITY</a>
+                <a href="index.html#how-it-works">How It Works</a>
+                <a href="index.html#insights">Insights</a>
+                <a href="assessment.html" class="btn btn-primary nav-btn">Start</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="assessment-page-main patterned-section">
+        <div class="circle-pattern" aria-hidden="true"></div>
+        <div class="container">
+            <div class="agent-assessment-shell assessment-page-shell">
+                <div class="assessment-intro-panel">
+                    <span class="eyebrow">Agent assessment</span>
+                    <h1>Build your agent profile for better-fit client matching.</h1>
+                    <p>Before the assessment starts, REQUITY collects your basic contact details. Then your responses help define how you communicate, negotiate, present properties, and support different client relationship styles.</p>
+                    <div class="assessment-match-note">
+                        <strong>Matching matters:</strong>
+                        <span>Your agent profile will be compared with client profiles so REQUITY can support stronger agent-client fit, not just availability.</span>
+                    </div>
+                </div>
+
+                <form class="agent-contact-card" id="agent-contact-form">
+                    <div class="agent-assessment-top">
+                        <div>
+                            <span class="progress-label">Before you begin</span>
+                            <h2>Tell us who is taking the assessment.</h2>
+                        </div>
+                        <div class="assessment-mini-badge">Step 1</div>
+                    </div>
+                    <div class="contact-field-grid">
+                        <label class="contact-field">
+                            <span>Name</span>
+                            <input id="agent-name" name="name" type="text" autocomplete="name" placeholder="Your full name" required>
+                        </label>
+                        <label class="contact-field">
+                            <span>Email</span>
+                            <input id="agent-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+                        </label>
+                        <label class="contact-field">
+                            <span>Date of birth</span>
+                            <input id="agent-dob" name="dob" type="date" required>
+                        </label>
+                        <label class="contact-field">
+                            <span>Phone number</span>
+                            <input id="agent-phone" name="phone" type="tel" autocomplete="tel" placeholder="(555) 555-5555" required>
+                        </label>
+                    </div>
+                    <button class="btn btn-primary contact-start-btn" type="submit">Continue to Agent Assessment</button>
+                </form>
+
+                <div class="agent-assessment-card" id="agent-assessment-card" aria-live="polite" hidden>
+                    <div class="agent-assessment-top">
+                        <div>
+                            <span class="progress-label" id="agent-question-count">Question 1 of 18</span>
+                            <h3 id="agent-question-text">Your approach to client relationships is:</h3>
+                        </div>
+                        <div class="assessment-mini-badge">New REQUITY</div>
+                    </div>
+                    <div class="progress-track agent-progress-track">
+                        <div class="progress-fill" id="agent-progress-fill"></div>
+                    </div>
+                    <div class="agent-options" id="agent-options"></div>
+                    <div class="agent-assessment-actions">
+                        <button class="btn btn-secondary" id="agent-back" type="button">Back</button>
+                        <button class="btn btn-primary" id="agent-next" type="button">Continue</button>
+                    </div>
+                </div>
+
+                <div class="agent-result-card review-complete-card" id="agent-result-card" hidden>
+                    <span class="eyebrow">Assessment submitted</span>
+                    <h3>You’re now being matched by a REQUITY reviewer.</h3>
+                    <p id="agent-result-summary">Thank you for completing your agent assessment. A REQUITY reviewer will compare your responses with client profiles to identify strong relationship-fit opportunities. We’ll be in contact soon.</p>
+                    <div class="match-preview-box reviewer-message-box">
+                        <strong>What happens next</strong>
+                        <p>Your profile has been submitted for review. REQUITY will use your communication style, negotiation approach, and client-support preferences to help match you with clients who fit your strengths.</p>
+                    </div>
+                    <a class="btn btn-primary" href="index.html">Back to REQUITY</a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer assessment-footer">
+        <div class="container footer-content">
+            <div class="footer-left"><div class="footer-logo-wrap"><div class="logo">
+    <span class="re">RE</span>
+
+    <div class="q-container">
+      <div class="q-ring"></div>
+      <div class="q-tail"></div>
+      
+      <svg class="splash-wrap" viewBox="0 0 100 60">
+        <path class="ripple ripple-inner" 
+              d="M 35 15 Q 50 25 65 15" 
+              fill="none" 
+              stroke="currentColor" 
+              stroke-width="5" 
+              stroke-linecap="round" />
+        
+        <path class="ripple ripple-outer" 
+              d="M 20 25 Q 50 40 80 25" 
+              fill="none" 
+              stroke="currentColor" 
+              stroke-width="6" 
+              stroke-linecap="round" />
+
+        <path class="ripple ripple-furthest" 
+              d="M 5 35 Q 50 55 95 35" 
+              fill="none" 
+              stroke="currentColor" 
+              stroke-width="5" 
+              stroke-linecap="round" />
+      </svg>
+    </div>
+
+    <span class="uity">UITY</span>
+  </div></div><p>Personalized relational insights for real estate agents.</p></div>
+            <div class="footer-right"><nav class="footer-nav"><a href="index.html#why-requity">Why REQUITY</a><a href="index.html#how-it-works">How It Works</a><a href="assessment.html">Start Assessment</a></nav></div>
+        </div>
+        <div class="footer-bottom"><div class="container">&copy; 2026 REQUITY. All rights reserved.</div></div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

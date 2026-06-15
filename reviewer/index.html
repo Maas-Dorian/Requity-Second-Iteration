@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REQUITY Reviewer</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- 1. Sticky Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="header-left">
+                <div class="logo logo-with-animation"><div class="requity-animated-logo" aria-label="REQUITY">
+    <span class="rq-re">RE</span>
+    <span class="rq-q-container" aria-hidden="true">
+        <span class="rq-q-ring"></span>
+        <span class="rq-q-tail"></span>
+        <svg class="rq-splash-wrap" viewBox="0 0 100 60">
+            <path class="rq-ripple rq-ripple-inner" d="M 35 15 Q 50 25 65 15" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+            <path class="rq-ripple rq-ripple-outer" d="M 20 25 Q 50 40 80 25" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+            <path class="rq-ripple rq-ripple-furthest" d="M 5 35 Q 50 55 95 35" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+        </svg>
+    </span>
+    <span class="rq-uity">UITY</span>
+</div><span class="logo-light review-label">Review</span></div>
+                <div class="subtitle">Reviewed real estate agent matching</div>
+            </div>
+            <div class="header-right">
+                <button id="btn-run-demo" class="btn btn-outline">Run Demo</button>
+                <button id="btn-header-auto" class="btn btn-primary auto-off-state" onclick="openAutoModal()">Auto: Off</button>
+                <span class="badge badge-internal">Internal</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-layout">
+        
+        <!-- 2. Top Summary Row -->
+        <section class="summary-row">
+            <div class="summary-card">
+                <div class="summary-value" id="count-pending">3</div>
+                <div class="summary-label">Pending Profiles</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="count-fits">8</div>
+                <div class="summary-label">Recommended Fits</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="count-scheduled">0</div>
+                <div class="summary-label">Scheduled Matches</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="count-needs-review">0</div>
+                <div class="summary-label">Needs Reviewer</div>
+            </div>
+        </section>
+
+        <!-- 3. Main Layout (Two Columns) -->
+        <main class="main-grid">
+            
+            <!-- Left Column -->
+            <div class="column-main">
+                
+                <!-- 4. Pending Client Queue -->
+                <section id="queue-section" class="section">
+                    <h2 class="section-title">Pending Client Queue</h2>
+                    <div id="queue-list" class="queue-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </section>
+
+                <!-- 5. Selected Client Profile -->
+                <section id="profile-section" class="section">
+                    <h2 class="section-title">Selected Client Profile</h2>
+                    <div class="card profile-card" id="profile-card">
+                        <!-- Populated by JS -->
+                    </div>
+                </section>
+
+                <!-- 6. Recommended Real Estate Agent Matches -->
+                <section id="fits-section" class="section">
+                    <h2 class="section-title">Recommended Real Estate Agent Matches</h2>
+                    <div id="fits-list" class="fits-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- Right Column -->
+            <div class="column-sidebar">
+                
+                <!-- 8. Auto Status Panel -->
+                <section class="section">
+                    <div class="card auto-status-card" id="auto-status-panel">
+                        <div class="auto-header">
+                            <h2 class="section-title">Auto is off</h2>
+                            <span id="auto-badge" class="badge badge-internal">Inactive</span>
+                        </div>
+                        <p class="helper-text" id="auto-status-copy">Enable Auto to process pending profiles and schedule each client with the highest percentage real estate agent match after the 48-hour review window.</p>
+                        
+                        <div id="auto-progress-container" class="hidden mt-4">
+                            <div class="detail-row"><span class="detail-label">Profiles Scanned:</span> <strong id="auto-scanned">0</strong></div>
+                            <div class="detail-row"><span class="detail-label">Matches Scheduled:</span> <strong id="auto-scheduled">0</strong></div>
+                            <div class="detail-row mt-2"><span class="detail-label">Current Profile:</span> <span id="auto-current-profile" class="text-blue">Waiting...</span></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 7. Reviewer Decision Panel -->
+                <section class="section">
+                    <div class="card decision-card">
+                        <h2 class="section-title">Reviewer decision</h2>
+                        
+                        <div class="detail-row mb-3">
+                            <span class="detail-label">Selected real estate agent:</span>
+                            <strong class="text-blue text-large" id="decision-selected-agent">Taylor Brooks</strong>
+                        </div>
+
+                        <div id="decision-actions" class="action-stack">
+                            <button class="btn btn-primary w-100" onclick="approveSelected()">Approve Selected</button>
+                            <button class="btn btn-outline w-100" onclick="holdSelected()">Hold for Review</button>
+                            <button class="btn btn-outline w-100" onclick="alert('Select different real estate agent dialog opens here.')">Select Different Agent</button>
+                        </div>
+
+                        <div id="decision-success" class="success-message hidden mt-3">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 11. Activity Log -->
+                <section class="section">
+                    <div class="card log-card">
+                        <h2 class="section-title">Activity Log</h2>
+                        <ul id="activity-log" class="log-list">
+                            <!-- Initial Log -->
+                            <li>
+                                <div class="log-time">System</div>
+                                <div class="log-action">Waiting for reviewer action</div>
+                            </li>
+                            <li>
+                                <div class="log-time">System</div>
+                                <div class="log-action">Recommended real estate agent matches prepared</div>
+                            </li>
+                            <li>
+                                <div class="log-time">System</div>
+                                <div class="log-action">Client relationship profile created</div>
+                            </li>
+                            <li>
+                                <div class="log-time">System</div>
+                                <div class="log-action">Client profiles received</div>
+                            </li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- 12. Archetype Reference -->
+                <section class="section">
+                    <div class="card reference-card">
+                        <h2 class="section-title">Archetype reference</h2>
+                        
+                        <h3 class="detail-label mt-2 mb-1 text-blue">Client Archetypes</h3>
+                        <div class="ref-item"><strong>The Trailblazer:</strong> decisive, forward-moving, needs clear direction</div>
+                        <div class="ref-item"><strong>The Harmonizer:</strong> relationship-centered, values reassurance</div>
+                        <div class="ref-item"><strong>The Planner:</strong> careful, structured, values clear preparation</div>
+
+                        <h3 class="detail-label mt-3 mb-1 text-blue">Real Estate Agent Archetypes</h3>
+                        <div class="ref-item"><strong>The Trendsetter:</strong> confident, momentum-oriented</div>
+                        <div class="ref-item"><strong>The Trusted Advisor:</strong> steady, relationship-centered</div>
+                        <div class="ref-item"><strong>The Strategist:</strong> analytical, plan-focused</div>
+                    </div>
+                </section>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- 13. Bottom Status Bar -->
+    <div id="bottom-bar" class="bottom-bar">
+        <div class="bottom-container">
+            <div class="bottom-text">
+                <h3 id="bottom-title">Reviewer action needed</h3>
+                <p id="bottom-copy">Pending profiles can be reviewed manually or processed with Auto after reviewer confirmation.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 9. Auto Confirmation Modal -->
+    <div id="auto-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h2 class="section-title text-xl mb-2">Confirm Auto Matching</h2>
+            <p class="helper-text mb-4">Auto will review pending client profiles, select the highest percentage real estate agent match for each profile, and schedule matches after the 48-hour review window. A reviewer can still pause or adjust decisions before the review window ends.</p>
+            
+            <div class="form-group">
+                <label class="detail-label">Reviewer Name</label>
+                <input type="text" id="modal-name" class="form-input" placeholder="e.g. Alex Morgan">
+            </div>
+            
+            <div class="form-group">
+                <label class="detail-label">Reviewer Role</label>
+                <input type="text" id="modal-role" class="form-input" placeholder="e.g. Senior Match Reviewer">
+            </div>
+
+            <div class="checkbox-group mb-4">
+                <input type="checkbox" id="modal-confirm">
+                <label for="modal-confirm">I confirm I am authorized to enable Auto reviewed matching.</label>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeAutoModal()">Cancel</button>
+                <button id="btn-confirm-auto" class="btn btn-primary" onclick="enableAuto()" disabled>Confirm and Run Auto</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

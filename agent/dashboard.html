@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>REQUITY | Agent Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --deep-blue: #07366E;
+      --primary-blue: #1E3F7A;
+      --accent-orange: #FF7500;
+      --white: #FFFFFF;
+      --soft-blue: #EEF4FB;
+      --light-surface: #F3F7FC;
+      --blue-border: #D3E0F2;
+      --primary-text: #102033;
+      --secondary-text: #4A607C;
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 2px 8px rgba(7, 54, 110, 0.04);
+      --shadow-md: 0 4px 20px rgba(7, 54, 110, 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      color: var(--primary-text);
+      background: var(--light-surface);
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+
+    :root {
+      --requity-blue: #003366;
+      --requity-orange: #FF6A00;
+    }
+
+    .logo {
+      display: flex;
+      align-items: baseline;
+      font-size: 1.9rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--requity-blue);
+      line-height: 1;
+      margin-bottom: 3rem;
+      width: max-content;
+    }
+
+    .re, .uity {
+      font-family: 'Nunito', sans-serif;
+    }
+
+    .q-container {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 0.9em;
+      height: 0.9em;
+      margin: 0 0.05em;
+      transform: translateY(0.05em); 
+      animation: qColorShift 5s infinite cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .q-ring {
+      position: absolute;
+      width: 0.85em;
+      height: 0.85em;
+      border: 0.15em solid currentColor;
+      border-radius: 50%;
+    }
+
+    .q-tail {
+      position: absolute;
+      bottom: 0.13em;
+      right: -0.08em;
+      width: 0.5em;
+      height: 0.16em;
+      background-color: currentColor;
+      transform: rotate(42deg);
+      transform-origin: center;
+      border-radius: 1em;
+    }
+
+    .splash-wrap {
+      position: absolute;
+      bottom: -0.75em; 
+      left: 50%;
+      width: 1.4em; 
+      height: 0.8em;
+      transform: translateX(-50%);
+      pointer-events: none;
+      color: var(--requity-orange);
+      z-index: 1;
+      overflow: visible;
+    }
+
+    .ripple {
+      transform-origin: 50% 25px;
+    }
+
+    .ripple-inner {
+      animation: splashInner 5s infinite ease-out;
+    }
+
+    .ripple-outer {
+      animation: splashOuter 5s infinite ease-out;
+    }
+
+    .ripple-furthest {
+      animation: splashFurthest 5s infinite ease-out;
+    }
+
+    @keyframes qColorShift {
+      0%, 15% {
+        color: var(--requity-blue);
+        transform: translateY(0.05em) scale(1);
+      }
+      22% {
+        color: var(--requity-blue);
+        transform: translateY(-0.1em) scale(1.05);
+      }
+      26% {
+        color: var(--requity-orange);
+        transform: translateY(0.1em) scale(0.95, 1.05);
+      }
+      32% {
+        color: var(--requity-orange);
+        transform: translateY(-0.02em) scale(1.02);
+      }
+      38%, 75% {
+        color: var(--requity-orange);
+        transform: translateY(0.05em) scale(1);
+      }
+      85%, 100% {
+        color: var(--requity-blue);
+        transform: translateY(0.05em) scale(1);
+      }
+    }
+
+    @keyframes splashInner {
+      0%, 25% { opacity: 0; transform: scale(0.4) translateY(-10px); }
+      28% { opacity: 1; transform: scale(1) translateY(0); }
+      45% { opacity: 0; transform: scale(1.2) translateY(5px); }
+      100% { opacity: 0; }
+    }
+
+    @keyframes splashOuter {
+      0%, 26% { opacity: 0; transform: scale(0.5) translateY(-10px); }
+      30% { opacity: 0.8; transform: scale(1) translateY(0); }
+      50% { opacity: 0; transform: scale(1.3) translateY(5px); }
+      100% { opacity: 0; }
+    }
+
+    @keyframes splashFurthest {
+      0%, 27% { opacity: 0; transform: scale(0.6) translateY(-10px); }
+      32% { opacity: 0.5; transform: scale(1) translateY(0); }
+      55% { opacity: 0; transform: scale(1.4) translateY(5px); }
+      100% { opacity: 0; }
+    }
+
+    #circle-pattern-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: var(--light-surface);
+      perspective: 1200px;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .circle-pattern {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      isolation: isolate;
+      transform-style: preserve-3d;
+      opacity: 0.16;
+    }
+
+    .circle {
+      position: absolute;
+      width: var(--size);
+      height: var(--size);
+      left: var(--x);
+      top: var(--y);
+      transform-origin: 50% 50%;
+      pointer-events: none;
+      will-change: transform;
+      z-index: 2;
+      transform-style: preserve-3d;
+    }
+
+    .circle svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .circle circle {
+      fill: none;
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke: #073f5a;
+      stroke-dasharray: 190 60;
+      animation: strokeShift 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      animation-delay: var(--color-delay);
+    }
+
+    @keyframes strokeShift {
+      0%, 100% { stroke: #073f5a; }
+      45%, 55% { stroke: #ff8200; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .circle { animation: none !important; transform: none !important; }
+      .circle circle { animation: none !important; stroke: #073f5a; }
+    }
+
+    .dashboard-shell {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-right: 1px solid var(--blue-border);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      flex-shrink: 0;
+    }
+
+    .sidebar-top { padding: 2rem 1.5rem; }
+
+    .brand-logo {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--deep-blue);
+      letter-spacing: 0.5px;
+      margin-bottom: 3rem;
+    }
+
+    .brand-logo .dot { color: var(--accent-orange); }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .nav-item {
+      text-decoration: none;
+      color: var(--secondary-text);
+      font-weight: 500;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+
+    .nav-item:hover {
+      background: var(--soft-blue);
+      color: var(--primary-blue);
+    }
+
+    .nav-item.active {
+      background: var(--soft-blue);
+      color: var(--primary-blue);
+      border-left: 3px solid var(--accent-orange);
+      padding-left: calc(1rem - 3px);
+    }
+
+    .sidebar-bottom {
+      padding: 1.5rem;
+      border-top: 1px solid var(--blue-border);
+    }
+
+    .agent-profile {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      background: var(--primary-blue);
+      color: var(--white);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+
+    .agent-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .agent-name {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--primary-text);
+    }
+
+    .agent-email {
+      font-size: 0.75rem;
+      color: var(--secondary-text);
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 2.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      max-width: 1200px;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 1rem;
+    }
+
+    .header-text h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--deep-blue);
+      margin-bottom: 0.25rem;
+    }
+
+    .header-text p {
+      color: var(--secondary-text);
+      font-size: 1rem;
+    }
+
+    button, .btn-primary, .btn-secondary, .btn-outline {
+      cursor: pointer;
+      font-family: inherit;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-primary {
+      background: var(--accent-orange);
+      color: var(--white);
+      padding: 0.75rem 1.5rem;
+      font-size: 0.875rem;
+      border: none;
+    }
+
+    .btn-primary:hover { background: #E66A00; }
+
+    .btn-secondary {
+      background: var(--soft-blue);
+      color: var(--primary-blue);
+      padding: 0.6rem 1.25rem;
+      font-size: 0.875rem;
+      border: none;
+    }
+
+    .btn-secondary:hover { background: #DCE7F5; }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--primary-text);
+      border: 1px solid var(--blue-border);
+      padding: 0.6rem 1.25rem;
+      font-size: 0.875rem;
+    }
+
+    .btn-outline:hover { background: var(--light-surface); }
+
+    .btn-sm {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.94);
+      border: 1px solid var(--blue-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .card-wide { grid-column: span 1; }
+    .card-narrow { grid-column: span 1; }
+
+    .card-header {
+      padding: 1.25rem 1.5rem 0.5rem;
+    }
+
+    .card-header h2 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--primary-text);
+    }
+
+    .card-body { padding: 1rem 1.5rem 1.5rem; }
+    .card-body.no-padding { padding: 0; }
+    .card-desc { color: var(--secondary-text); font-size: 0.875rem; margin-bottom: 1.25rem; }
+    .card-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--blue-border); background: #FAFCFF; }
+    .flex-col { display: flex; flex-direction: column; }
+    .flex-grow { flex: 1; }
+    .flex-col-center { display: flex; flex-direction: column; align-items: center; }
+    .text-center { text-align: center; }
+    .mb-4 { margin-bottom: 1rem; }
+
+    .link-field-group {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .link-input {
+      flex: 1;
+      padding: 0.6rem 1rem;
+      border: 1px solid var(--blue-border);
+      border-radius: var(--radius-sm);
+      background: var(--light-surface);
+      color: var(--primary-text);
+      font-size: 0.875rem;
+      outline: none;
+    }
+
+    .qr-placeholder {
+      width: 120px;
+      height: 120px;
+      background: var(--white);
+      border: 1px solid var(--blue-border);
+      border-radius: var(--radius-sm);
+      padding: 0.5rem;
+      margin-bottom: 1.25rem;
+      color: var(--primary-blue);
+    }
+
+    .qr-actions { display: flex; gap: 0.5rem; justify-content: center; }
+
+    .chart-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      height: 160px;
+      padding-top: 1.5rem;
+    }
+
+    .bar-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      gap: 0.5rem;
+    }
+
+    .bar-value {
+      font-size: 0.75rem;
+      color: var(--secondary-text);
+      font-weight: 600;
+    }
+
+    .bar-track {
+      width: 32px;
+      height: 100px;
+      background: var(--soft-blue);
+      border-radius: 4px;
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .bar-fill {
+      width: 100%;
+      background: var(--blue-border);
+      border-radius: 4px;
+      transition: height 0.5s ease;
+    }
+
+    .bar-fill.highlight { background: var(--primary-blue); }
+    .bar-label { font-size: 0.75rem; color: var(--secondary-text); }
+
+    .flow-list { display: flex; flex-direction: column; gap: 1.25rem; }
+    .flow-item { display: flex; flex-direction: column; gap: 0.4rem; }
+
+    .flow-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.875rem;
+      color: var(--primary-text);
+    }
+
+    .flow-track {
+      width: 100%;
+      height: 8px;
+      background: var(--soft-blue);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .flow-fill {
+      height: 100%;
+      background: var(--blue-border);
+      border-radius: 4px;
+    }
+
+    .flow-fill.accent { background: var(--accent-orange); }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      text-align: left;
+    }
+
+    .data-table th, .data-table td {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--blue-border);
+    }
+
+    .data-table th { color: var(--secondary-text); font-weight: 500; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .font-medium { font-weight: 500; }
+    .text-secondary { color: var(--secondary-text); }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .status-badge.success { background: #E6F4EA; color: #137333; }
+    .status-badge.pending { background: #FEF7E0; color: #B06000; }
+    .status-badge.neutral { background: var(--soft-blue); color: var(--primary-blue); }
+    .status-badge.active { background: #E8F0FE; color: #1967D2; }
+
+    .message-list { display: flex; flex-direction: column; gap: 1rem; }
+
+    .message-item {
+      display: flex;
+      gap: 0.75rem;
+      background: var(--soft-blue);
+      padding: 0.75rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      color: var(--primary-text);
+    }
+
+    .message-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--primary-blue);
+      border-radius: 50%;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    .link-action {
+      color: var(--primary-blue);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .link-action:hover { text-decoration: underline; }
+
+    #toast-container {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .toast {
+      background: var(--primary-text);
+      color: var(--white);
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s ease;
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+
+
+    .bar-fill.monday { background: #86A9D8; }
+    .bar-fill.tuesday { background: #5C86C4; }
+    .bar-fill.wednesday { background: #9AB8DE; }
+    .bar-fill.thursday { background: #3566AA; }
+    .bar-fill.friday { background: #6F9FD6; }
+    .bar-fill.saturday { background: var(--accent-orange); }
+    .bar-fill.sunday { background: #1E3F7A; }
+    .flow-fill.shared { background: #1E3F7A; }
+    .flow-fill.started { background: #4F7FC3; }
+    .flow-fill.completed { background: #7DA8D8; }
+    .flow-fill.matching { background: var(--accent-orange); }
+
+    .view-section { display: none; }
+    .view-section.active-view { display: block; }
+
+    .section-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .section-title-row h2 {
+      font-size: 1.5rem;
+      color: var(--deep-blue);
+      margin-bottom: 0.35rem;
+    }
+
+    .section-title-row p {
+      color: var(--secondary-text);
+      font-size: 0.95rem;
+    }
+
+    .subtle-pill {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      border: 1px solid var(--blue-border);
+      background: rgba(255,255,255,0.82);
+      border-radius: 999px;
+      padding: 0.4rem 0.75rem;
+      color: var(--primary-blue);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .client-detail-grid,
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1.25rem;
+    }
+
+    .client-detail-card,
+    .settings-card,
+    .messages-shell {
+      background: rgba(255,255,255,0.94);
+      border: 1px solid var(--blue-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+    }
+
+    .client-detail-card { padding: 1.35rem; }
+
+    .client-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--blue-border);
+      margin-bottom: 1rem;
+    }
+
+
+    .requity-match-badge {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      border: 1px solid rgba(255,117,0,0.35);
+      background: rgba(255,117,0,0.1);
+      color: var(--accent-orange);
+      border-radius: 999px;
+      padding: 0.35rem 0.7rem;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .client-status-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.45rem;
+    }
+
+    .client-card-top h3 { color: var(--deep-blue); font-size: 1.1rem; margin-bottom: 0.25rem; }
+    .client-card-top p { color: var(--secondary-text); font-size: 0.875rem; }
+
+    .client-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .client-meta-grid div {
+      background: var(--light-surface);
+      border: 1px solid rgba(211,224,242,0.8);
+      border-radius: var(--radius-sm);
+      padding: 0.8rem;
+    }
+
+    .client-meta-grid span,
+    .message-time {
+      display: block;
+      color: var(--secondary-text);
+      font-size: 0.75rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .client-meta-grid strong { color: var(--primary-text); font-size: 0.875rem; }
+    .client-update-list { display: flex; flex-direction: column; gap: 0.65rem; }
+
+    .update-row {
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+      color: var(--secondary-text);
+      font-size: 0.875rem;
+    }
+
+    .check-mark,
+    .x-mark {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+
+    .check-mark { background: #E6F4EA; color: #137333; }
+    .x-mark { background: #FCE8E6; color: #B3261E; }
+
+    .update-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      background: var(--soft-blue);
+      color: var(--primary-blue);
+      border: 1px solid rgba(211,224,242,0.9);
+      margin-top: 0.05rem;
+    }
+
+    .update-icon svg {
+      width: 13px;
+      height: 13px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .update-icon.match { background: rgba(255,117,0,0.11); color: var(--accent-orange); border-color: rgba(255,117,0,0.24); }
+    .update-icon.mail { background: rgba(30,63,122,0.09); color: var(--primary-blue); }
+    .update-icon.note { background: rgba(7,54,110,0.08); color: var(--deep-blue); }
+    .update-icon.file { background: rgba(19,115,51,0.10); color: #137333; border-color: rgba(19,115,51,0.18); }
+    .update-icon.lock { background: rgba(74,96,124,0.10); color: var(--secondary-text); }
+    .update-icon.wait { background: rgba(176,96,0,0.10); color: #B06000; border-color: rgba(176,96,0,0.18); }
+
+    .client-guidance-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.85rem;
+      margin-top: 1rem;
+    }
+
+    .guidance-panel {
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--blue-border);
+      background: rgba(255,255,255,0.82);
+      padding: 0.95rem;
+    }
+
+    .guidance-panel.avoid-panel {
+      border-color: rgba(179,38,30,0.22);
+      background: rgba(252,232,230,0.38);
+    }
+
+    .guidance-panel.recommended-panel {
+      border-color: rgba(19,115,51,0.18);
+      background: rgba(230,244,234,0.32);
+    }
+
+    .guidance-heading {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      font-weight: 700;
+      color: var(--deep-blue);
+      font-size: 0.9rem;
+    }
+
+    .guidance-heading.avoid-heading { color: #B3261E; }
+    .guidance-heading.recommended-heading { color: #137333; }
+
+    .guidance-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .guidance-row {
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+      color: var(--secondary-text);
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+
+    .guidance-row p { margin: 0; }
+
+    .messages-shell { padding: 1.25rem; }
+    .notification-thread { display: flex; flex-direction: column; gap: 0.9rem; }
+
+    .notification-message {
+      background: var(--white);
+      border: 1px solid var(--blue-border);
+      border-left: 4px solid #9AB8DE;
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+    }
+
+    .notification-message.priority { border-left-color: var(--accent-orange); }
+    .notification-message h3 { color: var(--deep-blue); font-size: 1rem; margin-bottom: 0.35rem; }
+    .notification-message p { color: var(--secondary-text); font-size: 0.9rem; }
+
+    .message-readonly-note {
+      margin-top: 1rem;
+      padding: 0.9rem;
+      border-radius: var(--radius-sm);
+      background: var(--soft-blue);
+      color: var(--secondary-text);
+      font-size: 0.875rem;
+    }
+
+    .settings-card { padding: 1.35rem; }
+    .settings-card h3 { color: var(--deep-blue); font-size: 1.05rem; margin-bottom: 0.5rem; }
+    .settings-card p { color: var(--secondary-text); font-size: 0.9rem; margin-bottom: 1rem; }
+
+    .settings-field {
+      border: 1px solid var(--blue-border);
+      background: var(--light-surface);
+      border-radius: var(--radius-sm);
+      padding: 0.8rem;
+      font-size: 0.9rem;
+      color: var(--primary-text);
+      margin-bottom: 1rem;
+    }
+
+    .settings-action { width: fit-content; }
+    .oauth-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .oauth-list div { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--blue-border); padding-bottom: 0.75rem; }
+    .oauth-list div:last-child { border-bottom: 0; padding-bottom: 0; }
+    .oauth-list span { color: var(--primary-text); font-size: 0.9rem; }
+    .oauth-list strong { color: var(--secondary-text); font-size: 0.85rem; }
+
+    @media (max-width: 1024px) {
+      .dashboard-grid { grid-template-columns: 1fr 1fr; }
+      .card-wide { grid-column: span 2; }
+      .card-narrow { grid-column: span 1; }
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-shell { flex-direction: column; }
+      .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        border-right: none;
+        border-bottom: 1px solid var(--blue-border);
+      }
+      .sidebar-bottom { display: none; }
+      .sidebar-nav { flex-direction: row; overflow-x: auto; padding-bottom: 0.5rem; }
+      .brand-logo { margin-bottom: 1.5rem; }
+      .main-content { padding: 1.5rem; }
+      .top-bar { flex-direction: column; align-items: flex-start; gap: 1rem; }
+      .dashboard-grid, .client-detail-grid, .settings-grid { grid-template-columns: 1fr; }
+      .card-wide, .card-narrow { grid-column: span 1; }
+      .client-card-top, .section-title-row { flex-direction: column; }
+      .client-meta-grid { grid-template-columns: 1fr; }
+      .link-field-group { flex-direction: column; align-items: stretch; }
+      .chart-container { overflow-x: auto; padding-bottom: 1rem; }
+      .data-table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  
+    /* Mobile fit pass */
+    * { max-width: 100%; }
+    html, body { overflow-x: hidden; }
+    img, svg, canvas, video { max-width: 100%; height: auto; }
+    @media (max-width: 1100px) {
+      .dashboard-shell { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; min-height: 0; position: relative; border-right: none; border-bottom: 1px solid var(--blue-border); }
+      .sidebar-top { padding: 1.25rem 1rem 1rem; }
+      .sidebar-bottom { display: none; }
+      .logo { font-size: 1.45rem !important; margin-bottom: 1.1rem !important; }
+      .sidebar-nav { flex-direction: row; overflow-x: auto; gap: .5rem; padding-bottom: .25rem; -webkit-overflow-scrolling: touch; }
+      .nav-item { white-space: nowrap; padding: .65rem .85rem; }
+      .nav-item.active { border-left: none; border-bottom: 3px solid var(--accent-orange); padding-left: .85rem; }
+      .main-content { width: 100%; max-width: none; padding: 1.25rem; }
+      .top-bar { flex-direction: column; align-items: flex-start; gap: 1rem; }
+      .header-actions, .header-actions a { width: 100%; }
+      .btn-primary { width: 100%; min-height: 44px; text-align: center; }
+      .dashboard-grid, .client-grid, .assessment-detail-grid, .settings-grid, .message-grid { grid-template-columns: 1fr !important; }
+      .card-wide, .card-narrow, .card { grid-column: span 1 !important; }
+      .link-field-group, .qr-actions { flex-direction: column; align-items: stretch; }
+      .link-input { width: 100%; }
+      .chart-container { min-width: 0; overflow-x: auto; gap: .45rem; }
+      .bar-track { width: 24px; }
+      .data-table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+    @media (max-width: 640px) {
+      .main-content { padding: 1rem; gap: 1rem; }
+      .header-text h1 { font-size: clamp(1.55rem, 7vw, 2rem) !important; }
+      .header-text p, .card-desc { font-size: .92rem; }
+      .card-header { padding: 1rem 1rem .35rem; }
+      .card-body { padding: .85rem 1rem 1rem; }
+      .card-footer { padding: .85rem 1rem; }
+      .dashboard-grid { gap: 1rem; }
+      .qr-placeholder { width: 112px; height: 112px; }
+      .flow-list, .message-list { gap: .8rem; }
+      #toast-container { left: 1rem; right: 1rem; bottom: 1rem; }
+      .toast { width: 100%; }
+    }
+
+  </style>
+</head>
+<body>
+  <div id="circle-pattern-container">
+    <main class="circle-pattern" id="circle-pattern"></main>
+  </div>
+
+  <div class="dashboard-shell">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="logo">
+          <span class="re">RE</span>
+
+          <div class="q-container">
+            <div class="q-ring"></div>
+            <div class="q-tail"></div>
+            
+            <svg class="splash-wrap" viewBox="0 0 100 60">
+              <path class="ripple ripple-inner" 
+                    d="M 35 15 Q 50 25 65 15" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    stroke-width="5" 
+                    stroke-linecap="round" />
+              
+              <path class="ripple ripple-outer" 
+                    d="M 20 25 Q 50 40 80 25" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    stroke-width="6" 
+                    stroke-linecap="round" />
+
+              <path class="ripple ripple-furthest" 
+                    d="M 5 35 Q 50 55 95 35" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    stroke-width="5" 
+                    stroke-linecap="round" />
+            </svg>
+          </div>
+
+          <span class="uity">UITY</span>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="#" class="nav-item active" data-view="dashboard-view">Dashboard</a>
+          <a href="#" class="nav-item" data-view="clients-view">Client Assessments</a>
+          <a href="#" class="nav-item" data-view="messages-view">Messages</a>
+          <a href="#" class="nav-item" data-view="settings-view">Settings</a>
+        </nav>
+      </div>
+      <div class="sidebar-bottom">
+        <div class="agent-profile">
+          <div class="avatar">DA</div>
+          <div class="agent-info">
+            <span class="agent-name">Demo Agent</span>
+            <span class="agent-email">demo@requity.app</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-bar">
+        <div class="header-text">
+          <h1>Welcome back, Demo Agent</h1>
+          <p>Share your client assessment and track client activity.</p>
+        </div>
+        <div class="header-actions">
+          <a href="assessment.html" class="btn-primary">Discover your Agent Archetype</a>
+        </div>
+      </header>
+
+      <section class="dashboard-view view-section active-view" id="dashboard-view">
+      <div class="dashboard-grid">
+        <div class="card card-wide">
+          <div class="card-header"><h2>Client assessment link</h2></div>
+          <div class="card-body">
+            <p class="card-desc">Share this link with clients so they can complete your assessment intake. Clients who come through your QR code stay in your dashboard for you to manage directly; they are not sent to a REQUITY reviewer.</p>
+            <div class="link-field-group">
+              <input type="text" readonly value="https://requity.app/survey/demo-agent" class="link-input" id="assessmentLink" />
+              <button class="btn-secondary" id="copyLinkBtn">Copy link</button>
+              <button class="btn-outline" id="openPreviewBtn">Open preview</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-narrow text-center">
+          <div class="card-header"><h2>QR code</h2></div>
+          <div class="card-body flex-col-center">
+            <p class="card-desc">Use this in follow-up messages or open houses. QR clients stay assigned to your dashboard.</p>
+            <div class="qr-placeholder">
+              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect x="10" y="10" width="25" height="25" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="15" y="15" width="15" height="15" fill="currentColor"/>
+                <rect x="65" y="10" width="25" height="25" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="70" y="15" width="15" height="15" fill="currentColor"/>
+                <rect x="10" y="65" width="25" height="25" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="15" y="70" width="15" height="15" fill="currentColor"/>
+                <rect x="45" y="10" width="10" height="10" fill="currentColor"/>
+                <rect x="45" y="25" width="10" height="10" fill="currentColor"/>
+                <rect x="65" y="45" width="10" height="10" fill="currentColor"/>
+                <rect x="80" y="45" width="10" height="10" fill="currentColor"/>
+                <rect x="45" y="65" width="10" height="25" fill="currentColor"/>
+                <rect x="65" y="65" width="25" height="10" fill="currentColor"/>
+                <rect x="80" y="80" width="10" height="10" fill="currentColor"/>
+                <rect x="65" y="80" width="10" height="10" fill="currentColor"/>
+                <rect x="10" y="45" width="25" height="10" fill="currentColor"/>
+              </svg>
+            </div>
+            <div class="qr-actions">
+              <button class="btn-secondary btn-sm" id="downloadQrBtn">Download</button>
+              <button class="btn-outline btn-sm" id="copyQrBtn">Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-wide">
+          <div class="card-header"><h2>Assessment activity</h2></div>
+          <div class="card-body">
+            <div class="chart-container">
+              <div class="bar-group"><div class="bar-value">2</div><div class="bar-track"><div class="bar-fill monday" style="height: 28%;"></div></div><div class="bar-label">Mon</div></div>
+              <div class="bar-group"><div class="bar-value">4</div><div class="bar-track"><div class="bar-fill tuesday" style="height: 57%;"></div></div><div class="bar-label">Tue</div></div>
+              <div class="bar-group"><div class="bar-value">3</div><div class="bar-track"><div class="bar-fill wednesday" style="height: 42%;"></div></div><div class="bar-label">Wed</div></div>
+              <div class="bar-group"><div class="bar-value">6</div><div class="bar-track"><div class="bar-fill thursday" style="height: 85%;"></div></div><div class="bar-label">Thu</div></div>
+              <div class="bar-group"><div class="bar-value">5</div><div class="bar-track"><div class="bar-fill friday" style="height: 71%;"></div></div><div class="bar-label">Fri</div></div>
+              <div class="bar-group"><div class="bar-value">7</div><div class="bar-track"><div class="bar-fill saturday" style="height: 100%;"></div></div><div class="bar-label">Sat</div></div>
+              <div class="bar-group"><div class="bar-value">4</div><div class="bar-track"><div class="bar-fill sunday" style="height: 57%;"></div></div><div class="bar-label">Sun</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-narrow">
+          <div class="card-header"><h2>Client Flow</h2></div>
+          <div class="card-body">
+            <div class="flow-list">
+              <div class="flow-item"><div class="flow-labels"><span>Link shared</span><strong>24</strong></div><div class="flow-track"><div class="flow-fill shared" style="width: 100%;"></div></div></div>
+              <div class="flow-item"><div class="flow-labels"><span>Assessment started</span><strong>16</strong></div><div class="flow-track"><div class="flow-fill started" style="width: 66%;"></div></div></div>
+              <div class="flow-item"><div class="flow-labels"><span>Assessment completed</span><strong>11</strong></div><div class="flow-track"><div class="flow-fill completed" style="width: 45%;"></div></div></div>
+              <div class="flow-item"><div class="flow-labels"><span>Profile saved</span><strong>7</strong></div><div class="flow-track"><div class="flow-fill matching" style="width: 29%;"></div></div></div>
+            </div>
+            <p class="card-desc" style="margin-top:1rem;margin-bottom:0;">QR-code clients stay in your dashboard and do not go to the REQUITY reviewer queue.</p>
+          </div>
+        </div>
+
+        <div class="card card-wide">
+          <div class="card-header"><h2>Recent Client Updates</h2></div>
+          <div class="card-body no-padding">
+            <table class="data-table">
+              <thead>
+                <tr><th>Client</th><th>Status</th><th>Updated</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="font-medium">Jordan Miller</td><td><span class="status-badge success">Assessment completed</span></td><td class="text-secondary">Today</td></tr>
+                <tr><td class="font-medium">Avery Collins</td><td><span class="status-badge pending">Profile saved</span></td><td class="text-secondary">Yesterday</td></tr>
+                <tr><td class="font-medium">Riley Morgan</td><td><span class="status-badge neutral">Link opened</span></td><td class="text-secondary">Jun 14</td></tr>
+                <tr><td class="font-medium">Casey Brooks</td><td><span class="status-badge active">Assessment started</span></td><td class="text-secondary">Jun 13</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card card-narrow flex-col">
+          <div class="card-header"><h2>Messages</h2></div>
+          <div class="card-body flex-grow">
+            <p class="card-desc mb-4">REQUITY match notices, client assessment updates, and account notifications will appear here.</p>
+            <div class="message-list">
+              <div class="message-item"><div class="message-dot"></div><div class="message-content">You’ve received a client match from REQUITY!</div></div>
+              <div class="message-item"><div class="message-dot"></div><div class="message-content">Avery Collins completed the assessment.</div></div>
+            </div>
+          </div>
+          <div class="card-footer"><a href="#" class="link-action">View all messages &rarr;</a></div>
+        </div>
+      </div>
+      </section>
+
+      <section class="view-section" id="clients-view">
+        <div class="section-title-row">
+          <div>
+            <h2>Client Assessments</h2>
+            <p>Detailed client profile activity, archetype guidance, dashboard status, and latest updates.</p>
+          </div>
+          <span class="subtle-pill">Demo data</span>
+        </div>
+
+        <div class="client-detail-grid">
+
+          <article class="client-detail-card">
+            <div class="client-card-top">
+              <div>
+                <h3>Naomi Reed</h3>
+                <p>Client archetype: <strong>The Planner</strong></p>
+              </div>
+              <div class="client-status-stack">
+                <span class="requity-match-badge">REQUITY Client Match</span>
+                <span class="status-badge pending">Reviewer matched</span>
+              </div>
+            </div>
+            <div class="client-meta-grid">
+              <div><span>Decision style</span><strong>Careful, structured, evidence-led</strong></div>
+              <div><span>Communication</span><strong>Written summaries and clear next steps</strong></div>
+              <div><span>Support need</span><strong>Organization, timing, and reassurance</strong></div>
+              <div><span>Source</span><strong>Received from REQUITY reviewer</strong></div>
+            </div>
+            <div class="client-guidance-grid">
+              <div class="guidance-panel avoid-panel">
+                <div class="guidance-heading avoid-heading"><span class="x-mark">×</span> What to avoid with this client</div>
+                <div class="guidance-list">
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Do not rush the client into a decision without giving them time to compare options.</p></div>
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Avoid vague updates, missing details, or unclear timelines.</p></div>
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Do not rely on emotional urgency when the client needs structure and proof.</p></div>
+                </div>
+              </div>
+              <div class="guidance-panel recommended-panel">
+                <div class="guidance-heading recommended-heading"><span class="check-mark">✓</span> Recommended approach</div>
+                <div class="guidance-list">
+                  <div class="guidance-row"><span class="check-mark">✓</span><p>Send clear written recaps with deadlines, documents, and next steps.</p></div>
+                  <div class="guidance-row"><span class="check-mark">✓</span><p>Use comparison tables, practical reasoning, and calm guidance.</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="client-update-list" style="margin-top:1rem;">
+              <div class="update-row"><span class="update-icon match"><svg viewBox="0 0 24 24"><path d="M12 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7-4.2-2.2L7.8 16l.8-4.7L5.2 8l4.7-.7L12 3z"/></svg></span><p>You’ve received a client match from REQUITY!</p></div>
+              <div class="update-row"><span class="update-icon mail"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span><p>If you have any issues, message requity@support.com.</p></div>
+              <div class="update-row"><span class="update-icon note"><svg viewBox="0 0 24 24"><path d="M8 7h8M8 11h8M8 15h5"/><rect x="4" y="3" width="16" height="18" rx="2"/></svg></span><p>Thank you for working with us.</p></div>
+            </div>
+          </article>
+          <article class="client-detail-card">
+            <div class="client-card-top">
+              <div>
+                <h3>Jordan Miller</h3>
+                <p>Client archetype: <strong>The Trailblazer</strong></p>
+              </div>
+              <span class="status-badge success">Assessment completed</span>
+            </div>
+            <div class="client-meta-grid">
+              <div><span>Decision style</span><strong>Fast, direct, action-oriented</strong></div>
+              <div><span>Communication</span><strong>Short, vivid updates</strong></div>
+              <div><span>Support need</span><strong>Momentum and confidence</strong></div>
+              <div><span>Source</span><strong>QR code client — stays in dashboard</strong></div>
+            </div>
+            <div class="client-guidance-grid">
+              <div class="guidance-panel avoid-panel">
+                <div class="guidance-heading avoid-heading"><span class="x-mark">×</span> What to avoid with this client</div>
+                <div class="guidance-list">
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Lengthy emails that overload working memory.</p></div>
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Frequent check-ins that interrupt their flow or reduce autonomy.</p></div>
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Too many options, detailed risk lists, or conservative advice that slows momentum.</p></div>
+                </div>
+              </div>
+              <div class="guidance-panel recommended-panel">
+                <div class="guidance-heading recommended-heading"><span class="check-mark">✓</span> Recommended approach</div>
+                <div class="guidance-list">
+                  <div class="guidance-row"><span class="check-mark">✓</span><p>Use short voice/video updates and bold, visual progress cues.</p></div>
+                  <div class="guidance-row"><span class="check-mark">✓</span><p>Present two or three clear choices with immediate next steps.</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="client-update-list" style="margin-top:1rem;">
+              <div class="update-row"><span class="update-icon file"><svg viewBox="0 0 24 24"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/></svg></span><p>Assessment completed today.</p></div>
+              <div class="update-row"><span class="update-icon file"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><p>Relational profile is saved in your dashboard.</p></div>
+              <div class="update-row"><span class="update-icon lock"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><p>This QR client stays with you unless you request support.</p></div>
+            </div>
+          </article>
+
+          <article class="client-detail-card">
+            <div class="client-card-top">
+              <div>
+                <h3>Avery Collins</h3>
+                <p>Client archetype: <strong>The Harmonizer</strong></p>
+              </div>
+              <span class="status-badge pending">Profile saved</span>
+            </div>
+            <div class="client-meta-grid">
+              <div><span>Decision style</span><strong>Collaborative and relational</strong></div>
+              <div><span>Communication</span><strong>Gentle, supportive updates</strong></div>
+              <div><span>Support need</span><strong>Peace of mind and emotional clarity</strong></div>
+              <div><span>Source</span><strong>QR code client — stays in dashboard</strong></div>
+            </div>
+            <div class="client-guidance-grid">
+              <div class="guidance-panel avoid-panel">
+                <div class="guidance-heading avoid-heading"><span class="x-mark">×</span> What to avoid with this client</div>
+                <div class="guidance-list">
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Harsh, confrontational communication or pressure tactics.</p></div>
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Competitive bidding scenarios that create unnecessary anxiety or conflict.</p></div>
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Excluding family members or key stakeholders from important discussions.</p></div>
+                </div>
+              </div>
+              <div class="guidance-panel recommended-panel">
+                <div class="guidance-heading recommended-heading"><span class="check-mark">✓</span> Recommended approach</div>
+                <div class="guidance-list">
+                  <div class="guidance-row"><span class="check-mark">✓</span><p>Use calming reassurance and collaborative planning.</p></div>
+                  <div class="guidance-row"><span class="check-mark">✓</span><p>Give regular check-ins focused on comfort, trust, and clarity.</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="client-update-list" style="margin-top:1rem;">
+              <div class="update-row"><span class="update-icon file"><svg viewBox="0 0 24 24"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/></svg></span><p>Assessment completed yesterday.</p></div>
+              <div class="update-row"><span class="update-icon file"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><p>Client profile is saved to your dashboard for follow-up.</p></div>
+              <div class="update-row"><span class="update-icon lock"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><p>This QR client was not routed to a reviewer.</p></div>
+            </div>
+          </article>
+
+          <article class="client-detail-card">
+            <div class="client-card-top">
+              <div>
+                <h3>Riley Morgan</h3>
+                <p>Client archetype: <strong>Pending</strong></p>
+              </div>
+              <span class="status-badge neutral">Link opened</span>
+            </div>
+            <div class="client-meta-grid">
+              <div><span>Decision style</span><strong>Not available yet</strong></div>
+              <div><span>Communication</span><strong>Waiting on assessment</strong></div>
+              <div><span>Support need</span><strong>Waiting on assessment</strong></div>
+              <div><span>Source</span><strong>QR code client — not sent to reviewer</strong></div>
+            </div>
+            <div class="client-guidance-grid">
+              <div class="guidance-panel avoid-panel">
+                <div class="guidance-heading avoid-heading"><span class="x-mark">×</span> What to avoid right now</div>
+                <div class="guidance-list">
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Do not assume their style before the assessment is complete.</p></div>
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Avoid pushing for decisions before REQUITY has a relational profile.</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="client-update-list" style="margin-top:1rem;">
+              <div class="update-row"><span class="update-icon mail"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><p>Client opened the assessment link on Jun 14.</p></div>
+              <div class="update-row"><span class="update-icon wait"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><p>Client has not started the assessment yet.</p></div>
+              <div class="update-row"><span class="update-icon wait"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><p>No archetype is available yet.</p></div>
+            </div>
+          </article>
+
+          <article class="client-detail-card">
+            <div class="client-card-top">
+              <div>
+                <h3>Casey Brooks</h3>
+                <p>Client archetype: <strong>In progress</strong></p>
+              </div>
+              <span class="status-badge active">Assessment started</span>
+            </div>
+            <div class="client-meta-grid">
+              <div><span>Decision style</span><strong>Partially captured</strong></div>
+              <div><span>Communication</span><strong>Partially captured</strong></div>
+              <div><span>Support need</span><strong>Assessment incomplete</strong></div>
+              <div><span>Source</span><strong>QR code client — not sent to reviewer</strong></div>
+            </div>
+            <div class="client-guidance-grid">
+              <div class="guidance-panel avoid-panel">
+                <div class="guidance-heading avoid-heading"><span class="x-mark">×</span> What to avoid right now</div>
+                <div class="guidance-list">
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Do not over-interpret partial answers or create a fit recommendation early.</p></div>
+                  <div class="guidance-row"><span class="x-mark">×</span><p>Avoid treating the client as fully understood until submission is complete.</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="client-update-list" style="margin-top:1rem;">
+              <div class="update-row"><span class="update-icon file"><svg viewBox="0 0 24 24"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/></svg></span><p>Assessment started on Jun 13.</p></div>
+              <div class="update-row"><span class="update-icon wait"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><p>Client has not submitted final answers yet.</p></div>
+              <div class="update-row"><span class="update-icon lock"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><p>The completed profile will stay in your dashboard after submission.</p></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view-section" id="messages-view">
+        <div class="section-title-row">
+          <div>
+            <h2>Messages</h2>
+            <p>Notifications from REQUITY, client assessment activity, received matches, and archetype status.</p>
+          </div>
+          <span class="subtle-pill">Read-only inbox</span>
+        </div>
+        <div class="messages-shell card">
+          <div class="notification-thread">
+            <div class="notification-message priority">
+              <span class="message-time">Today, 10:24 AM</span>
+              <h3>You’ve received a client match from REQUITY!</h3>
+              <p>You’ve received a client match from REQUITY! If you have any issues, message requity@support.com. Thank you for working with us.</p>
+            </div>
+            <div class="notification-message priority">
+              <span class="message-time">Today, 9:42 AM</span>
+              <h3>Jordan Miller assessment completed</h3>
+              <p>The client assessment has been completed and saved to your dashboard. This client came from your QR code, so they remain assigned to you.</p>
+            </div>
+            <div class="notification-message">
+              <span class="message-time">Today, 8:18 AM</span>
+              <h3>Your Agent Archetype is ready</h3>
+              <p>Your assessment is complete. Your Agent Archetype will help REQUITY understand your strengths when future client matches are reviewed.</p>
+            </div>
+            <div class="notification-message">
+              <span class="message-time">Yesterday, 4:05 PM</span>
+              <h3>Avery Collins completed the assessment</h3>
+              <p>The client profile has been saved in your dashboard. This QR client is yours to follow up with directly.</p>
+            </div>
+            <div class="notification-message">
+              <span class="message-time">Jun 14, 2:20 PM</span>
+              <h3>Riley Morgan opened the assessment link</h3>
+              <p>The client has viewed your shared assessment link but has not started the assessment yet.</p>
+            </div>
+            <div class="notification-message">
+              <span class="message-time">Jun 13, 11:11 AM</span>
+              <h3>Casey Brooks started the assessment</h3>
+              <p>Answers are being collected. The client profile will update after submission.</p>
+            </div>
+          </div>
+          <div class="message-readonly-note">This inbox is read-only. REQUITY notifications, client activity, and match updates will appear here automatically.</div>
+        </div>
+      </section>
+
+      <section class="view-section" id="settings-view">
+        <div class="section-title-row">
+          <div>
+            <h2>Settings</h2>
+            <p>Supabase OAuth and account settings for the future production login system.</p>
+          </div>
+          <span class="subtle-pill">Supabase-ready</span>
+        </div>
+        <div class="settings-grid">
+          <article class="settings-card card">
+            <h3>Account email</h3>
+            <p>Current login email connected to the demo agent account.</p>
+            <div class="settings-field">demo@requity.app</div>
+            <button class="btn-secondary settings-action" data-toast="Email reset link sent.">Send email reset link</button>
+          </article>
+          <article class="settings-card card">
+            <h3>Password</h3>
+            <p>Send a Supabase password recovery email to the agent account.</p>
+            <div class="settings-field">Password managed by Supabase Auth</div>
+            <button class="btn-secondary settings-action" data-toast="Password reset email sent.">Send password reset</button>
+          </article>
+          <article class="settings-card card">
+            <h3>OAuth providers</h3>
+            <p>Future OAuth options can connect here without changing the dashboard UI.</p>
+            <div class="oauth-list">
+              <div><span>Google OAuth</span><strong>Not connected</strong></div>
+              <div><span>Apple OAuth</span><strong>Not connected</strong></div>
+              <div><span>Email login</span><strong>Enabled</strong></div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const container = document.getElementById('circle-pattern');
+      const circles = [];
+      let currentState = 0;
+      let nextState = 0;
+      let isTransitioning = false;
+      let transitionStartTime = 0;
+      const transitionDuration = 2.5;
+      let seed = 41584;
+
+      function random() {
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+      }
+
+      function circleSVG() {
+        return '<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" /></svg>';
+      }
+
+      function createCircle(config) {
+        const circle = document.createElement("div");
+        circle.className = "circle";
+        circle.style.setProperty("--x", `${config.x}px`);
+        circle.style.setProperty("--y", `${config.y}px`);
+        circle.style.setProperty("--size", `${config.size}px`);
+        circle.style.setProperty("--color-delay", `${config.colorDelay}s`);
+        circle.innerHTML = circleSVG();
+        container.appendChild(circle);
+        circles.push({ el: circle, ...config });
+      }
+
+      function buildPattern() {
+        if (!container) return;
+        container.innerHTML = "";
+        circles.length = 0;
+        const holder = document.getElementById("circle-pattern-container");
+        const width = holder.clientWidth;
+        const height = holder.clientHeight;
+        const cx = width / 2;
+        const cy = height / 2;
+        const maxSize = Math.min(38, Math.max(24, width / 38));
+        const minSize = maxSize * 0.72;
+        const movement = Math.max(12, maxSize * 0.5);
+        const cell = maxSize * 2.35 + movement * 2;
+        const cols = Math.ceil(width / cell) + 2;
+        const rows = Math.ceil(height / cell) + 2;
+        const points = [];
+
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            points.push({ row, col, sort: random() });
+          }
+        }
+
+        points.sort((a, b) => a.sort - b.sort);
+        points.forEach(({ row, col }) => {
+          const size = minSize + random() * (maxSize - minSize);
+          const jitter = cell * 0.34;
+          const x = col * cell + cell * 0.5 + (random() - 0.5) * jitter - cell * 0.65;
+          const y = row * cell + cell * 0.5 + (random() - 0.5) * jitter - cell * 0.65;
+          const dist = Math.hypot(x - cx, y - cy);
+          const waveAngle = (col * 0.78 + row * 0.55) % (Math.PI * 2);
+          const moveX = Math.cos(waveAngle) * movement;
+          const moveY = Math.sin(waveAngle) * movement * 0.75;
+          const waveIndex = col + row * 0.82;
+          const delay = -(waveIndex * 0.16) % 5.6;
+          const colorDelay = -(waveIndex * 0.24) % 6;
+          const tilt = random() * 360;
+          createCircle({ x, y, size, dist, row, col, delay, colorDelay, moveX, moveY, tilt });
+        });
+      }
+
+      function getTransformValues(state, circ, t) {
+        let x = 0, y = 0, z = 0, s = 1, r = circ.tilt;
+        let phase, ease;
+        switch(state) {
+          case 0:
+            phase = ((t + circ.delay) / 5.6) % 1.0;
+            ease = (1 - Math.cos(phase * Math.PI * 2)) / 2;
+            x = circ.moveX * ease;
+            y = circ.moveY * ease;
+            z = 150 * ease;
+            r = circ.tilt - Math.cos(phase * Math.PI * 2) * 90;
+            break;
+          case 1:
+            phase = ((t + circ.dist * -0.008) / 4.0) % 1.0;
+            ease = (1 - Math.cos(phase * Math.PI * 2)) / 2;
+            x = circ.moveX * 0.5 * ease;
+            y = circ.moveY * -0.5 * ease;
+            z = 250 * ease;
+            s = 1 + 0.6 * ease;
+            r = circ.tilt + ease * 180;
+            break;
+          case 2:
+            phase = ((t + circ.col * -0.2 + circ.row * -0.1) / 5.0) % 1.0;
+            ease = (1 - Math.cos(phase * Math.PI * 2)) / 2;
+            z = -200 * ease;
+            s = 1 - 0.6 * ease;
+            r = circ.tilt + ease * 180;
+            break;
+          case 3:
+            phase = ((t + circ.delay) / 12.0) % 1.0;
+            ease = (1 - Math.cos(phase * Math.PI * 2)) / 2;
+            x = circ.moveX * 2 * ease;
+            y = circ.moveY * 2 * ease;
+            z = 100 * ease;
+            r = circ.tilt - ease * 180;
+            break;
+        }
+        return { x, y, z, s, r };
+      }
+
+      function animate(now) {
+        const t = now / 1000;
+        let blend = 0;
+        if (isTransitioning) {
+          blend = (t - transitionStartTime) / transitionDuration;
+          if (blend >= 1) {
+            blend = 1;
+            currentState = nextState;
+            isTransitioning = false;
+          }
+        }
+        const easedBlend = blend * blend * (3 - 2 * blend);
+        for (let i = 0; i < circles.length; i++) {
+          const circ = circles[i];
+          const v1 = getTransformValues(currentState, circ, t);
+          let x, y, z, s, r;
+          if (isTransitioning) {
+            const v2 = getTransformValues(nextState, circ, t);
+            x = v1.x + (v2.x - v1.x) * easedBlend;
+            y = v1.y + (v2.y - v1.y) * easedBlend;
+            z = v1.z + (v2.z - v1.z) * easedBlend;
+            s = v1.s + (v2.s - v1.s) * easedBlend;
+            r = v1.r + (v2.r - v1.r) * easedBlend;
+          } else {
+            x = v1.x; y = v1.y; z = v1.z; s = v1.s; r = v1.r;
+          }
+          circ.el.style.transform = `translate3d(${x}px, ${y}px, ${z}px) scale(${s}) rotate(${r}deg)`;
+        }
+        requestAnimationFrame(animate);
+      }
+
+      buildPattern();
+      requestAnimationFrame(animate);
+      setInterval(() => {
+        nextState = (currentState + 1) % 4;
+        isTransitioning = true;
+        transitionStartTime = performance.now() / 1000;
+      }, 9000);
+
+      let resizeTimer;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          seed = 41584;
+          buildPattern();
+        }, 150);
+      });
+
+      const toastContainer = document.getElementById('toast-container');
+
+      function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerText = message;
+        toastContainer.appendChild(toast);
+        requestAnimationFrame(() => toast.classList.add('show'));
+        setTimeout(() => {
+          toast.classList.remove('show');
+          setTimeout(() => toast.remove(), 300);
+        }, 2500);
+      }
+
+      function handleButtonState(btn, tempText, originalText, toastMsg) {
+        if (!btn) return;
+        btn.innerText = tempText;
+        showToast(toastMsg);
+        setTimeout(() => { btn.innerText = originalText; }, 1500);
+      }
+
+      const copyLinkBtn = document.getElementById('copyLinkBtn');
+      const assessmentLink = document.getElementById('assessmentLink');
+      if (copyLinkBtn && assessmentLink) {
+        copyLinkBtn.addEventListener('click', () => {
+          assessmentLink.select();
+          navigator.clipboard.writeText(assessmentLink.value).catch(() => {});
+          handleButtonState(copyLinkBtn, 'Copied!', 'Copy link', 'Link copied to clipboard.');
+        });
+      }
+
+      const openPreviewBtn = document.getElementById('openPreviewBtn');
+      if (openPreviewBtn) {
+        openPreviewBtn.addEventListener('click', () => {
+          showToast('Opening preview in new tab...');
+        });
+      }
+
+      const downloadQrBtn = document.getElementById('downloadQrBtn');
+      const copyQrBtn = document.getElementById('copyQrBtn');
+      if (downloadQrBtn) {
+        downloadQrBtn.addEventListener('click', () => {
+          handleButtonState(downloadQrBtn, 'Downloaded!', 'Download', 'QR code downloaded.');
+        });
+      }
+      if (copyQrBtn) {
+        copyQrBtn.addEventListener('click', () => {
+          handleButtonState(copyQrBtn, 'Copied!', 'Copy', 'QR code copied to clipboard.');
+        });
+      }
+
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+          if(item.getAttribute('href') === '#') {
+            e.preventDefault();
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            item.classList.add('active');
+            const viewId = item.dataset.view;
+            if (viewId) {
+              document.querySelectorAll('.view-section').forEach(section => section.classList.remove('active-view'));
+              document.getElementById(viewId)?.classList.add('active-view');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }
+        });
+      });
+
+      document.querySelectorAll('.settings-action').forEach(button => {
+        button.addEventListener('click', () => showToast(button.dataset.toast || 'Settings action queued.'));
+      });
+
+      document.querySelector('.link-action')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const messagesItem = document.querySelector('[data-view="messages-view"]');
+        messagesItem?.click();
+      });
+    });
+  </script>
+</body>
+</html>
