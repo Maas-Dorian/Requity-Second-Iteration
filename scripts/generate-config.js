@@ -5,16 +5,21 @@
  * browser-safe public values. After deploy you can verify it is served at:
  *   https://requity-second-iteration.vercel.app/frontend/shared/config.js
  *
+ * ESM module (package.json has "type": "module").
+ *
  * SECURITY: this script never reads or writes the Supabase service role key or
  * the Brevo API key, and it never logs the anon key value (only whether it is
  * present). Those secrets are server-only env vars used by the /api routes.
  */
-"use strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const fs = require("fs");
-const path = require("path");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, "..");
 
-const configPath = path.join(process.cwd(), "frontend", "shared", "config.js");
+const configPath = path.join(rootDir, "frontend", "shared", "config.js");
 
 const config = {
   apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "/api",

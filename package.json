@@ -2,6 +2,7 @@
   "name": "requity-platform",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "REQUITY platform: static frontend + secure Vercel API routes over Supabase.",
   "scripts": {
     "typecheck": "tsc --noEmit",
