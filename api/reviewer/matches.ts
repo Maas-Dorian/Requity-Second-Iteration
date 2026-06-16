@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { runHandler, ensureMethod, sendJson } from "../_lib/http";
-import { listReviewerQueue } from "../../backend/lib/reviewerMatches";
-import { requireReviewer } from "../../backend/lib/auth";
-import { logApiStart, logSupabaseError } from "../../backend/lib/logger";
+import { runHandler, ensureMethod, sendJson } from "../_lib/http.js";
+import { listReviewerQueue } from "../../backend/lib/reviewerMatches.js";
+import { requireReviewer } from "../../backend/lib/auth.js";
+import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "reviewer/matches";
 

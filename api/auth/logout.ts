@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { runHandler, ensureMethod, sendJson } from "../_lib/http";
-import { logApiStart } from "../../backend/lib/logger";
+import { runHandler, ensureMethod, sendJson } from "../_lib/http.js";
+import { logApiStart } from "../../backend/lib/logger.js";
 
 /**
  * POST /api/auth/logout

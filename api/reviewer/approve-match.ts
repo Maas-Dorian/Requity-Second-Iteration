@@ -7,10 +7,10 @@ import {
   optionalString,
   sendJson,
   HttpError,
-} from "../_lib/http";
-import { assignReviewerMatch } from "../../backend/lib/reviewerMatches";
-import { requireReviewer } from "../../backend/lib/auth";
-import { logApiStart, logSupabaseError } from "../../backend/lib/logger";
+} from "../_lib/http.js";
+import { assignReviewerMatch } from "../../backend/lib/reviewerMatches.js";
+import { requireReviewer } from "../../backend/lib/auth.js";
+import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "reviewer/approve-match";
 

@@ -1,15 +1,15 @@
-import { getSupabaseAdmin } from "./supabaseAdmin";
-import { env } from "./env";
+import { getSupabaseAdmin } from "./supabaseAdmin.js";
+import { env } from "./env.js";
 import {
   clientArchetypeMap,
   type ClientOrientation,
   type ClientStyle,
   type StressResponse,
   type ClientSource,
-} from "./matching";
-import { createNotification } from "./messages";
-import { sendAndRecordClientCompleteEmail } from "./emailEvents";
-import { completeAssessmentLead } from "./assessmentLeads";
+} from "./matching.js";
+import { createNotification } from "./messages.js";
+import { sendAndRecordClientCompleteEmail } from "./emailEvents.js";
+import { completeAssessmentLead } from "./assessmentLeads.js";
 
 /** Public-facing source values accepted by the API (mapped to DB enum below). */
 export type ClientLinkSource = "qr" | "agent_link" | "reviewer";

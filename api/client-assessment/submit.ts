@@ -15,14 +15,14 @@ import {
   getClientIp,
   sendJson,
   HttpError,
-} from "../_lib/http";
+} from "../_lib/http.js";
 import {
   submitClientAssessmentWithContact,
   type ClientAnswers,
   type ClientArchetypeResult,
-} from "../../backend/lib/clientAssessments";
-import { checkRateLimit } from "../../backend/lib/rateLimit";
-import { logApiStart, logValidationFailure, logSupabaseError } from "../../backend/lib/logger";
+} from "../../backend/lib/clientAssessments.js";
+import { checkRateLimit } from "../../backend/lib/rateLimit.js";
+import { logApiStart, logValidationFailure, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "client-assessment/submit";
 

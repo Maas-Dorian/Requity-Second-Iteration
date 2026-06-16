@@ -1,12 +1,12 @@
-export { emailLayout, REQUITY_COLORS } from "./layout";
-export type { LayoutOptions } from "./layout";
+export { emailLayout, REQUITY_COLORS } from "./layout.js";
+export type { LayoutOptions } from "./layout.js";
 export {
   reviewerMatchEmail,
   REVIEWER_MATCH_SUBJECT,
-} from "./reviewerMatch";
-export type { ReviewerMatchEmailParams } from "./reviewerMatch";
+} from "./reviewerMatch.js";
+export type { ReviewerMatchEmailParams } from "./reviewerMatch.js";
 export {
   clientAssessmentCompleteEmail,
   CLIENT_COMPLETE_SUBJECT,
-} from "./clientAssessmentComplete";
-export type { ClientCompleteEmailParams } from "./clientAssessmentComplete";
+} from "./clientAssessmentComplete.js";
+export type { ClientCompleteEmailParams } from "./clientAssessmentComplete.js";

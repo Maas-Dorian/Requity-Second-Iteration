@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { applyCors, sendJson } from "../_lib/http";
-import { getRequiredEnvStatus } from "../../backend/lib/env";
-import { getSupabaseAdmin } from "../../backend/lib/supabaseAdmin";
+import { applyCors, sendJson } from "../_lib/http.js";
+import { getRequiredEnvStatus } from "../../backend/lib/env.js";
+import { getSupabaseAdmin } from "../../backend/lib/supabaseAdmin.js";
 
 /**
  * GET /api/health/auth-config

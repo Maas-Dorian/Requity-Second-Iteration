@@ -1,5 +1,5 @@
-import { env } from "./env";
-import { logBrevoFailure } from "./logger";
+import { env } from "./env.js";
+import { logBrevoFailure } from "./logger.js";
 import {
   reviewerMatchEmail,
   REVIEWER_MATCH_SUBJECT,
@@ -7,7 +7,7 @@ import {
   clientAssessmentCompleteEmail,
   CLIENT_COMPLETE_SUBJECT,
   type ClientCompleteEmailParams,
-} from "../emails";
+} from "../emails/index.js";
 
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 

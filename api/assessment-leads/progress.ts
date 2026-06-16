@@ -10,10 +10,10 @@ import {
   getClientIp,
   sendJson,
   HttpError,
-} from "../_lib/http";
-import { updateAssessmentLeadProgress } from "../../backend/lib/assessmentLeads";
-import { checkRateLimit } from "../../backend/lib/rateLimit";
-import { logApiStart, logValidationFailure, logSupabaseError } from "../../backend/lib/logger";
+} from "../_lib/http.js";
+import { updateAssessmentLeadProgress } from "../../backend/lib/assessmentLeads.js";
+import { checkRateLimit } from "../../backend/lib/rateLimit.js";
+import { logApiStart, logValidationFailure, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "assessment-leads/progress";
 

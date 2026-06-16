@@ -6,10 +6,10 @@ import {
   getQueryParam,
   sendJson,
   HttpError,
-} from "../_lib/http";
-import { getAgentDashboard } from "../../backend/lib/dashboard";
-import { requireAgent } from "../../backend/lib/auth";
-import { logApiStart, logSupabaseError } from "../../backend/lib/logger";
+} from "../_lib/http.js";
+import { getAgentDashboard } from "../../backend/lib/dashboard.js";
+import { requireAgent } from "../../backend/lib/auth.js";
+import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "dashboard/agent";
 

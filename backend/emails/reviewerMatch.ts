@@ -1,4 +1,4 @@
-import { emailLayout, REQUITY_COLORS } from "./layout";
+import { emailLayout, REQUITY_COLORS } from "./layout.js";
 
 export type ReviewerMatchEmailParams = {
   /** Name of the client being assigned to the agent. */

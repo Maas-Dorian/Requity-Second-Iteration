@@ -1,19 +1,19 @@
 /**
  * REQUITY backend library barrel.
  * Import from here for a clean public surface, e.g.
- *   import { getSupabaseAdmin, rankAgentsForClient, sendReviewerMatchEmail } from "../lib";
+ *   import { getSupabaseAdmin, rankAgentsForClient, sendReviewerMatchEmail } from "../lib/index.js";
  */
-export { env } from "./env";
-export { getSupabaseClient, supabase } from "./supabaseClient";
-export { getSupabaseAdmin, supabaseAdmin } from "./supabaseAdmin";
-export * from "./matching";
+export { env } from "./env.js";
+export { getSupabaseClient, supabase } from "./supabaseClient.js";
+export { getSupabaseAdmin, supabaseAdmin } from "./supabaseAdmin.js";
+export * from "./matching.js";
 export {
   sendBrevoEmail,
   sendReviewerMatchEmail,
   type BrevoEmail,
   type EmailRecipient,
   type SendResult,
-} from "./brevo";
+} from "./brevo.js";
 
 export {
   createNotification,
@@ -23,14 +23,14 @@ export {
   type NotificationType,
   type NotificationRecord,
   type CreateNotificationParams,
-} from "./messages";
+} from "./messages.js";
 
 export {
   recordEmailEvent,
   sendAndRecordReviewerMatchEmail,
   type EmailEventRecord,
   type RecordEmailEventParams,
-} from "./emailEvents";
+} from "./emailEvents.js";
 
 export {
   createClientAssessment,
@@ -53,7 +53,7 @@ export {
   type SubmitClientAssessmentResult,
   type SubmitClientAssessmentWithContactParams,
   type SubmitClientAssessmentWithContactResult,
-} from "./clientAssessments";
+} from "./clientAssessments.js";
 
 export {
   submitAgentAssessment,
@@ -62,7 +62,7 @@ export {
   type AgentArchetypeResult,
   type SubmitAgentAssessmentParams,
   type SubmitAgentAssessmentResult,
-} from "./agentAssessments";
+} from "./agentAssessments.js";
 
 export {
   createReviewerClientMatch,
@@ -75,20 +75,20 @@ export {
   type CreateReviewerClientMatchParams,
   type AssignReviewerMatchParams,
   type ApproveReviewerMatchResult,
-} from "./reviewerMatches";
+} from "./reviewerMatches.js";
 
 export {
   getAgentDashboard,
   type AgentDashboard,
-} from "./dashboard";
+} from "./dashboard.js";
 
 export {
   sendClientAssessmentCompleteEmail,
-} from "./brevo";
+} from "./brevo.js";
 
 export {
   sendAndRecordClientCompleteEmail,
-} from "./emailEvents";
+} from "./emailEvents.js";
 
 export {
   getUserFromRequest,
@@ -102,14 +102,14 @@ export {
   type AuthedProfile,
   type UserRole,
   type RequestLike,
-} from "./auth";
+} from "./auth.js";
 
 export {
   checkRateLimit,
   pruneRateLimitBuckets,
   type RateLimitResult,
   type RateLimitAction,
-} from "./rateLimit";
+} from "./rateLimit.js";
 
 export {
   logger,
@@ -119,7 +119,7 @@ export {
   logBrevoFailure,
   type LogLevel,
   type LogContext,
-} from "./logger";
+} from "./logger.js";
 
 export {
   createAgentProfileForUser,
@@ -133,7 +133,7 @@ export {
   type AgentRecord,
   type AgentInput,
   type AgentProfileResult,
-} from "./users";
+} from "./users.js";
 
 export {
   upsertAssessmentLeadStart,
@@ -152,4 +152,4 @@ export {
   type CompleteAssessmentLeadInput,
   type ListReviewerLeadsFilters,
   type UpdateLeadFollowUpInput,
-} from "./assessmentLeads";
+} from "./assessmentLeads.js";

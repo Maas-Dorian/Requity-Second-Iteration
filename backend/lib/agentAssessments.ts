@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "./supabaseAdmin";
+import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import {
   agentArchetypeMap,
   type AgentInteractionStyle,
@@ -6,8 +6,8 @@ import {
   type StressResponse,
   type PerceivedValue,
   type NegotiationStyle,
-} from "./matching";
-import { createNotification } from "./messages";
+} from "./matching.js";
+import { createNotification } from "./messages.js";
 
 /**
  * Agent assessment lifecycle: score the 18-question agent survey into the five

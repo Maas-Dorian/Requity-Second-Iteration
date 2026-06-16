@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { runHandler, ensureMethod, sendJson } from "../_lib/http";
-import { getEnv } from "../../backend/lib/env";
+import { runHandler, ensureMethod, sendJson } from "../_lib/http.js";
+import { getEnv } from "../../backend/lib/env.js";
 
 /**
  * GET /api/health/brevo

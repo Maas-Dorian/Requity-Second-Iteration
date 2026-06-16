@@ -1,5 +1,5 @@
-import { getSupabaseAdmin } from "./supabaseAdmin";
-import { createNotification } from "./messages";
+import { getSupabaseAdmin } from "./supabaseAdmin.js";
+import { createNotification } from "./messages.js";
 
 /**
  * Incomplete / partial assessment lead capture.

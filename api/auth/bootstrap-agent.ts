@@ -8,11 +8,11 @@ import {
   assertPayloadSize,
   sendJson,
   HttpError,
-} from "../_lib/http";
-import { getUserFromRequest } from "../../backend/lib/auth";
-import { createAgentProfileForUser } from "../../backend/lib/users";
-import { env } from "../../backend/lib/env";
-import { logApiStart, logSupabaseError } from "../../backend/lib/logger";
+} from "../_lib/http.js";
+import { getUserFromRequest } from "../../backend/lib/auth.js";
+import { createAgentProfileForUser } from "../../backend/lib/users.js";
+import { env } from "../../backend/lib/env.js";
+import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "auth/bootstrap-agent";
 

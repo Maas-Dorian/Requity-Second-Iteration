@@ -6,14 +6,14 @@ import {
   requireQueryParam,
   sendJson,
   HttpError,
-} from "../_lib/http";
-import { getAgentAssessmentLinks } from "../../backend/lib/dashboard";
+} from "../_lib/http.js";
+import { getAgentAssessmentLinks } from "../../backend/lib/dashboard.js";
 import {
   generateAgentAssessmentQrDataUrl,
   generateAgentAssessmentQrPng,
-} from "../../backend/lib/qrCode";
-import { requireAgent } from "../../backend/lib/auth";
-import { logApiStart, logSupabaseError } from "../../backend/lib/logger";
+} from "../../backend/lib/qrCode.js";
+import { requireAgent } from "../../backend/lib/auth.js";
+import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "agent/qr";
 

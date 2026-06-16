@@ -1,7 +1,7 @@
-import { getSupabaseAdmin } from "./supabaseAdmin";
-import { env } from "./env";
-import { getAgentNotifications, type NotificationRecord } from "./messages";
-import { getAgentAssessmentActivity, type AgentAssessmentActivity } from "./analytics";
+import { getSupabaseAdmin } from "./supabaseAdmin.js";
+import { env } from "./env.js";
+import { getAgentNotifications, type NotificationRecord } from "./messages.js";
+import { getAgentAssessmentActivity, type AgentAssessmentActivity } from "./analytics.js";
 
 /**
  * Aggregated agent dashboard payload for the secure API route.

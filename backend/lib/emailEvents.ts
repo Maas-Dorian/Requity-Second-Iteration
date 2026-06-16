@@ -1,11 +1,11 @@
-import { getSupabaseAdmin } from "./supabaseAdmin";
+import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import {
   sendReviewerMatchEmail,
   sendClientAssessmentCompleteEmail,
   type EmailRecipient,
   type SendResult,
-} from "./brevo";
-import type { ReviewerMatchEmailParams, ClientCompleteEmailParams } from "../emails";
+} from "./brevo.js";
+import type { ReviewerMatchEmailParams, ClientCompleteEmailParams } from "../emails/index.js";
 
 /**
  * Email event logging + send-and-record helpers.

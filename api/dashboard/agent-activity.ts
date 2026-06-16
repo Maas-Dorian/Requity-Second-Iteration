@@ -5,10 +5,10 @@ import {
   getQueryParam,
   sendJson,
   HttpError,
-} from "../_lib/http";
-import { requireAgent } from "../../backend/lib/auth";
-import { getAgentAssessmentActivity } from "../../backend/lib/analytics";
-import { logApiStart, logSupabaseError } from "../../backend/lib/logger";
+} from "../_lib/http.js";
+import { requireAgent } from "../../backend/lib/auth.js";
+import { getAgentAssessmentActivity } from "../../backend/lib/analytics.js";
+import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "dashboard/agent-activity";
 

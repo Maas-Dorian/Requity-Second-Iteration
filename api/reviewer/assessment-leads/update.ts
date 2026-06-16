@@ -7,13 +7,13 @@ import {
   optionalString,
   sendJson,
   HttpError,
-} from "../../_lib/http";
+} from "../../_lib/http.js";
 import {
   updateAssessmentLeadFollowUpStatus,
   type LeadStatus,
-} from "../../../backend/lib/assessmentLeads";
-import { requireReviewer } from "../../../backend/lib/auth";
-import { logApiStart, logValidationFailure, logSupabaseError } from "../../../backend/lib/logger";
+} from "../../../backend/lib/assessmentLeads.js";
+import { requireReviewer } from "../../../backend/lib/auth.js";
+import { logApiStart, logValidationFailure, logSupabaseError } from "../../../backend/lib/logger.js";
 
 const ROUTE = "reviewer/assessment-leads/update";
 const ALLOWED: LeadStatus[] = ["followed_up", "abandoned", "in_progress", "started", "completed"];

@@ -1,16 +1,16 @@
-import { getSupabaseAdmin } from "./supabaseAdmin";
+import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import {
   rankAgentsForClient as rankProfiles,
   labelForScore,
   type AgentProfile,
   type ClientProfile,
   type MatchResult,
-} from "./matching";
+} from "./matching.js";
 import {
   createNotification,
   REVIEWER_MATCH_NOTIFICATION_BODY,
-} from "./messages";
-import { sendAndRecordReviewerMatchEmail } from "./emailEvents";
+} from "./messages.js";
+import { sendAndRecordReviewerMatchEmail } from "./emailEvents.js";
 
 /**
  * REQUITY reviewer queue: rank agents for a reviewer-sourced client, record a

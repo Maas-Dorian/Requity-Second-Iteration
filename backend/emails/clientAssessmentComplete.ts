@@ -1,4 +1,4 @@
-import { emailLayout, REQUITY_COLORS } from "./layout";
+import { emailLayout, REQUITY_COLORS } from "./layout.js";
 
 export type ClientCompleteEmailParams = {
   /** Name of the client who completed the assessment. */

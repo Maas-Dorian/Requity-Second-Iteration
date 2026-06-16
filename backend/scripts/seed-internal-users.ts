@@ -20,8 +20,8 @@
  * or, with an env file (Node 20.6+):
  *   node --env-file=backend/.env --import tsx backend/scripts/seed-internal-users.ts
  */
-import { getSupabaseAdmin } from "../lib/supabaseAdmin";
-import { ensureAgentForUser } from "../lib/users";
+import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import { ensureAgentForUser } from "../lib/users.js";
 
 const INTERNAL_USER_EMAILS = [
   "rocco@requityapp.com",

@@ -4,14 +4,14 @@ import {
   ensureMethod,
   getQueryParam,
   sendJson,
-} from "../_lib/http";
+} from "../_lib/http.js";
 import {
   listReviewerAssessmentLeads,
   type LeadSource,
   type LeadStatus,
-} from "../../backend/lib/assessmentLeads";
-import { requireReviewer } from "../../backend/lib/auth";
-import { logApiStart, logSupabaseError } from "../../backend/lib/logger";
+} from "../../backend/lib/assessmentLeads.js";
+import { requireReviewer } from "../../backend/lib/auth.js";
+import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "reviewer/assessment-leads";
 const STATUSES: LeadStatus[] = [

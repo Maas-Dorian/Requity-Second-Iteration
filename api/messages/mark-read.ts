@@ -5,10 +5,10 @@ import {
   getJsonBody,
   requireString,
   sendJson,
-} from "../_lib/http";
-import { markNotificationRead } from "../../backend/lib/messages";
-import { requireAgent } from "../../backend/lib/auth";
-import { logApiStart, logSupabaseError } from "../../backend/lib/logger";
+} from "../_lib/http.js";
+import { markNotificationRead } from "../../backend/lib/messages.js";
+import { requireAgent } from "../../backend/lib/auth.js";
+import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "messages/mark-read";
 
