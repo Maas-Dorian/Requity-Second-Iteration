@@ -250,10 +250,21 @@
         btn.disabled = true; btn.textContent = "Signing in...";
         try {
           await API.signIn(document.getElementById("si-email").value.trim(), document.getElementById("si-password").value);
-          var me = await API.getCurrentUser();
-          if (me && me.needsBootstrap) { await API.bootstrapAgentProfile(null); me = await API.getCurrentUser(); }
-          var routed = await routeAfterAuth(me);
-          if (!routed) { btn.disabled = false; btn.textContent = "Sign in"; }
+          // requireAgentSession distinguishes a 500 (server can't verify) from a
+          // 401 (no valid session), so we never clear a good session on a 500.
+          var session = await API.requireAgentSession();
+          if (session.ok) {
+            var routed = await routeAfterAuth(session.me);
+            if (!routed) { btn.disabled = false; btn.textContent = "Sign in"; }
+            return;
+          }
+          if (session.reason === "role_mismatch") { showReviewerSwitch(); return; }
+          if (session.reason === "error") {
+            showMsg("We signed you in, but the server could not verify your profile. Check Supabase server env vars and database schema.", "error");
+          } else {
+            showMsg("We couldn't verify your account. Please try signing in again.", "error");
+          }
+          btn.disabled = false; btn.textContent = "Sign in";
         } catch (err) {
           showMsg(err.message || "Sign in failed.", "error");
           btn.disabled = false; btn.textContent = "Sign in";
@@ -282,9 +293,19 @@
             return;
           }
           // New agent is signed in + bootstrapped → route to the assessment.
-          var me = await API.getCurrentUser();
-          var routed = await routeAfterAuth(me);
-          if (!routed) { btn.disabled = false; btn.textContent = "Create agent account"; }
+          var session = await API.requireAgentSession();
+          if (session.ok) {
+            var routed = await routeAfterAuth(session.me);
+            if (!routed) { btn.disabled = false; btn.textContent = "Create agent account"; }
+            return;
+          }
+          if (session.reason === "role_mismatch") { showReviewerSwitch(); return; }
+          if (session.reason === "error") {
+            showMsg("Your account was created, but the server could not verify your profile. Check Supabase server env vars and database schema.", "error");
+          } else {
+            showMsg("We couldn't verify your new account. Please try signing in.", "error");
+          }
+          btn.disabled = false; btn.textContent = "Create agent account";
         } catch (err) {
           showMsg(err.message || "Sign up failed.", "error");
           btn.disabled = false; btn.textContent = "Create agent account";

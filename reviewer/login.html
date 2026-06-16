@@ -197,18 +197,22 @@
         if (!API) { showMsg("Sign-in is not available in this environment.", "error"); resetBtn(); return; }
         try {
           await API.signIn(document.getElementById("email").value.trim(), document.getElementById("password").value);
-          var me = await API.getCurrentUser();
-          if (!me) {
-            showMsg("We couldn't verify your account. Please try signing in again.", "error");
+          var session = await API.requireReviewerSession();
+          if (session.ok) { window.location.href = "index.html"; return; }
+          if (session.reason === "error") {
+            showMsg("We signed you in, but the server could not verify your profile. Check Supabase server env vars and database schema.", "error");
             resetBtn();
             return;
           }
-          if (!routeAfterAuth(me)) {
+          if (session.reason === "role_mismatch") {
             // Authenticated but not a reviewer/admin — offer the agent dashboard.
             showAgentSwitch();
+            return;
           }
+          showMsg("We couldn't verify your account. Please try signing in again.", "error");
+          resetBtn();
         } catch (err) {
-          showMsg("We couldn't sign you in. Please check your email and password.", "error");
+          showMsg(err.message || "We couldn't sign you in. Please check your email and password.", "error");
           resetBtn();
         }
       });

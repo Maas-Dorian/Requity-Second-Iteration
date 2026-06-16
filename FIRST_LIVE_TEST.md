@@ -166,9 +166,16 @@ it nears expiry.
 
 ### If something fails
 - Signed in but bounced back to login on every page → check `/api/auth/me`
-  returns 200 with a Bearer token. A 500 there (often a missing
-  `SUPABASE_SERVICE_ROLE_KEY` on Vercel) now shows a "couldn't verify your
-  account" message instead of looping — fix the env var and retry.
+  returns 200 with a Bearer token. A 500 there now returns a clear JSON code:
+  - `MISSING_SUPABASE_SERVICE_ROLE_KEY` → set `SUPABASE_SERVICE_ROLE_KEY` (and
+    `SUPABASE_URL`) in Vercel. Confirm with `/api/health/auth-config`.
+  - `PROFILE_QUERY_FAILED` / `AGENT_QUERY_FAILED` → run `backend/supabase/schema.sql`
+    on THIS project (tables/columns missing). The `area` field names the table.
+  The login page now shows "We signed you in, but the server could not verify your
+  profile…" on a 500 and does NOT clear your session (only a 401 does).
+- Supabase sign-in returns 400 → the login page shows "Invalid email or password,
+  or this account has not been confirmed." For unconfirmed emails it shows
+  "Please confirm your email or ask an admin to confirm the account in Supabase."
 - 401 on dashboard/reviewer calls → not signed in, or token missing. Re-sign in.
 - `/api/health/supabase` `ok:false` → check `SUPABASE_SERVICE_ROLE_KEY` and that
   `schema.sql` ran on THIS project.

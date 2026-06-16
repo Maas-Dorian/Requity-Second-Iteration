@@ -443,8 +443,21 @@
       headers: supabaseAuthHeaders(),
       body: JSON.stringify({ email: email, password: password }),
     });
-    var data = await res.json();
-    if (!res.ok) throw new Error(data.msg || data.error_description || data.error || "Sign in failed.");
+    var data = {};
+    try { data = await res.json(); } catch (e) { /* ignore */ }
+    if (!res.ok) {
+      var raw = (data.msg || data.error_description || data.error || "").toString();
+      var err;
+      if (/confirm/i.test(raw)) {
+        err = new Error("Please confirm your email or ask an admin to confirm the account in Supabase.");
+        err.code = "EMAIL_NOT_CONFIRMED";
+      } else {
+        err = new Error("Invalid email or password, or this account has not been confirmed.");
+        err.code = "INVALID_CREDENTIALS";
+      }
+      err.status = res.status;
+      throw err;
+    }
     var session = storeSessionFromAuth(data);
     return { user: data.user || null, session: session };
   }

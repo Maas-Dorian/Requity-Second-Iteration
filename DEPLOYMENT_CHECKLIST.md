@@ -176,6 +176,10 @@ A submission is valid if it includes **either** an `assessmentToken`/`token`
       booleans (`hasSupabaseUrl`, `hasSupabaseServiceRoleKey`, `hasBrevoApiKey`,
       `hasFrontendUrl`) match your configured env. No secret values are returned.
 - [ ] **`GET /api/health/supabase`** → `ok:true`, `profilesReachable:true`.
+- [ ] **`GET /api/health/auth-config`** → `hasSupabaseUrl`, `hasSupabaseAnonKey`,
+      `hasSupabaseServiceRoleKey`, and `canReachSupabase` all `true` (booleans only,
+      no secrets). If `hasSupabaseServiceRoleKey:false`, sign-in works but
+      `/api/auth/me` returns `code:"MISSING_SUPABASE_SERVICE_ROLE_KEY"`.
       `ok:false` means the service role key is wrong or `schema.sql` wasn't run.
 - [ ] **`GET /api/health/brevo`** → `configured:true` (live) or `testMode:true`
       with `ok:true` when no key is set.
