@@ -1,48 +1,42 @@
 /**
  * Generate frontend/shared/config.js at build time from public env vars.
  *
- * Runs during the Vercel build (see package.json "build"). It writes ONLY the
- * browser-safe public values (apiBaseUrl, Supabase URL + anon key, frontend URL).
+ * Runs during the Vercel build (see package.json "build"). Writes ONLY
+ * browser-safe public values. After deploy you can verify it is served at:
+ *   https://requity-second-iteration.vercel.app/frontend/shared/config.js
  *
  * SECURITY: this script never reads or writes the Supabase service role key or
- * the Brevo API key. Those are server-only env vars used by the /api routes and
- * must never appear in any browser-served file.
+ * the Brevo API key, and it never logs the anon key value (only whether it is
+ * present). Those secrets are server-only env vars used by the /api routes.
  */
 "use strict";
 
 const fs = require("fs");
 const path = require("path");
 
-const OUTPUT_PATH = path.join(__dirname, "..", "frontend", "shared", "config.js");
+const configPath = path.join(process.cwd(), "frontend", "shared", "config.js");
 
 const config = {
   apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "/api",
-  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "https://mobyejpzfrjrryqatnbr.supabase.co",
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-  frontendUrl: process.env.VERCEL_FRONTEND_URL || "",
+  frontendUrl: process.env.VERCEL_FRONTEND_URL || "https://requity-second-iteration.vercel.app",
 };
 
-const banner =
-  "/*\n" +
-  " * AUTO-GENERATED at build time by scripts/generate-config.js — DO NOT EDIT.\n" +
-  " * Values come from public NEXT_PUBLIC_* env vars. Browser-safe only.\n" +
-  " * Never contains the Supabase service role key or the Brevo API key.\n" +
-  " */\n";
+fs.mkdirSync(path.dirname(configPath), { recursive: true });
 
-const contents = banner + "window.REQUITY_CONFIG = " + JSON.stringify(config, null, 2) + ";\n";
+fs.writeFileSync(
+  configPath,
+  `window.REQUITY_CONFIG = ${JSON.stringify(config, null, 2)};\n`,
+  "utf8"
+);
 
-fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
-fs.writeFileSync(OUTPUT_PATH, contents, "utf8");
+console.log("[config] frontend/shared/config.js generated");
+console.log("[config] apiBaseUrl:", config.apiBaseUrl);
+console.log("[config] supabaseUrl configured:", Boolean(config.supabaseUrl));
+console.log("[config] supabaseAnonKey configured:", Boolean(config.supabaseAnonKey));
+console.log("[config] frontendUrl:", config.frontendUrl);
 
-const missing = [];
-if (!config.supabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
-if (!config.supabaseAnonKey) missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-
-console.log("[generate-config] wrote " + path.relative(path.join(__dirname, ".."), OUTPUT_PATH));
-if (missing.length) {
-  console.warn(
-    "[generate-config] WARNING: missing public env vars (" +
-      missing.join(", ") +
-      "). config.js was written with empty values — the dashboards need real Supabase public values to work."
-  );
+if (!config.supabaseAnonKey) {
+  console.warn("[config] WARNING: NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.");
 }

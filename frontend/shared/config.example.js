@@ -24,6 +24,10 @@
 window.REQUITY_CONFIG = {
   apiBaseUrl: "/api",
   supabaseUrl: "",
+  // supabaseAnonKey is the PUBLIC anon key only (Supabase → Settings → API).
+  // It is protected by RLS and safe for the browser.
+  // NEVER put the Supabase service role key here.
+  // NEVER put Brevo (or any other server) keys here.
   supabaseAnonKey: "",
   frontendUrl: ""
 };
