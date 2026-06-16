@@ -27,6 +27,33 @@ function has(...keys: string[]): boolean {
   return read(...keys) !== undefined;
 }
 
+// --- Non-throwing readers (safe for handlers/health endpoints) -------------
+
+/** Read an env var (with optional fallbacks). Returns null when unset. Never throws. */
+export function getOptionalEnv(...keys: string[]): string | null {
+  return read(...keys) ?? null;
+}
+
+/** True when any of the given env keys is set. Never throws. */
+export function hasEnv(...keys: string[]): boolean {
+  return has(...keys);
+}
+
+/** Booleans-only snapshot of the auth/integration env. Safe to return/log. */
+export function getRequiredEnvStatus(): {
+  hasSupabaseUrl: boolean;
+  hasSupabaseAnonKey: boolean;
+  hasSupabaseServiceRoleKey: boolean;
+  hasBrevoApiKey: boolean;
+} {
+  return {
+    hasSupabaseUrl: has("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "VITE_SUPABASE_URL"),
+    hasSupabaseAnonKey: has("SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY"),
+    hasSupabaseServiceRoleKey: has("SUPABASE_SERVICE_ROLE_KEY"),
+    hasBrevoApiKey: has("BREVO_API_KEY"),
+  };
+}
+
 export function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }

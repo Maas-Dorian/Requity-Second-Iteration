@@ -1,97 +1,132 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { runHandler, ensureMethod, sendJson } from "../_lib/http";
+import { applyCors, sendJson } from "../_lib/http";
 import { getUserFromRequest } from "../../backend/lib/auth";
-import { getEnv } from "../../backend/lib/env";
-import { getSupabaseAdmin } from "../../backend/lib/supabaseAdmin";
+import { getRequiredEnvStatus } from "../../backend/lib/env";
+import { getSupabaseAdmin, SupabaseConfigError } from "../../backend/lib/supabaseAdmin";
 
 const ROUTE = "auth/me";
 
+type EnvStatus = ReturnType<typeof getRequiredEnvStatus>;
+
+/** Server-side log with safe fields only. Never logs tokens/keys/passwords. */
+function logSafe(code: string, message: string, env: EnvStatus, area?: string): void {
+  console.error(`[${ROUTE}]`, {
+    code,
+    message,
+    area: area ?? null,
+    hasSupabaseUrl: env.hasSupabaseUrl,
+    hasSupabaseAnonKey: env.hasSupabaseAnonKey,
+    hasSupabaseServiceRoleKey: env.hasSupabaseServiceRoleKey,
+  });
+}
+
 /**
- * GET /api/auth/me
- * Protected — requires `Authorization: Bearer <access_token>` (no cookies).
+ * GET /api/auth/me — Protected (Authorization: Bearer <access_token>, no cookies).
  *
- * Resilient by design:
- *  - Missing server env → 500 with a clear code (no secret values).
- *  - Missing/invalid token → 401 only.
- *  - Missing profile/agent ROW → 200 with profile/agent null (not an error).
- *  - A failing query (e.g. missing table/column) → 500 with a safe diagnostic.
- *
- * Logs only booleans/status — never tokens, keys, or passwords.
+ * Crash-proof: the entire body is wrapped so the function ALWAYS returns JSON,
+ * never a Vercel FUNCTION_INVOCATION_FAILED page. Env is read via non-throwing
+ * helpers, and the Supabase client is built lazily inside a try/catch.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  await runHandler(req, res, async () => {
-    ensureMethod(req, "GET");
+  try {
+    applyCors(req, res);
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+    if (req.method !== "GET") {
+      sendJson(res, 405, { error: "Method not allowed. Expected GET.", code: "METHOD_NOT_ALLOWED" });
+      return;
+    }
 
-    const e = getEnv();
+    const env = getRequiredEnvStatus();
     const hasAuthorizationHeader = Boolean(
       req.headers["authorization"] || req.headers["Authorization"]
     );
 
-    console.debug(`[${ROUTE}] config`, {
-      hasAuthorizationHeader,
-      hasSupabaseUrl: e.hasSupabaseUrl,
-      hasSupabaseAnonKey: e.hasSupabaseAnonKey,
-      hasSupabaseServiceRoleKey: e.hasSupabaseServiceRoleKey,
-    });
+    // 1) No bearer token at all (e.g. opening the URL directly).
+    if (!hasAuthorizationHeader) {
+      sendJson(res, 401, { error: "Authentication required.", code: "NO_AUTH_HEADER" });
+      return;
+    }
 
-    // 1) The server can only verify tokens with URL + service role key.
-    if (!e.hasSupabaseUrl || !e.hasSupabaseServiceRoleKey) {
+    // 2) Public config required to talk to Supabase.
+    if (!env.hasSupabaseUrl || !env.hasSupabaseAnonKey) {
+      logSafe("MISSING_SUPABASE_PUBLIC_CONFIG", "Supabase public config missing", env);
       sendJson(res, 500, {
         error: "Server auth is not configured",
-        code: "MISSING_SUPABASE_SERVICE_ROLE_KEY",
-        hasSupabaseUrl: e.hasSupabaseUrl,
-        hasSupabaseServiceRoleKey: e.hasSupabaseServiceRoleKey,
+        code: "MISSING_SUPABASE_PUBLIC_CONFIG",
+        hasSupabaseUrl: env.hasSupabaseUrl,
+        hasSupabaseAnonKey: env.hasSupabaseAnonKey,
       });
       return;
     }
 
-    // 2) Validate the bearer token → Supabase user.
-    let user;
+    // 3) Service role key required to verify tokens server-side.
+    if (!env.hasSupabaseServiceRoleKey) {
+      logSafe("MISSING_SUPABASE_SERVICE_ROLE_KEY", "Service role key missing", env);
+      sendJson(res, 500, {
+        error: "Server auth is not configured",
+        code: "MISSING_SUPABASE_SERVICE_ROLE_KEY",
+        hasSupabaseServiceRoleKey: false,
+      });
+      return;
+    }
+
+    // 4) Validate the bearer token → Supabase user.
+    let user: { id: string; email: string | null } | null;
     try {
       user = await getUserFromRequest(req);
     } catch (err) {
-      console.error(`[${ROUTE}] auth lookup failed:`, err instanceof Error ? err.message : err);
+      if (err instanceof SupabaseConfigError) {
+        logSafe(err.code, err.message, env);
+        sendJson(res, 500, { error: "Server auth is not configured", code: err.code });
+        return;
+      }
+      logSafe("SUPABASE_AUTH_LOOKUP_FAILED", err instanceof Error ? err.message : "unknown", env);
       sendJson(res, 500, {
         error: "Could not verify the session token.",
         code: "SUPABASE_AUTH_LOOKUP_FAILED",
       });
       return;
     }
-    console.debug(`[${ROUTE}] authUserLookupStatus`, { found: Boolean(user) });
     if (!user) {
       sendJson(res, 401, { error: "Authentication required.", code: "NO_VALID_SESSION" });
       return;
     }
 
-    const supabase = getSupabaseAdmin();
+    // 5) Build the admin client (lazy; may throw a typed config error).
+    let supabase;
+    try {
+      supabase = getSupabaseAdmin();
+    } catch (err) {
+      const code = err instanceof SupabaseConfigError ? err.code : "SUPABASE_CLIENT_INIT_FAILED";
+      logSafe(code, err instanceof Error ? err.message : "unknown", env);
+      sendJson(res, 500, { error: "Server auth is not configured", code });
+      return;
+    }
 
-    // 3) Profile lookup. A missing ROW is fine (needsBootstrap); a query ERROR
-    //    (e.g. the table doesn't exist) is a real, surfaced server problem.
+    // 6) Profile lookup. Missing ROW → needsBootstrap (200). Query ERROR → 500.
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id, email, full_name, role")
       .eq("id", user.id)
       .maybeSingle();
 
-    console.debug(`[${ROUTE}] profileLookupStatus`, {
-      status: profileError ? "error" : profile ? "found" : "missing",
-    });
-
     if (profileError) {
+      logSafe("PROFILE_QUERY_FAILED", profileError.message, env, "public.profiles");
       sendJson(res, 500, {
         error: "Could not read your profile.",
         code: "PROFILE_QUERY_FAILED",
         area: "public.profiles",
-        detail: profileError.message,
       });
       return;
     }
 
     const role = profile?.role ?? null;
 
-    // 4) Agent lookup (only for agent/admin). Missing ROW → agent:null (fine).
+    // 7) Agent lookup (agent/admin only). Missing ROW → agent:null. ERROR → 500.
     let agent: Record<string, unknown> | null = null;
-    let agentLookupStatus = "skipped";
     if (role === "agent" || role === "admin") {
       const { data: agentRow, error: agentError } = await supabase
         .from("agents")
@@ -102,23 +137,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         .maybeSingle();
 
       if (agentError) {
-        console.debug(`[${ROUTE}] agentLookupStatus`, { status: "error" });
+        logSafe("AGENT_QUERY_FAILED", agentError.message, env, "public.agents");
         sendJson(res, 500, {
           error: "Could not read your agent profile.",
           code: "AGENT_QUERY_FAILED",
           area: "public.agents",
-          detail: agentError.message,
         });
         return;
       }
-      agentLookupStatus = agentRow ? "found" : "missing";
       if (agentRow) {
         agent = {
           id: agentRow.id,
           profile_id: agentRow.profile_id,
           email: agentRow.email,
-          // Both casings: snake_case for the documented shape, camelCase for
-          // existing frontend code that already reads displayName.
           display_name: agentRow.display_name,
           displayName: agentRow.display_name,
           publicToken: agentRow.public_assessment_token,
@@ -128,7 +159,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         };
       }
     }
-    console.debug(`[${ROUTE}] agentLookupStatus`, { status: agentLookupStatus });
 
     sendJson(res, 200, {
       user: { id: user.id, email: user.email },
@@ -144,5 +174,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       agent,
       needsBootstrap: !profile,
     });
-  });
+  } catch (err) {
+    // Absolute last resort — guarantee JSON instead of a runtime crash page.
+    try {
+      console.error(`[${ROUTE}] unexpected error:`, err instanceof Error ? err.message : "unknown");
+      if (!res.headersSent) {
+        sendJson(res, 500, { error: "Unexpected server error.", code: "UNEXPECTED_ERROR" });
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 }

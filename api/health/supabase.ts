@@ -1,24 +1,31 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { runHandler, ensureMethod, sendJson } from "../_lib/http";
-import { getEnv } from "../../backend/lib/env";
+import { applyCors, sendJson } from "../_lib/http";
+import { getRequiredEnvStatus } from "../../backend/lib/env";
 import { getSupabaseAdmin } from "../../backend/lib/supabaseAdmin";
 
 /**
  * GET /api/health/supabase
- * Verifies the service-role connection by running a tiny, safe query against
- * `profiles` (count only, limit 1). Returns ok true/false and a safe error
- * message. Never exposes keys or row data.
+ * Verifies the service-role connection with a tiny count-only query against
+ * `profiles`. Crash-proof: always returns JSON (HTTP 200) with ok true/false
+ * and a safe message. Never exposes keys or row data.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  await runHandler(req, res, async () => {
-    ensureMethod(req, "GET");
-    const e = getEnv();
+  try {
+    applyCors(req, res);
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
 
-    if (!e.hasSupabaseUrl || !e.hasSupabaseServiceRoleKey) {
+    const env = getRequiredEnvStatus();
+
+    if (!env.hasSupabaseUrl || !env.hasSupabaseServiceRoleKey) {
       sendJson(res, 200, {
         ok: false,
         configured: false,
         error: "Supabase is not fully configured (SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY missing).",
+        hasSupabaseUrl: env.hasSupabaseUrl,
+        hasSupabaseServiceRoleKey: env.hasSupabaseServiceRoleKey,
         timestamp: new Date().toISOString(),
       });
       return;
@@ -26,7 +33,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     try {
       const supabase = getSupabaseAdmin();
-      // HEAD + count: no row data returned, just confirms the table is reachable.
       const { error, count } = await supabase
         .from("profiles")
         .select("id", { count: "exact", head: true })
@@ -58,5 +64,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         timestamp: new Date().toISOString(),
       });
     }
-  });
+  } catch (err) {
+    try {
+      console.error("[health/supabase] unexpected error:", err instanceof Error ? err.message : "unknown");
+      if (!res.headersSent) {
+        sendJson(res, 500, { error: "Unexpected server error.", code: "UNEXPECTED_ERROR" });
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 }
