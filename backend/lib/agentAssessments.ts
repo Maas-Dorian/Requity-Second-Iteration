@@ -140,6 +140,7 @@ export async function submitAgentAssessment(
     email: params.contact.email,
     phone: params.contact.phone ?? null,
     archetype: result.archetype,
+    archetype_completed_at: new Date().toISOString(),
     interaction_style: result.interactionStyle,
     focus: result.focus,
     stress_response: result.stressResponse,

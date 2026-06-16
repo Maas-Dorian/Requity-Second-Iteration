@@ -71,8 +71,10 @@ export async function mapSupabaseUserToProfile(
     .maybeSingle();
   if (!profile) return null;
 
+  // Agents — and admins (internal REQUITY team) — may have an agent row, which
+  // grants agent-dashboard access. Reviewers without an agent row do not.
   let agentId: string | null = null;
-  if (profile.role === "agent") {
+  if (profile.role === "agent" || profile.role === "admin") {
     const { data: agent } = await supabase
       .from("agents")
       .select("id")

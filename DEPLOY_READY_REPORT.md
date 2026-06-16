@@ -5,7 +5,8 @@ Generated from a structure + typecheck review. No product behavior or UI changed
 
 Companion docs: `SETUP_SUPABASE_VERCEL.md` (setup), `DEPLOYMENT_CHECKLIST.md`
 (verification), `FIRST_LIVE_TEST.md` (click-by-click), `backend/SEED_REVIEWER_ADMIN.md`
-(first reviewer/admin), `backend/API_ROUTES.md` (API reference).
+(first reviewer/admin), `backend/SEED_INTERNAL_USERS.md` (internal team admin
+accounts), `backend/API_ROUTES.md` (API reference).
 
 ---
 
@@ -25,7 +26,7 @@ Companion docs: `SETUP_SUPABASE_VERCEL.md` (setup), `DEPLOYMENT_CHECKLIST.md`
 - [x] Client assessment: `api/client-assessment/create.ts`, `api/client-assessment/submit.ts`
 - [x] Assessment leads: `api/assessment-leads/start.ts`, `api/assessment-leads/progress.ts`, `api/assessment-leads/complete.ts`
 - [x] Reviewer: `api/reviewer/matches.ts`, `api/reviewer/approve-match.ts`, `api/reviewer/assessment-leads.ts`, `api/reviewer/assessment-leads/update.ts`
-- [x] Dashboard: `api/dashboard/agent.ts`, `api/messages/list.ts`, `api/messages/mark-read.ts`
+- [x] Dashboard: `api/dashboard/agent.ts`, `api/dashboard/agent-activity.ts`, `api/messages/list.ts`, `api/messages/mark-read.ts`
 - [x] Agent assessment: `api/agent-assessment/submit.ts`
 - [x] Shared HTTP helpers: `api/_lib/http.ts`
 
@@ -107,16 +108,22 @@ window.REQUITY_CONFIG = {
 7. Deploy (or redeploy after env + config are set).
 8. Verify health endpoints (see "Order to test").
 9. Create the first agent account, then promote a reviewer/admin in Supabase SQL.
+10. Seed the internal REQUITY team (admins with agent rows) with
+    `npm run seed:internal-users` (service-role env required) or the SQL in
+    `backend/SEED_INTERNAL_USERS.md`. Change the initial password after first login.
 
 ## 4. Order to test
 1. **Health (no auth):**
    - `GET /api/health` → `ok:true`, env booleans correct.
    - `GET /api/health/supabase` → `ok:true, profilesReachable:true`.
    - `GET /api/health/brevo` → `configured:true` or `testMode:true` (both `ok:true`).
-2. **Auth:** agent sign-up → dashboard loads own data; sign-in routing by role;
-   unauthenticated protected calls return 401 in production.
+2. **Auth + onboarding:** agent sign-up (full name, email, password, optional
+   phone only) → routed to the agent assessment → on completion routed to the
+   dashboard. Sign-in routes by role and assessment completion; unauthenticated
+   protected calls return 401 in production.
 3. **Reviewer/admin:** promote via SQL; reviewer dashboard loads; an `agent` is
-   blocked with the Access Restricted screen.
+   blocked with the Access Restricted screen. Internal **admin** accounts (with
+   an agent row) reach both the agent dashboard and `reviewer/index.html`.
 4. **QR client flow:** open agent link → complete → client appears on the agent
    dashboard (not routed to reviewer queue).
 5. **Incomplete lead flow:** start an assessment, abandon → lead appears in the
@@ -154,10 +161,34 @@ window.REQUITY_CONFIG = {
   Approvals (and the optional Auto run) call `POST /api/reviewer/approve-match`;
   no client-side scheduling is simulated. The **Incomplete Assessments** section
   remains live via `GET /api/reviewer/assessment-leads`.
-- **Agent weekly chart is illustrative:** the "Assessment activity" bar chart on
-  the agent dashboard still uses static placeholder values and is illustrative
-  only (no wording implies it is live/real-time). It stays as-is until per-day
-  activity analytics are added to the dashboard API.
+- **Agent weekly chart is real analytics:** the "Assessment activity" bar chart
+  on the agent dashboard is powered by real last-7-days counts from
+  `assessment_leads` (started/completed per day), computed server-side via
+  `backend/lib/analytics.ts` (`getAgentAssessmentActivity`). It is embedded in
+  `GET /api/dashboard/agent` as `weeklyActivity` (single request — no polling, no
+  real-time subscriptions) and also available standalone at
+  `GET /api/dashboard/agent-activity`. With no data it shows seven zero days and
+  "No assessment activity yet."; if the analytics query fails the chart shows
+  "Assessment activity could not be loaded." while the rest of the dashboard
+  still loads normally.
+- **Internal team = admin + agent row:** `rocco@`, `tussa@`, `mike@requityapp.com`
+  are seeded as `role = admin` with an `agents` row, so they pass both reviewer
+  and agent-dashboard checks. Normal agents are still blocked from the reviewer
+  portal; reviewer-only accounts (no agent row) are never forced into the agent
+  dashboard. Initial password `requityslaunch26` — change after first login. The
+  service role key stays server-side; nothing is hardcoded in the frontend.
+- **Single sign-up, then assessment:** the agent landing CTAs go to
+  `agent/login.html`. New agents provide only full name / email / password /
+  optional phone, then take the agent assessment (no duplicate name/email/DOB/
+  phone step). The assessment requires a signed-in agent/admin (unauthenticated
+  visitors are redirected to login) and saves the archetype + `archetype_completed_at`
+  directly to the agent's row via `POST /api/agent-assessment/submit`. The agent
+  dashboard is gated on a completed archetype.
+- **Visible features are live, empty, or disabled — never fake:** the agent
+  dashboard "Send password reset" button calls the real Supabase recovery email;
+  the unimplemented "email reset" and "manage connection" toast buttons were
+  removed. The client assessment only shows its confirmation page after a real
+  successful submit (it surfaces an error and lets the user retry on failure).
 
 ---
 

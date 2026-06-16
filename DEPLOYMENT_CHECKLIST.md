@@ -85,10 +85,15 @@ to a `profiles` row (`role` = `agent` | `reviewer` | `admin`); agents also get a
    `frontend/shared/config.js` **even when `apiBaseUrl` is set**, because the
    browser talks to Supabase Auth directly. Real Supabase credentials are
    required — there is no demo mode.
-3. Agent flow (self-serve): agent visits `agent/login.html` → "Create account" →
-   `signUpAgent()` creates the auth user, then `POST /api/auth/bootstrap-agent`
-   creates the profile (`role='agent'`) + agent row. Sign-in routes agents to
-   `agent/dashboard.html`; reviewers/admins to `reviewer/index.html`.
+3. Agent flow (self-serve): the agent landing CTA "Start getting referrals now"
+   links to `agent/login.html` → "Create account" (full name, email, password,
+   optional phone only) → `signUpAgent()` creates the auth user, then
+   `POST /api/auth/bootstrap-agent` creates the profile (`role='agent'`) + agent
+   row. New agents are routed to `agent/assessment.html` first; once the archetype
+   is complete they go to `agent/dashboard.html`. The assessment starts directly
+   with the questions (no duplicate name/email/DOB/phone step) and saves the
+   archetype to the agent row via `POST /api/agent-assessment/submit`. Reviewer-only
+   accounts are offered the reviewer portal.
 4. Reviewer portal: reviewers/admins sign in at **`/reviewer/login.html`** (a
    dedicated sign-in screen — no public sign-up). Only `reviewer`/`admin` roles
    can open `reviewer/index.html`; everyone else is redirected to
@@ -124,6 +129,18 @@ on conflict (id) do update set role = excluded.role;
 
 > See `backend/SEED_REVIEWER_ADMIN.md` for the full step-by-step. Never expose the
 > service role key to do this — use the Supabase SQL editor.
+
+### Seed the internal REQUITY team (admins with agent rows)
+The standing internal accounts must reach **both** the agent dashboard and the
+reviewer portal:
+
+- Accounts: `rocco@requityapp.com`, `tussa@requityapp.com`, `mike@requityapp.com`
+- Role: `admin`, each with an `agents` row (so they pass agent + reviewer checks).
+- Initial password: `requityslaunch26` — **change after first login**.
+- Run `npm run seed:internal-users` (service-role env vars required) **or** follow
+  the SQL in `backend/SEED_INTERNAL_USERS.md`. The script is idempotent. The
+  service role key stays server-side only; never hardcode these credentials in
+  frontend code.
 
 ---
 
@@ -205,6 +222,14 @@ A submission is valid if it includes **either** an `assessmentToken`/`token`
       computes + saves the archetype and creates a notification.
 - [ ] **Dashboard load** — `GET /api/dashboard/agent` requires agent auth;
       rejects with 401 when no token in production.
+- [ ] **Assessment activity analytics** — the dashboard "Assessment activity"
+      chart shows **real** last-7-days counts from `assessment_leads` (embedded as
+      `weeklyActivity` in `GET /api/dashboard/agent`; also at
+      `GET /api/dashboard/agent-activity`, `days` default 7 / max 30). Start +
+      complete a client assessment, then confirm the bars/caption update. With no
+      data it shows seven zero days + "No assessment activity yet."; if analytics
+      fails the chart shows "Assessment activity could not be loaded." while the
+      rest of the dashboard still loads. No polling / no real-time subscriptions.
 - [ ] **Agent QR code** — `GET /api/agent/qr` requires agent auth. The QR encodes
       the agent's public assessment link (`source=qr`), so scanning clients attach
       directly to the agent and do **not** enter the reviewer queue. `format=dataUrl`

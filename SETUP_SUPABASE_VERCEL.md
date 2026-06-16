@@ -7,6 +7,7 @@ Related docs:
 - `DEPLOYMENT_CHECKLIST.md` — the verification checklist (use after this guide).
 - `FIRST_LIVE_TEST.md` — a click-by-click first end-to-end test.
 - `backend/SEED_REVIEWER_ADMIN.md` — how to make the first reviewer/admin.
+- `backend/SEED_INTERNAL_USERS.md` — seed the internal team (admins for both portals).
 
 ---
 
@@ -133,10 +134,13 @@ Open these URLs (replace the host with your deployment):
 > - The root URL (`/`) redirects to `/client/index.html`.
 
 ### 10. Create the first agent account
-1. Open `https://YOUR-APP.vercel.app/agent/login.html`.
-2. **Create account** with full name + email + password.
-3. You're redirected to the agent dashboard. Behind the scenes this created a
-   `profiles` row (`role=agent`) and an `agents` row.
+1. Open `https://YOUR-APP.vercel.app/agent/login.html` (the agent landing CTA
+   "Start getting referrals now" links here).
+2. **Create account** with full name + email + password (phone optional).
+3. You're routed to `agent/assessment.html` to take the agent assessment (it
+   starts directly with the questions — no duplicate contact step). On completion
+   you're routed to the agent dashboard. Behind the scenes this created a
+   `profiles` row (`role=agent`) and an `agents` row, and saved your archetype.
 
 ### 11. Promote a reviewer / admin
 There is no public reviewer signup. Promote an existing account:
@@ -149,6 +153,14 @@ There is no public reviewer signup. Promote an existing account:
 3. Verify: `select email, role from public.profiles where role in ('reviewer','admin');`
 
 Full details: `backend/SEED_REVIEWER_ADMIN.md`.
+
+### 11b. Seed the internal REQUITY team (admins for both portals)
+The internal team (`rocco@`, `tussa@`, `mike@requityapp.com`) should be `admin`
+accounts with an `agents` row, so they can use **both** the agent dashboard and
+the reviewer portal. Run `npm run seed:internal-users` (with the service-role env
+vars set) or follow the SQL in `backend/SEED_INTERNAL_USERS.md`. Initial password
+`requityslaunch26` — change it after first login. The service role key stays
+server-side; these credentials are never hardcoded in the frontend.
 
 ### 12. Test the QR / agent-link client flow
 1. On the agent dashboard, copy the **client assessment link** (or QR link).

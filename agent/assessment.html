@@ -61,43 +61,14 @@
                 <div class="assessment-intro-panel">
                     <span class="eyebrow">Agent assessment</span>
                     <h1>Build your agent profile for better-fit client matching.</h1>
-                    <p>Before the assessment starts, REQUITY collects your basic contact details. Then your responses help define how you communicate, negotiate, present properties, and support different client relationship styles.</p>
+                    <p>Your responses help define how you communicate, negotiate, present properties, and support different client relationship styles. We already have your account details, so let’s go straight to the questions.</p>
                     <div class="assessment-match-note">
                         <strong>Matching matters:</strong>
                         <span>Your agent profile will be compared with client profiles so REQUITY can support stronger agent-client fit, not just availability.</span>
                     </div>
                 </div>
 
-                <form class="agent-contact-card" id="agent-contact-form">
-                    <div class="agent-assessment-top">
-                        <div>
-                            <span class="progress-label">Before you begin</span>
-                            <h2>Tell us who is taking the assessment.</h2>
-                        </div>
-                        <div class="assessment-mini-badge">Step 1</div>
-                    </div>
-                    <div class="contact-field-grid">
-                        <label class="contact-field">
-                            <span>Name</span>
-                            <input id="agent-name" name="name" type="text" autocomplete="name" placeholder="Your full name" required>
-                        </label>
-                        <label class="contact-field">
-                            <span>Email</span>
-                            <input id="agent-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
-                        </label>
-                        <label class="contact-field">
-                            <span>Date of birth</span>
-                            <input id="agent-dob" name="dob" type="date" required>
-                        </label>
-                        <label class="contact-field">
-                            <span>Phone number</span>
-                            <input id="agent-phone" name="phone" type="tel" autocomplete="tel" placeholder="(555) 555-5555" required>
-                        </label>
-                    </div>
-                    <button class="btn btn-primary contact-start-btn" type="submit">Continue to Agent Assessment</button>
-                </form>
-
-                <div class="agent-assessment-card" id="agent-assessment-card" aria-live="polite" hidden>
+                <div class="agent-assessment-card" id="agent-assessment-card" aria-live="polite">
                     <div class="agent-assessment-top">
                         <div>
                             <span class="progress-label" id="agent-question-count">Question 1 of 18</span>
@@ -116,14 +87,21 @@
                 </div>
 
                 <div class="agent-result-card review-complete-card" id="agent-result-card" hidden>
-                    <span class="eyebrow">Assessment submitted</span>
-                    <h3>You’re now being matched by a REQUITY reviewer.</h3>
-                    <p id="agent-result-summary">Thank you for completing your agent assessment. A REQUITY reviewer will compare your responses with client profiles to identify strong relationship-fit opportunities. We’ll be in contact soon.</p>
+                    <span class="eyebrow">Assessment complete</span>
+                    <h3 id="agent-result-heading">Your agent profile is ready.</h3>
+                    <p id="agent-result-summary">Thank you for completing your agent assessment. Your responses have been saved to your REQUITY agent profile and will be used when reviewers match you with relationship-fit clients.</p>
                     <div class="match-preview-box reviewer-message-box">
                         <strong>What happens next</strong>
-                        <p>Your profile has been submitted for review. REQUITY will use your communication style, negotiation approach, and client-support preferences to help match you with clients who fit your strengths.</p>
+                        <p>REQUITY will use your communication style, negotiation approach, and client-support preferences to help match you with clients who fit your strengths. New matches and client activity appear in your dashboard.</p>
                     </div>
-                    <a class="btn btn-primary" href="index.html">Back to REQUITY</a>
+                    <a class="btn btn-primary" href="dashboard.html">Go to your dashboard</a>
+                </div>
+
+                <div class="agent-result-card review-complete-card" id="agent-error-card" hidden>
+                    <span class="eyebrow">Submission failed</span>
+                    <h3>We couldn’t save your assessment.</h3>
+                    <p id="agent-error-summary">Something went wrong while saving your responses. Please check your connection and try again.</p>
+                    <button class="btn btn-primary" type="button" id="agent-retry-btn">Try again</button>
                 </div>
             </div>
         </div>
@@ -164,7 +142,7 @@
 
     <span class="uity">UITY</span>
   </div></div><p>Personalized relational insights for real estate agents.</p></div>
-            <div class="footer-right"><nav class="footer-nav"><a href="index.html#why-requity">Why REQUITY</a><a href="index.html#how-it-works">How It Works</a><a href="assessment.html">Start getting referrals now</a></nav></div>
+            <div class="footer-right"><nav class="footer-nav"><a href="index.html#why-requity">Why REQUITY</a><a href="index.html#how-it-works">How It Works</a><a href="login.html">Start getting referrals now</a></nav></div>
         </div>
         <div class="footer-bottom"><div class="container">&copy; 2026 REQUITY. All rights reserved.</div></div>
     </footer>
@@ -172,6 +150,34 @@
     <!-- Supabase config (copy frontend/shared/config.example.js to config.js with real public values). -->
     <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
     <script src="../frontend/shared/api.js"></script>
+    <!-- Auth gate: the agent assessment is only for signed-in agents/admins. -->
+    <script>
+      (function () {
+        var API = window.RequityAPI;
+        var cfg = window.REQUITY_CONFIG || {};
+        if (!API || !cfg.apiBaseUrl || !API.hasSession()) {
+          window.location.href = "login.html";
+          return;
+        }
+        API.requireAgentSession()
+          .then(function (s) {
+            if (!s || !s.ok) {
+              // Reviewer-only or no agent access → send to the right place.
+              if (s && s.me && (s.me.role === "reviewer")) {
+                window.location.href = "../reviewer/index.html";
+              } else {
+                window.location.href = "login.html";
+              }
+              return;
+            }
+            // Already completed? Skip straight to the dashboard.
+            if (s.me && s.me.agent && s.me.agent.archetype) {
+              window.location.href = "dashboard.html";
+            }
+          })
+          .catch(function () { window.location.href = "login.html"; });
+      })();
+    </script>
     <script src="script.js"></script>
 </body>
 </html>

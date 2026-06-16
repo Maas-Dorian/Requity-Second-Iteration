@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "./supabaseAdmin";
 import { env } from "./env";
 import { getAgentNotifications, type NotificationRecord } from "./messages";
+import { getAgentAssessmentActivity, type AgentAssessmentActivity } from "./analytics";
 
 /**
  * Aggregated agent dashboard payload for the secure API route.
@@ -22,6 +23,12 @@ export type AgentDashboard = {
     started: number;
     completed: number;
   };
+  /**
+   * Real last-7-days assessment activity for the "Assessment activity" chart.
+   * Null when the analytics query fails — the rest of the dashboard still loads
+   * and the chart shows a clean error state.
+   */
+  weeklyActivity: AgentAssessmentActivity | null;
   clientFlowCounts: {
     total: number;
     qr: number;
@@ -119,6 +126,16 @@ export async function getAgentDashboard(
     if (c.status === "reviewer_matching") flow.awaitingReview += 1;
   }
 
+  // Real per-day assessment activity. Isolated so an analytics failure never
+  // blocks the rest of the dashboard from loading.
+  let weeklyActivity: AgentAssessmentActivity | null = null;
+  try {
+    weeklyActivity = await getAgentAssessmentActivity(agentId, 7);
+  } catch (error) {
+    console.error("[dashboard] weeklyActivity failed:", error);
+    weeklyActivity = null;
+  }
+
   const recentClients = list.slice(0, 8).map((c) => ({
     id: c.id,
     name: c.full_name,
@@ -140,6 +157,7 @@ export async function getAgentDashboard(
     assessmentLink,
     qrLink,
     assessmentActivity: activity,
+    weeklyActivity,
     clientFlowCounts: flow,
     recentClients,
     messages,

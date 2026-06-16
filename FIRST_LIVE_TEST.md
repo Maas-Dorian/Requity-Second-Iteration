@@ -39,21 +39,28 @@ Replace `YOUR-APP` with your Vercel host (e.g. `requity.vercel.app`) throughout.
       now" button (with a discreet "Reviewer Portal" link in the header).
 
 ## 2. Open agent login
-- [ ] Click **Sign in / Sign up** (or open `https://YOUR-APP/agent/login.html`).
+- [ ] Click **Start getting referrals now** (it links to `agent/login.html`).
+      There is no separate "Sign in / Sign up" button in the header anymore.
 
 ## 3. Create an agent
-- [ ] Choose **Create account**. Enter full name, email, password (+ optional
-      phone/brokerage/license) → submit.
-- [ ] You land on `agent/dashboard.html`. (If email confirmation is ON, confirm
-      via email first, then sign in.)
+- [ ] Choose **Create account**. Enter **only** full name, email, password
+      (+ optional phone) → submit.
+- [ ] You are routed to `agent/assessment.html` (not the dashboard) because the
+      archetype is not complete yet. (If email confirmation is ON, confirm via
+      email first, then sign in — you'll land on the assessment.)
 - [ ] In Supabase → Table editor → `profiles`: a row exists with `role = agent`.
       In `agents`: a matching row exists with a `public_assessment_token`.
 
 ## 4. Complete the agent assessment
-- [ ] From the dashboard, click **Discover your Agent Archetype** (or open
-      `agent/assessment.html`). Answer all questions and submit.
-- [ ] The final screen confirms the archetype (no "retake" CTA). In Supabase
-      `agents`, your row now has an `archetype`.
+- [ ] The assessment starts **directly with the questions** — it does NOT ask for
+      your name, email, date of birth, or phone again (no duplicate contact step).
+      Unauthenticated visitors who open `agent/assessment.html` are redirected to
+      `agent/login.html`.
+- [ ] Answer all questions and submit. On success you see "Your agent profile is
+      ready" with a **Go to your dashboard** button. In Supabase `agents`, your
+      row now has an `archetype` and `archetype_completed_at`.
+- [ ] Re-opening `agent/dashboard.html` now loads normally; before completion it
+      redirects back to the assessment.
 
 ## 5. Copy the agent QR / public link
 - [ ] On the dashboard, copy the **client assessment link** and the **QR link**.
@@ -87,6 +94,13 @@ Replace `YOUR-APP` with your Vercel host (e.g. `requity.vercel.app`) throughout.
 - [ ] Back in the agent dashboard → **Client Assessments**: the completed client
       appears with their archetype. (QR/agent-link clients stay with the agent —
       not routed to the reviewer queue.)
+- [ ] **Assessment activity chart** (dashboard overview) now reflects real data:
+      the day you started the assessment shows a non-zero **started** bar, and the
+      caption reads e.g. "Last 7 days: 1 started · 1 completed." This is a real
+      last-7-days count from `assessment_leads` (embedded as `weeklyActivity` in
+      `GET /api/dashboard/agent`; no polling/subscriptions). Before any activity
+      it shows seven zero days and "No assessment activity yet."; the rest of the
+      dashboard still loads even if the chart can't.
 
 ## 11. Promote a reviewer / admin
 - [ ] Sign up a second account (step 3) with the reviewer email.
@@ -111,6 +125,18 @@ Replace `YOUR-APP` with your Vercel host (e.g. `requity.vercel.app`) throughout.
       requity@support.com. Thank you for working with us."
 - [ ] If Brevo is live: Supabase `email_events` has a `status = sent` row for the
       reviewer-match email. (In test mode, the email is logged, not sent.)
+
+## 14. Seed + verify the internal REQUITY team
+- [ ] Run `npm run seed:internal-users` (with service-role env vars) or use the
+      SQL in `backend/SEED_INTERNAL_USERS.md`. This creates `rocco@`, `tussa@`,
+      `mike@requityapp.com` as `role = admin` with an `agents` row each.
+- [ ] Sign in at `agent/login.html` with an internal account (initial password
+      `requityslaunch26`) → routed to the agent assessment first time, dashboard
+      after completion.
+- [ ] Sign in at `reviewer/login.html` with the same account → routed straight to
+      `reviewer/index.html`. A normal `agent` account is still rejected there.
+- [ ] Change the initial password after first login (dashboard → Settings →
+      **Send password reset**, which sends a real Supabase recovery email).
 
 ---
 

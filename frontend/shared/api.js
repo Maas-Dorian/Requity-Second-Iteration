@@ -401,6 +401,26 @@
     return { user: data.user || null, session: session };
   }
 
+  /**
+   * Send a Supabase password-recovery email to the given address. Real action
+   * (uses the public anon key). Throws on failure so the UI can show a real result.
+   */
+  async function sendPasswordReset(email) {
+    var c = requireSupabaseAuth();
+    if (!email) throw new Error("An account email is required.");
+    var res = await fetch(c.supabaseUrl + "/auth/v1/recover", {
+      method: "POST",
+      headers: supabaseAuthHeaders(),
+      body: JSON.stringify({ email: email }),
+    });
+    if (!res.ok) {
+      var data = {};
+      try { data = await res.json(); } catch (e) { /* ignore */ }
+      throw new Error(data.msg || data.error_description || data.error || "Could not send the reset email.");
+    }
+    return true;
+  }
+
   /** Sign out: clear local session and best-effort revoke on Supabase. */
   async function signOut() {
     var c = getSupabaseConfig();
@@ -482,6 +502,7 @@
     signUpAgent: signUpAgent,
     signIn: signIn,
     signOut: signOut,
+    sendPasswordReset: sendPasswordReset,
     getCurrentUser: getCurrentUser,
     bootstrapAgentProfile: bootstrapAgentProfile,
     requireAgentSession: requireAgentSession,

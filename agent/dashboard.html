@@ -1099,15 +1099,8 @@
         <div class="card card-wide">
           <div class="card-header"><h2>Assessment activity</h2></div>
           <div class="card-body">
-            <div class="chart-container">
-              <div class="bar-group"><div class="bar-value">2</div><div class="bar-track"><div class="bar-fill monday" style="height: 28%;"></div></div><div class="bar-label">Mon</div></div>
-              <div class="bar-group"><div class="bar-value">4</div><div class="bar-track"><div class="bar-fill tuesday" style="height: 57%;"></div></div><div class="bar-label">Tue</div></div>
-              <div class="bar-group"><div class="bar-value">3</div><div class="bar-track"><div class="bar-fill wednesday" style="height: 42%;"></div></div><div class="bar-label">Wed</div></div>
-              <div class="bar-group"><div class="bar-value">6</div><div class="bar-track"><div class="bar-fill thursday" style="height: 85%;"></div></div><div class="bar-label">Thu</div></div>
-              <div class="bar-group"><div class="bar-value">5</div><div class="bar-track"><div class="bar-fill friday" style="height: 71%;"></div></div><div class="bar-label">Fri</div></div>
-              <div class="bar-group"><div class="bar-value">7</div><div class="bar-track"><div class="bar-fill saturday" style="height: 100%;"></div></div><div class="bar-label">Sat</div></div>
-              <div class="bar-group"><div class="bar-value">4</div><div class="bar-track"><div class="bar-fill sunday" style="height: 57%;"></div></div><div class="bar-label">Sun</div></div>
-            </div>
+            <div class="chart-container" id="activity-chart"></div>
+            <p class="bar-label" id="activity-caption" style="margin-top:0.85rem;">Loading recent activity…</p>
           </div>
         </div>
 
@@ -1192,15 +1185,14 @@
         <div class="settings-grid">
           <article class="settings-card card">
             <h3>Account email</h3>
-            <p>The login email connected to your REQUITY agent account.</p>
+            <p>The login email connected to your REQUITY agent account. To change it, contact the REQUITY team.</p>
             <div class="settings-field" id="settings-account-email">—</div>
-            <button class="btn-secondary settings-action" data-toast="Email reset link sent.">Send email reset link</button>
           </article>
           <article class="settings-card card">
             <h3>Password</h3>
-            <p>Send a Supabase password recovery email to the agent account.</p>
+            <p>Send a Supabase password recovery email to your account email.</p>
             <div class="settings-field">Password managed by Supabase Auth</div>
-            <button class="btn-secondary settings-action" data-toast="Password reset email sent.">Send password reset</button>
+            <button class="btn-secondary settings-action" type="button" id="btn-password-reset">Send password reset</button>
           </article>
           <article class="settings-card card">
             <h3>OAuth providers</h3>
@@ -1213,9 +1205,8 @@
           </article>
           <article class="settings-card card">
             <h3>Connected Supabase account</h3>
-            <p>The Supabase identity this dashboard is linked to once login is wired.</p>
+            <p>The Supabase project this dashboard is linked to. Configured via server-side environment variables.</p>
             <div class="settings-field" id="supabase-account-field">Not connected</div>
-            <button class="btn-secondary settings-action" data-toast="Supabase connection is configured via environment variables.">Manage connection</button>
           </article>
         </div>
       </section>
@@ -1487,9 +1478,25 @@
         });
       });
 
-      document.querySelectorAll('.settings-action').forEach(button => {
-        button.addEventListener('click', () => showToast(button.dataset.toast || 'Settings action queued.'));
-      });
+      const passwordResetBtn = document.getElementById('btn-password-reset');
+      if (passwordResetBtn) {
+        passwordResetBtn.addEventListener('click', async () => {
+          const email = (document.getElementById('settings-account-email')?.textContent || '').trim();
+          if (!email || email === '—') { showToast('No account email available.'); return; }
+          passwordResetBtn.disabled = true;
+          const original = passwordResetBtn.textContent;
+          passwordResetBtn.textContent = 'Sending…';
+          try {
+            await API.sendPasswordReset(email);
+            showToast('Password reset email sent to ' + email + '.');
+          } catch (err) {
+            showToast(err && err.message ? err.message : 'Could not send the reset email.');
+          } finally {
+            passwordResetBtn.disabled = false;
+            passwordResetBtn.textContent = original;
+          }
+        });
+      }
 
       document.querySelector('.link-action')?.addEventListener('click', (e) => {
         e.preventDefault();
@@ -1540,6 +1547,13 @@
 
       const me = session.me;
       agentId = me && me.agent ? me.agent.id : null;
+
+      // Onboarding gate: agents/admins must complete the agent assessment first.
+      // Without a completed archetype, the dashboard has nothing meaningful to show.
+      if (!me || !me.agent || !me.agent.archetype) {
+        window.location.href = 'assessment.html';
+        return;
+      }
 
       // Personalize the shell from the authenticated profile.
       if (me && me.agent) {
@@ -1661,6 +1675,44 @@
         ).join('');
       }
 
+      const WEEKDAY_CLASS = {
+        Sun: 'sunday', Mon: 'monday', Tue: 'tuesday', Wed: 'wednesday',
+        Thu: 'thursday', Fri: 'friday', Sat: 'saturday'
+      };
+
+      // Real "Assessment activity" chart from lightweight server-side analytics.
+      // Bars show leads started per day; the caption summarizes started/completed.
+      function renderWeeklyActivity(activity) {
+        const chart = document.getElementById('activity-chart');
+        const caption = document.getElementById('activity-caption');
+        if (!chart) return;
+        if (!activity || !Array.isArray(activity.days)) {
+          chart.innerHTML = '';
+          if (caption) caption.textContent = 'Assessment activity could not be loaded.';
+          return;
+        }
+        const days = activity.days;
+        const max = days.reduce((m, d) => Math.max(m, d.started || 0, d.completed || 0), 0);
+        chart.innerHTML = days.map((d) => {
+          const cls = WEEKDAY_CLASS[d.label] || 'monday';
+          const started = d.started || 0;
+          const height = max > 0 ? Math.round((started / max) * 100) : 0;
+          return '<div class="bar-group">' +
+            '<div class="bar-value">' + started + '</div>' +
+            '<div class="bar-track"><div class="bar-fill ' + cls + '" style="height:' + height + '%;"></div></div>' +
+            '<div class="bar-label">' + esc(d.label) + '</div>' +
+          '</div>';
+        }).join('');
+        if (caption) {
+          if (!activity.totalStarted && !activity.totalCompleted) {
+            caption.textContent = 'No assessment activity yet.';
+          } else {
+            caption.textContent = 'Last ' + days.length + ' days: ' + activity.totalStarted +
+              ' started \u00B7 ' + activity.totalCompleted + ' completed.';
+          }
+        }
+      }
+
       function renderFlow(activity, flow) {
         const items = document.querySelectorAll('#dashboard-view .flow-list .flow-item');
         if (!items.length) return;
@@ -1677,7 +1729,7 @@
 
       try {
         const dash = await API.fetchAgentDashboard(agentId);
-        if (!dash) return;
+        if (!dash) { renderWeeklyActivity(null); return; }
         const linkInput = document.getElementById('assessmentLink');
         if (linkInput && dash.assessmentLink) linkInput.value = dash.assessmentLink;
         renderClients(dash.clientAssessmentDetail);
@@ -1687,10 +1739,14 @@
         if (dash.assessmentActivity && dash.clientFlowCounts) {
           renderFlow(dash.assessmentActivity, dash.clientFlowCounts);
         }
+        // weeklyActivity is null only if the analytics query failed server-side;
+        // the chart then shows a clean error state without affecting the rest.
+        renderWeeklyActivity(dash.weeklyActivity);
       } catch (e) {
         console.warn('[dashboard] failed to load live data:', e.message);
         const clientsEmpty = document.getElementById('clients-empty');
         if (clientsEmpty) clientsEmpty.textContent = 'We could not load your dashboard data. Please refresh or try again later.';
+        renderWeeklyActivity(null);
       }
     });
   </script>

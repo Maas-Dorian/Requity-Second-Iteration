@@ -208,10 +208,21 @@
       }
 
       function routeAfterAuth(me) {
-        if (me && me.role === "agent") { window.location.href = "dashboard.html"; return; }
-        if (me && (me.role === "reviewer" || me.role === "admin")) { showReviewerSwitch(); return; }
-        // Unknown/empty role (e.g. brand-new agent just bootstrapped): go to dashboard.
-        window.location.href = "dashboard.html";
+        var role = me && me.role;
+        // Agents and admins use the agent flow. Send them to the assessment until
+        // their archetype is complete, then to the dashboard.
+        if (role === "agent" || role === "admin") {
+          var hasAgentRow = me.agent && me.agent.id;
+          var completed = me.agent && me.agent.archetype;
+          // An admin without an agent row is reviewer-only in practice.
+          if (!hasAgentRow && role === "admin") { showReviewerSwitch(); return; }
+          window.location.href = completed ? "dashboard.html" : "assessment.html";
+          return;
+        }
+        // Reviewer-only accounts get the reviewer portal panel.
+        if (role === "reviewer") { showReviewerSwitch(); return; }
+        // Brand-new account still settling (role pending): start the assessment.
+        window.location.href = "assessment.html";
       }
 
       signinForm.addEventListener("submit", async function (e) {
@@ -251,7 +262,9 @@
             setTab("signin");
             return;
           }
-          window.location.href = "dashboard.html";
+          // New agent is signed in + bootstrapped → route to the assessment.
+          var me = await API.getCurrentUser();
+          routeAfterAuth(me);
         } catch (err) {
           showMsg(err.message || "Sign up failed.", "error");
           btn.disabled = false; btn.textContent = "Create agent account";

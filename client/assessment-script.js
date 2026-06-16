@@ -357,15 +357,48 @@ document.addEventListener('DOMContentLoaded', () => {
         queueLeadProgress();
     }
 
-    continueBtn.addEventListener('click', () => {
+    function getSubmitErrorEl() {
+        let el = document.getElementById('submitError');
+        if (!el) {
+            el = document.createElement('p');
+            el.id = 'submitError';
+            el.style.cssText = 'color:#B3261E;background:#FCE8E6;border-radius:8px;padding:0.7rem 0.85rem;margin-top:1rem;font-size:0.9rem;display:none;';
+            const actions = document.querySelector('#step-assessment .actions-row');
+            if (actions && actions.parentNode) actions.parentNode.insertBefore(el, actions);
+        }
+        return el;
+    }
+    function showSubmitError() {
+        const el = getSubmitErrorEl();
+        el.textContent = 'We couldn’t submit your assessment. Please check your connection and try again.';
+        el.style.display = 'block';
+    }
+    function clearSubmitError() {
+        const el = document.getElementById('submitError');
+        if (el) el.style.display = 'none';
+    }
+
+    continueBtn.addEventListener('click', async () => {
         if(currentStepIndex < consumerAssessmentQuestions.length - 1) {
             currentStepIndex++;
             renderQuestion(currentStepIndex);
-        } else {
-            // Assessment Complete
+            return;
+        }
+        // Final step: the submission must succeed before we show the confirmation.
+        // Never silently pretend success when the real API call fails.
+        clearSubmitError();
+        const originalLabel = continueBtn.innerHTML;
+        continueBtn.disabled = true;
+        continueBtn.textContent = 'Submitting…';
+        try {
+            await submitAssessment();
             currentStepIndex = consumerAssessmentQuestions.length;
-            submitAssessment();
             showWaitingPage();
+        } catch (err) {
+            console.warn('[REQUITY] Client assessment submission error:', err);
+            showSubmitError();
+            continueBtn.disabled = false;
+            continueBtn.innerHTML = originalLabel;
         }
     });
 
@@ -390,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function submitAssessment() {
-        if (!window.RequityAPI) return;
+        if (!window.RequityAPI) return Promise.reject(new Error('REQUITY is not configured.'));
         const answers = {};
         Object.keys(userAnswers).forEach(idx => { answers[Number(idx) + 1] = userAnswers[idx]; });
         const src = getClientSource();
@@ -409,13 +442,14 @@ document.addEventListener('DOMContentLoaded', () => {
             agentId: src.agentId,
             agentToken: src.agentToken,
         };
-        Promise.resolve(window.RequityAPI.submitClientAssessment(payload))
+        // Return the promise so the caller only advances on a real success.
+        return Promise.resolve(window.RequityAPI.submitClientAssessment(payload))
             .then(res => {
                 console.log('[REQUITY] Client assessment submitted:', res);
                 // Lead is now completed server-side; drop the cached lead id.
                 try { localStorage.removeItem('requity_lead'); } catch (e) { /* ignore */ }
-            })
-            .catch(err => console.warn('[REQUITY] Client assessment submission error:', err));
+                return res;
+            });
     }
 
     backBtn.addEventListener('click', () => {

@@ -22,7 +22,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     try {
       const profile = await mapSupabaseUserToProfile(user);
       const role = profile?.role ?? null;
-      const agent = role === "agent" ? await getAgentByUserId(user.id) : null;
+      // Agents and admins (internal team) may have an agent row → agent access.
+      const agent = role === "agent" || role === "admin" ? await getAgentByUserId(user.id) : null;
 
       sendJson(res, 200, {
         user: { id: user.id, email: user.email },

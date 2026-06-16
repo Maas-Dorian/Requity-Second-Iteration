@@ -244,6 +244,10 @@ Aggregated agent dashboard payload.
     "agent": { "id": "uuid", "displayName": "string", "email": "string", "archetype": "string|null" },
     "assessmentLink": "string", "qrLink": "string",
     "assessmentActivity": { "linkOpened": 0, "started": 0, "completed": 0 },
+    "weeklyActivity": {
+      "days": [ { "date": "YYYY-MM-DD", "label": "Mon", "started": 0, "completed": 0 } ],
+      "totalStarted": 0, "totalCompleted": 0
+    },
     "clientFlowCounts": { "total": 0, "qr": 0, "reviewer": 0, "assigned": 0, "awaitingReview": 0 },
     "recentClients": [ { "id": "uuid", "name": "string", "archetype": "string|null", "status": "string", "source": "string", "updatedAt": "ts" } ],
     "messages": [ /* NotificationRecord */ ],
@@ -251,9 +255,41 @@ Aggregated agent dashboard payload.
     "settings": { "accountEmail": "string|null", "supabaseConnected": true, "oauth": { "google": "...", "apple": "...", "email": "..." } }
   }
   ```
-- **Tables touched:** `agents` (read), `clients` + `assessments` (read), `messages` (read)
+- `weeklyActivity` powers the "Assessment activity" chart (real last-7-days
+  counts from `assessment_leads`). It is `null` if the analytics query fails, so
+  the rest of the dashboard still renders and the chart shows a clean error state.
+- **Tables touched:** `agents` (read), `clients` + `assessments` (read), `messages` (read), `assessment_leads` (read, analytics)
 - **Notification created:** none
 - **Brevo email:** no
+
+---
+
+## GET `/api/dashboard/agent-activity` (protected)
+
+Lightweight per-day assessment analytics for the "Assessment activity" chart.
+Same data as `weeklyActivity` above, exposed standalone for explicit ranges. The
+dashboard itself reads `weeklyActivity` from `/api/dashboard/agent`, so it makes a
+single request — this route is for custom/standalone use.
+
+- **Auth:** `requireAgent` (agent or admin). Normal agents only see their own
+  analytics; admins may pass `?agentId=` to target a specific agent.
+- **Query:** `days` (optional, default `7`, max `30`), `agentId` (admin-only)
+- **Response**
+  ```json
+  {
+    "activity": {
+      "days": [ { "date": "YYYY-MM-DD", "label": "Mon", "started": 0, "completed": 0 } ],
+      "totalStarted": 0,
+      "totalCompleted": 0
+    }
+  }
+  ```
+- **Source:** counts `assessment_leads.started_at` / `completed_at` for the agent
+  within the window (one small, bounded query; missing days filled with zeros).
+- **Tables touched:** `assessment_leads` (read)
+- **Notification created:** none
+- **Brevo email:** no
+- **Notes:** no polling, no real-time subscriptions; computed server-side.
 
 ---
 

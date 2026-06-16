@@ -4,6 +4,13 @@ REQUITY has **no public reviewer or admin sign-up**. Everyone signs up as an
 `agent`, and a reviewer/admin role is granted manually in Supabase. This keeps
 elevated access off the public surface.
 
+> **Internal REQUITY team (admins who use both portals):** for the standing
+> internal accounts (`rocco@`, `tussa@`, `mike@requityapp.com`), use
+> **`backend/SEED_INTERNAL_USERS.md`** instead — it seeds them as `role = admin`
+> *with* an `agents` row so they can use both the agent dashboard and the
+> reviewer portal. The steps below are for granting reviewer/admin to an
+> individual account.
+
 > Roles live in `public.profiles.role` and are one of `agent`, `reviewer`, `admin`.
 > RLS uses `public.requity_role()` to read the caller's role, so a profile's role
 > is the single source of truth for dashboard access.

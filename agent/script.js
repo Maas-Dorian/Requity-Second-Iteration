@@ -386,25 +386,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const next = document.getElementById('agent-next');
     const card = document.getElementById('agent-assessment-card') || document.querySelector('.agent-assessment-card');
     const resultCard = document.getElementById('agent-result-card');
+    const errorCard = document.getElementById('agent-error-card');
     if (!questionCount || !questionText || !optionsWrap || !back || !next) return;
 
-    const contactForm = document.getElementById('agent-contact-form');
-    const agentContact = {};
-    if (contactForm && card) {
-        card.hidden = true;
-        contactForm.addEventListener('submit', (event) => {
-            event.preventDefault();
-            const formData = new FormData(contactForm);
-            agentContact.name = formData.get('name') || '';
-            agentContact.email = formData.get('email') || '';
-            agentContact.dob = formData.get('dob') || '';
-            agentContact.phone = formData.get('phone') || '';
-            contactForm.hidden = true;
-            card.hidden = false;
-            renderQuestion();
-            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
-    }
+    // The agent is already authenticated (enforced by the page auth gate) and we
+    // have their account details, so we start directly with the questions — no
+    // duplicate name/email/phone/DOB collection.
+    if (card) card.hidden = false;
 
     function renderQuestion() {
         const q = agentSurveyQuestions[current];
@@ -452,33 +440,45 @@ window.addEventListener('DOMContentLoaded', () => {
         result.archetype = archetypes[key] || 'Relationship-Fit Agent';
         return result;
     }
-    function showResult() {
+    async function showResult() {
         const result = calculateResult();
-        submitAgentAssessment(result);
-        card.hidden = true;
-        resultCard.hidden = false;
-        const summary = document.getElementById('agent-result-summary');
-        if (summary && agentContact.name) {
-            summary.textContent = `${agentContact.name}, thank you for completing your agent assessment. A REQUITY reviewer will compare your responses with client profiles to identify strong relationship-fit opportunities. We’ll be in contact soon.`;
+        next.disabled = true;
+        next.textContent = 'Saving...';
+        try {
+            await submitAgentAssessment(result);
+            if (errorCard) errorCard.hidden = true;
+            card.hidden = true;
+            resultCard.hidden = false;
+            const heading = document.getElementById('agent-result-heading');
+            if (heading && result.archetype) {
+                heading.textContent = `Your agent profile is ready: ${result.archetype}.`;
+            }
+            resultCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch (err) {
+            console.warn('[REQUITY] Agent assessment submission error:', err);
+            // Never pretend success: keep the result hidden and show a real error.
+            card.hidden = true;
+            resultCard.hidden = true;
+            if (errorCard) {
+                errorCard.hidden = false;
+                errorCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            next.disabled = false;
+            next.textContent = 'Submit Assessment';
         }
-        resultCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-    // Submit via the secure API (requires real config; no demo fallback)
+    // Submit via the secure API. The agent is authenticated, so identity is
+    // resolved server-side from the session — we only send the answers.
     function submitAgentAssessment(result) {
-        if (!window.RequityAPI) return;
-        const payload = {
-            contact: {
-                name: agentContact.name || '',
-                email: agentContact.email || '',
-                phone: agentContact.phone || null,
-                dateOfBirth: agentContact.dob || null,
-            },
-            answers: answers,
-            result: result,
-        };
-        Promise.resolve(window.RequityAPI.submitAgentAssessment(payload))
-            .then(res => console.log('[REQUITY] Agent assessment submitted:', res))
-            .catch(err => console.warn('[REQUITY] Agent assessment submission error:', err));
+        if (!window.RequityAPI) return Promise.reject(new Error('REQUITY is not configured.'));
+        return window.RequityAPI.submitAgentAssessment({ answers: answers, result: result });
+    }
+    const retryBtn = document.getElementById('agent-retry-btn');
+    if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+            if (errorCard) errorCard.hidden = true;
+            showResult();
+        });
     }
     back.addEventListener('click', () => { if (current > 0) { current -= 1; renderQuestion(); } });
     next.addEventListener('click', () => {

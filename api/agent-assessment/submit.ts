@@ -19,6 +19,8 @@ import {
   submitAgentAssessment,
   type AgentAnswers,
 } from "../../backend/lib/agentAssessments";
+import { getUserFromRequest, mapSupabaseUserToProfile } from "../../backend/lib/auth";
+import { ensureAgentForUser } from "../../backend/lib/users";
 import { checkRateLimit } from "../../backend/lib/rateLimit";
 import { logApiStart, logValidationFailure, logSupabaseError } from "../../backend/lib/logger";
 
@@ -26,8 +28,15 @@ const ROUTE = "agent-assessment/submit";
 
 /**
  * POST /api/agent-assessment/submit
- * Body: { contact:{name,email,phone?,dateOfBirth?}, answers, agentId?, profileId? }
- * Public route — validated + rate limited. Archetype is recomputed server-side.
+ * Body: { answers, contact?:{name,email,phone?,dateOfBirth?}, agentId?, profileId? }
+ *
+ * Primary path: an authenticated agent/admin. When an Authorization bearer token
+ * is present, the result is attached to THAT user's own agent row (identity is
+ * taken from the session — body-provided ids are ignored). No duplicate contact
+ * info is collected; the agent profile is the source of truth.
+ *
+ * Anonymous fallback (kept for safety): validated + rate limited, requires
+ * contact. Archetype is always recomputed server-side.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {
@@ -35,14 +44,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     assertPayloadSize(req);
     logApiStart(ROUTE);
 
+    const body = getJsonBody(req);
+    const answers = requireAnswers(body, "answers") as AgentAnswers;
+
+    // --- Authenticated agent/admin: attach to their own agent row -----------
+    const user = await getUserFromRequest(req);
+    if (user) {
+      const profile = await mapSupabaseUserToProfile(user);
+      if (!profile || !(profile.role === "agent" || profile.role === "admin")) {
+        throw new HttpError(403, "Agent or admin access is required to submit this assessment.");
+      }
+      const email = profile.email ?? user.email ?? "";
+      if (!email) throw new HttpError(400, "Your account is missing an email address.");
+      try {
+        const agent = await ensureAgentForUser({ userId: user.id, email });
+        const result = await submitAgentAssessment({
+          contact: { name: agent.display_name, email: agent.email, phone: agent.phone },
+          answers,
+          agentId: agent.id,
+          profileId: profile.profileId,
+        });
+        sendJson(res, 200, result);
+      } catch (error) {
+        logSupabaseError(ROUTE, error, { userId: user.id });
+        throw error;
+      }
+      return;
+    }
+
+    // --- Anonymous fallback (rate limited, contact required) ----------------
     const ip = getClientIp(req);
     const rl = checkRateLimit(ip, "agent_submit");
     if (!rl.allowed) {
       logValidationFailure(ROUTE, "rate_limited", { ip });
       throw new HttpError(429, rl.reason ?? "Too many requests.");
     }
-
-    const body = getJsonBody(req);
 
     const contactRaw = requireObject(body, "contact");
     const contact = {
@@ -51,8 +87,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       phone: sanitizePhone(contactRaw["phone"]) ?? null,
       dateOfBirth: optionalDate(contactRaw, "dateOfBirth") ?? null,
     };
-
-    const answers = requireAnswers(body, "answers") as AgentAnswers;
 
     try {
       const result = await submitAgentAssessment({

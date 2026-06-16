@@ -12,6 +12,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["api/**/*.ts", "backend/lib/**/*.ts", "backend/emails/**/*.ts"],
+  "include": ["api/**/*.ts", "backend/lib/**/*.ts", "backend/emails/**/*.ts", "backend/scripts/**/*.ts"],
   "exclude": ["node_modules", "**/node_modules", "backend/src/**/*.legacy.ts"]
 }
