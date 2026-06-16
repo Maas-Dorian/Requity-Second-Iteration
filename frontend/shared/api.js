@@ -39,67 +39,115 @@
   }
 
   // --- Supabase Auth session ---------------------------------------------
+  // ONE localStorage key, used consistently across every page.
   var SESSION_KEY = "requity_session";
 
-  function getSession() {
+  function authDebugEnabled() {
+    try {
+      var cfg = global.REQUITY_CONFIG || {};
+      if (cfg.debugAuth) return true;
+      return global.localStorage.getItem("requity_auth_debug") === "1";
+    } catch (e) { return false; }
+  }
+  // Safe auth debug. NEVER logs the access token, refresh token, password,
+  // service role key, or the full user object — only booleans/status/role.
+  function authDebug(label, data) {
+    if (!authDebugEnabled()) return;
+    try { console.debug("[auth] " + label, data || {}); } catch (e) { /* ignore */ }
+  }
+
+  function getStoredSession() {
     try { return JSON.parse(global.localStorage.getItem(SESSION_KEY) || "null"); }
     catch (e) { return null; }
   }
-  function setSession(s) {
+  function setStoredSession(s) {
     try {
-      if (s) global.localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+      if (s && s.access_token) global.localStorage.setItem(SESSION_KEY, JSON.stringify(s));
       else global.localStorage.removeItem(SESSION_KEY);
     } catch (e) { /* ignore */ }
   }
-  function hasSession() {
-    var s = getSession();
+  function clearStoredSession() {
+    try { global.localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
+  }
+  function hasStoredSession() {
+    var s = getStoredSession();
     return !!(s && s.access_token);
   }
+  // Back-compat aliases (existing call sites use these names).
+  var getSession = getStoredSession;
+  var setSession = setStoredSession;
+  var hasSession = hasStoredSession;
 
   function supabaseAuthHeaders() {
     var c = getSupabaseConfig();
     return { "Content-Type": "application/json", apikey: c.supabaseAnonKey };
   }
 
-  // Returns a valid access token, refreshing it if expired. null when none.
-  async function getAccessToken() {
-    var s = getSession();
-    if (!s || !s.access_token) return null;
-    var nowSec = Math.floor(Date.now() / 1000);
-    if (s.expires_at && s.expires_at - 30 > nowSec) return s.access_token;
-    // Try a refresh if we have a refresh token.
-    var c = getSupabaseConfig();
-    if (s.refresh_token && c.supabaseUrl) {
-      try {
-        var res = await fetch(c.supabaseUrl + "/auth/v1/token?grant_type=refresh_token", {
-          method: "POST",
-          headers: supabaseAuthHeaders(),
-          body: JSON.stringify({ refresh_token: s.refresh_token }),
-        });
-        if (res.ok) {
-          var data = await res.json();
-          storeSessionFromAuth(data);
-          return data.access_token;
-        }
-      } catch (e) { /* fall through */ }
-    }
-    return s.access_token; // best-effort: return possibly-stale token
-  }
-
   function storeSessionFromAuth(data) {
     if (!data || !data.access_token) return null;
     var nowSec = Math.floor(Date.now() / 1000);
+    var existing = getStoredSession();
     var session = {
       access_token: data.access_token,
-      refresh_token: data.refresh_token || null,
+      // Supabase returns a fresh refresh_token on refresh; keep the prior one if absent.
+      refresh_token: data.refresh_token || (existing && existing.refresh_token) || null,
       expires_at: data.expires_at || (data.expires_in ? nowSec + data.expires_in : null),
-      user: data.user || (data.session && data.session.user) || null,
+      user: data.user || (data.session && data.session.user) || (existing && existing.user) || null,
     };
-    setSession(session);
+    setStoredSession(session);
     return session;
   }
 
+  // Refresh the access token using the Supabase refresh token endpoint.
+  //  - invalid/expired refresh token (HTTP error) → clear session, return null
+  //  - network error → keep session (could be transient), return null
+  async function refreshAccessToken() {
+    var s = getStoredSession();
+    var c = getSupabaseConfig();
+    if (!s || !s.refresh_token || !c.supabaseUrl) { clearStoredSession(); return null; }
+    authDebug("refreshAttempted", { hasRefreshToken: true });
+    try {
+      var res = await fetch(c.supabaseUrl + "/auth/v1/token?grant_type=refresh_token", {
+        method: "POST",
+        headers: supabaseAuthHeaders(),
+        body: JSON.stringify({ refresh_token: s.refresh_token }),
+      });
+      if (!res.ok) { clearStoredSession(); return null; }
+      var data = await res.json();
+      var stored = storeSessionFromAuth(data);
+      return stored ? stored.access_token : null;
+    } catch (e) {
+      authDebug("refreshError", { network: true });
+      return null;
+    }
+  }
+
+  // Returns a valid access token, refreshing when near/after expiry.
+  // Returns null when there is no usable token (caller treats that as signed-out).
+  async function getAccessToken() {
+    var s = getStoredSession();
+    if (!s || !s.access_token) return null;
+    var nowSec = Math.floor(Date.now() / 1000);
+    var trulyExpired = s.expires_at ? s.expires_at <= nowSec : false;
+    var nearExpiry = s.expires_at ? s.expires_at - 60 <= nowSec : false;
+    authDebug("getAccessToken", { hasStoredSession: true, tokenExpired: trulyExpired, nearExpiry: nearExpiry });
+    if (!nearExpiry) return s.access_token;
+    var refreshed = await refreshAccessToken();
+    if (refreshed) return refreshed;
+    // Refresh failed: use the still-valid token if it hasn't truly expired yet.
+    return trulyExpired ? null : s.access_token;
+  }
+
   // --- Low-level transport ------------------------------------------------
+
+  // Error that carries the HTTP status so callers can tell 401 (auth) apart
+  // from transient/server errors (and avoid logging users out on a 500).
+  function makeApiError(path, status) {
+    var e = new Error("API " + path + " failed: " + status);
+    e.name = "ApiError";
+    e.status = status;
+    return e;
+  }
 
   // Attaches Authorization: Bearer <token> when a Supabase session exists.
   async function withAuthHeaders(headers) {
@@ -117,7 +165,7 @@
       headers: headers,
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error("API " + path + " failed: " + res.status);
+    if (!res.ok) throw makeApiError(path, res.status);
     return res.json();
   }
 
@@ -125,7 +173,7 @@
     var c = requireApi();
     var headers = await withAuthHeaders({});
     var res = await fetch(c.apiBaseUrl.replace(/\/$/, "") + path, { method: "GET", headers: headers });
-    if (!res.ok) throw new Error("API " + path + " failed: " + res.status);
+    if (!res.ok) throw makeApiError(path, res.status);
     return res.json();
   }
 
@@ -433,15 +481,37 @@
         });
       } catch (e) { /* ignore */ }
     }
-    setSession(null);
+    clearStoredSession();
     return true;
   }
 
-  /** Returns { user, role, profile, agent, needsBootstrap } from /api/auth/me, or null. */
+  // Calls /api/auth/me and normalizes the response shape.
+  // me.ts returns { user, profile, role, agent, needsBootstrap }. We make sure
+  // `role` is always present (falling back to profile.role) and surface the
+  // agent's archetype completion fields the routing logic depends on.
+  async function fetchMe() {
+    var me = await apiGet("/auth/me");
+    if (me && !me.role && me.profile) me.role = me.profile.role || null;
+    authDebug("authMe", {
+      authMeStatus: 200,
+      role: me ? me.role || null : null,
+      hasAgentRow: !!(me && me.agent),
+    });
+    return me;
+  }
+
+  /**
+   * Returns { user, role, profile, agent, needsBootstrap } from /api/auth/me, or null.
+   * On a 401 the stale session is cleared. Transient/server errors also return
+   * null here (callers that must distinguish use require*Session instead).
+   */
   async function getCurrentUser() {
-    if (!hasSession()) return null;
-    try { return await apiGet("/auth/me"); }
-    catch (e) { return null; }
+    if (!hasStoredSession()) return null;
+    try { return await fetchMe(); }
+    catch (e) {
+      if (e && e.status === 401) clearStoredSession();
+      return null;
+    }
   }
 
   /** Create/refresh the caller's profile + agent row. Requires a session + API. */
@@ -457,29 +527,48 @@
 
   /**
    * Resolve the current session for an agent page.
-   * Returns { ok, me } — { ok:false, reason } means redirect to sign-in.
+   * Returns { ok:true, me } or { ok:false, reason, me? } where reason is:
+   *   - "no_session": no/invalid session → redirect to sign-in
+   *   - "error": transient/server error → show error, DO NOT redirect (no loop)
+   *   - "role_mismatch": signed in but wrong role → access-denied / switch panel
    */
   async function requireAgentSession() {
-    if (!hasSession()) return { ok: false, reason: "no_session" };
-    var me = await getCurrentUser();
+    if (!hasStoredSession()) return { ok: false, reason: "no_session" };
+    var me;
+    try { me = await fetchMe(); }
+    catch (e) {
+      if (e && e.status === 401) { clearStoredSession(); return { ok: false, reason: "no_session" }; }
+      return { ok: false, reason: "error", error: e };
+    }
     if (!me) return { ok: false, reason: "no_session" };
     if (me.needsBootstrap) {
-      try { await bootstrapAgentProfile(null); me = await getCurrentUser(); } catch (e) { /* ignore */ }
+      try { await bootstrapAgentProfile(null); me = await fetchMe(); } catch (e) { /* ignore */ }
     }
     if (me && (me.role === "agent" || me.role === "admin")) return { ok: true, me: me };
     return { ok: false, reason: "role_mismatch", me: me };
   }
 
   /**
-   * Resolve the current session for the reviewer page.
-   * Returns { ok, me } — { ok:false, reason } drives access-denied UI.
+   * Resolve the current session for the reviewer page. Same reason codes as
+   * requireAgentSession (no_session / error / role_mismatch).
    */
   async function requireReviewerSession() {
-    if (!hasSession()) return { ok: false, reason: "no_session" };
-    var me = await getCurrentUser();
+    if (!hasStoredSession()) return { ok: false, reason: "no_session" };
+    var me;
+    try { me = await fetchMe(); }
+    catch (e) {
+      if (e && e.status === 401) { clearStoredSession(); return { ok: false, reason: "no_session" }; }
+      return { ok: false, reason: "error", error: e };
+    }
     if (!me) return { ok: false, reason: "no_session" };
     if (me.role === "reviewer" || me.role === "admin") return { ok: true, me: me };
     return { ok: false, reason: "role_mismatch", me: me };
+  }
+
+  /** True when the agent's archetype assessment has been completed. */
+  function agentHasCompletedAssessment(me) {
+    var a = me && me.agent;
+    return !!(a && a.archetype && a.archetypeCompletedAt);
   }
 
   /** Copy an assessment link to the clipboard. Resolves true on success. */
@@ -498,12 +587,17 @@
   global.RequityAPI = {
     getSupabaseConfig: getSupabaseConfig,
     hasSession: hasSession,
+    hasStoredSession: hasStoredSession,
+    getStoredSession: getStoredSession,
+    setStoredSession: setStoredSession,
+    clearStoredSession: clearStoredSession,
     getAccessToken: getAccessToken,
     signUpAgent: signUpAgent,
     signIn: signIn,
     signOut: signOut,
     sendPasswordReset: sendPasswordReset,
     getCurrentUser: getCurrentUser,
+    agentHasCompletedAssessment: agentHasCompletedAssessment,
     bootstrapAgentProfile: bootstrapAgentProfile,
     requireAgentSession: requireAgentSession,
     requireReviewerSession: requireReviewerSession,

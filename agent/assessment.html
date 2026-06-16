@@ -162,8 +162,13 @@
         API.requireAgentSession()
           .then(function (s) {
             if (!s || !s.ok) {
-              // Reviewer-only or no agent access → send to the right place.
-              if (s && s.me && (s.me.role === "reviewer")) {
+              // Transient/server error → don't loop back to login.
+              if (s && s.reason === "error") {
+                alert("We couldn't verify your account. Please try again.");
+                return;
+              }
+              // Reviewer-only → reviewer portal; otherwise sign in.
+              if (s && s.me && s.me.role === "reviewer") {
                 window.location.href = "../reviewer/index.html";
               } else {
                 window.location.href = "login.html";
@@ -171,7 +176,7 @@
               return;
             }
             // Already completed? Skip straight to the dashboard.
-            if (s.me && s.me.agent && s.me.agent.archetype) {
+            if (API.agentHasCompletedAssessment(s.me)) {
               window.location.href = "dashboard.html";
             }
           })

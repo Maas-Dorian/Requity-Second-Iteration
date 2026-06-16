@@ -32,7 +32,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           ? { id: profile.profileId, email: profile.email, role: profile.role }
           : null,
         agent: agent
-          ? { id: agent.id, displayName: agent.display_name, email: agent.email, publicToken: agent.public_assessment_token, archetype: agent.archetype }
+          ? {
+              id: agent.id,
+              displayName: agent.display_name,
+              email: agent.email,
+              publicToken: agent.public_assessment_token,
+              archetype: agent.archetype,
+              archetypeCompletedAt: agent.archetype_completed_at ?? null,
+            }
           : null,
         needsBootstrap: !profile,
       });

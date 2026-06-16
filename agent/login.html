@@ -207,22 +207,40 @@
         document.getElementById("role-switch").classList.add("show");
       }
 
-      function routeAfterAuth(me) {
-        var role = me && me.role;
+      // Routes to the right place once we have a verified /auth/me payload.
+      // Returns false when it couldn't route (so callers can re-enable the form).
+      async function routeAfterAuth(me) {
+        if (!me) {
+          showMsg("We couldn't verify your account. Please try signing in again.", "error");
+          return false;
+        }
+        var role = me.role;
         // Agents and admins use the agent flow. Send them to the assessment until
         // their archetype is complete, then to the dashboard.
         if (role === "agent" || role === "admin") {
           var hasAgentRow = me.agent && me.agent.id;
-          var completed = me.agent && me.agent.archetype;
-          // An admin without an agent row is reviewer-only in practice.
-          if (!hasAgentRow && role === "admin") { showReviewerSwitch(); return; }
-          window.location.href = completed ? "dashboard.html" : "assessment.html";
-          return;
+          // Ensure the agent row exists before routing into the agent flow.
+          if (!hasAgentRow) {
+            try {
+              await API.bootstrapAgentProfile(null);
+              me = await API.getCurrentUser();
+            } catch (e) { /* ignore — handled below */ }
+            hasAgentRow = me && me.agent && me.agent.id;
+          }
+          // An admin still without an agent row is reviewer-only in practice.
+          if (!hasAgentRow) {
+            if (role === "admin") { showReviewerSwitch(); return true; }
+            showMsg("We couldn't set up your agent profile. Please try again.", "error");
+            return false;
+          }
+          window.location.href = API.agentHasCompletedAssessment(me) ? "dashboard.html" : "assessment.html";
+          return true;
         }
         // Reviewer-only accounts get the reviewer portal panel.
-        if (role === "reviewer") { showReviewerSwitch(); return; }
-        // Brand-new account still settling (role pending): start the assessment.
-        window.location.href = "assessment.html";
+        if (role === "reviewer") { showReviewerSwitch(); return true; }
+        // Unknown/pending role: don't guess — surface a clear message.
+        showMsg("We couldn't verify your account. Please try signing in again.", "error");
+        return false;
       }
 
       signinForm.addEventListener("submit", async function (e) {
@@ -234,7 +252,8 @@
           await API.signIn(document.getElementById("si-email").value.trim(), document.getElementById("si-password").value);
           var me = await API.getCurrentUser();
           if (me && me.needsBootstrap) { await API.bootstrapAgentProfile(null); me = await API.getCurrentUser(); }
-          routeAfterAuth(me);
+          var routed = await routeAfterAuth(me);
+          if (!routed) { btn.disabled = false; btn.textContent = "Sign in"; }
         } catch (err) {
           showMsg(err.message || "Sign in failed.", "error");
           btn.disabled = false; btn.textContent = "Sign in";
@@ -264,7 +283,8 @@
           }
           // New agent is signed in + bootstrapped → route to the assessment.
           var me = await API.getCurrentUser();
-          routeAfterAuth(me);
+          var routed = await routeAfterAuth(me);
+          if (!routed) { btn.disabled = false; btn.textContent = "Create agent account"; }
         } catch (err) {
           showMsg(err.message || "Sign up failed.", "error");
           btn.disabled = false; btn.textContent = "Create agent account";

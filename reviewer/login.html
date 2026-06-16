@@ -198,6 +198,11 @@
         try {
           await API.signIn(document.getElementById("email").value.trim(), document.getElementById("password").value);
           var me = await API.getCurrentUser();
+          if (!me) {
+            showMsg("We couldn't verify your account. Please try signing in again.", "error");
+            resetBtn();
+            return;
+          }
           if (!routeAfterAuth(me)) {
             // Authenticated but not a reviewer/admin — offer the agent dashboard.
             showAgentSwitch();

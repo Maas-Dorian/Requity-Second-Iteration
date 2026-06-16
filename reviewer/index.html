@@ -235,11 +235,11 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
-
     <!-- Supabase/API config (copy frontend/shared/config.example.js to config.js with real public values). -->
+    <!-- Load order matters: config.js → api.js → page/auth code. -->
     <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
     <script src="../frontend/shared/api.js"></script>
+    <script src="script.js"></script>
 
     <!-- Auth gate: always require a real reviewer/admin Supabase session. -->
     <script>
@@ -269,13 +269,35 @@
 
     function handleReviewerNoAccess(session) {
         var reason = session && session.reason;
-        // No session (or an unexpected error): send them to the reviewer login.
-        if (reason !== 'role_mismatch') {
-            window.location.href = REVIEWER_LOGIN_URL;
+        // Transient/server error verifying the session: don't loop back to login.
+        if (reason === 'error') {
+            showReviewerError("We couldn't verify your account. Please try again.");
             return;
         }
         // Signed in but wrong role: show a clean access-denied screen.
-        showReviewerAccessDenied(session);
+        if (reason === 'role_mismatch') {
+            showReviewerAccessDenied(session);
+            return;
+        }
+        // No valid session: send them to the reviewer login.
+        window.location.href = REVIEWER_LOGIN_URL;
+    }
+
+    // Non-looping error overlay for server/network failures during the auth check.
+    function showReviewerError(message) {
+        var overlay = document.createElement('div');
+        overlay.id = 'reviewer-auth-error';
+        overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#F3F7FC;z-index:9999;padding:1.5rem;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;';
+        overlay.innerHTML =
+            '<div style="max-width:420px;width:100%;background:#fff;border:1px solid #D3E0F2;border-radius:16px;box-shadow:0 4px 20px rgba(7,54,110,0.06);padding:2rem;text-align:center;">' +
+                '<h1 style="font-size:1.3rem;color:#07366E;margin:0 0 0.5rem;">Something went wrong</h1>' +
+                '<p style="color:#4A607C;font-size:0.92rem;margin:0 0 1.5rem;">' + String(message) + '</p>' +
+                '<button id="rae-retry" style="background:#FF7500;color:#fff;padding:0.75rem 1.5rem;border:0;border-radius:8px;font-weight:600;font-size:0.9rem;cursor:pointer;margin-right:.5rem;">Retry</button>' +
+                '<a href="' + REVIEWER_LOGIN_URL + '" style="display:inline-block;color:#1E3F7A;padding:0.75rem 1rem;text-decoration:none;font-weight:600;font-size:0.9rem;">Sign in again</a>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        var retry = document.getElementById('rae-retry');
+        if (retry) retry.addEventListener('click', function () { window.location.reload(); });
     }
 
     function showReviewerAccessDenied(session) {

@@ -138,9 +138,37 @@ Replace `YOUR-APP` with your Vercel host (e.g. `requity.vercel.app`) throughout.
 - [ ] Change the initial password after first login (dashboard → Settings →
       **Send password reset**, which sends a real Supabase recovery email).
 
+## 15. Auth persistence (session must survive refresh + navigation)
+Sign-in stores one Supabase session in `localStorage` under `requity_session`
+(access_token, refresh_token, expires_at, user). Protected pages verify it with
+`/api/auth/me` using `Authorization: Bearer <token>` and refresh the token when
+it nears expiry.
+
+- [ ] **Agent sign in** → lands on assessment (first time) or dashboard.
+- [ ] **Refresh the dashboard** (Cmd/Ctrl+R) → stays signed in, no bounce to login.
+- [ ] **Navigate** dashboard → assessment → dashboard → no redirect loop.
+- [ ] **Close the tab and reopen** the dashboard URL → still signed in.
+- [ ] **Sign out** (sidebar) → dashboard now redirects to `login.html`.
+- [ ] **Admin sign in** at agent login → dashboard (after assessment) works.
+- [ ] **Open the reviewer portal** (`reviewer/login.html`) with the admin → lands
+      on `reviewer/index.html`; refresh keeps you in.
+- [ ] **Open the agent dashboard as admin** → works (admins have an agent row).
+- [ ] **Wrong-role access**: a plain `agent` opening `reviewer/index.html` sees a
+      clean "Access restricted" screen (no loop). A `reviewer`-only account opening
+      the agent dashboard is routed to the reviewer portal.
+- [ ] **Token refresh**: leave the dashboard open ~1 hour (or set a short JWT
+      expiry in Supabase) → the next action refreshes silently, no logout.
+- [ ] **Debug logs (optional)**: in the console run
+      `localStorage.setItem('requity_auth_debug','1')`, reload, and watch for
+      `[auth] …` debug lines (no tokens/secrets are ever printed).
+
 ---
 
 ### If something fails
+- Signed in but bounced back to login on every page → check `/api/auth/me`
+  returns 200 with a Bearer token. A 500 there (often a missing
+  `SUPABASE_SERVICE_ROLE_KEY` on Vercel) now shows a "couldn't verify your
+  account" message instead of looping — fix the env var and retry.
 - 401 on dashboard/reviewer calls → not signed in, or token missing. Re-sign in.
 - `/api/health/supabase` `ok:false` → check `SUPABASE_SERVICE_ROLE_KEY` and that
   `schema.sql` ran on THIS project.
