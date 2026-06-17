@@ -423,19 +423,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const params = new URLSearchParams(window.location.search);
         const token = params.get('token') || null;
         const agentToken = params.get('agent') || params.get('a') || params.get('agentToken') || null;
+        const agentId = params.get('agentId') || null;
         const explicit = (params.get('source') || '').toLowerCase();
+        // Reviewer-created link: carries a pre-created assessment token.
         if (explicit === 'reviewer' || explicit === 'requity_reviewer') {
             return { source: 'reviewer', token: token, agentToken: null, agentId: null };
         }
-        if (agentToken || explicit === 'qr' || explicit === 'agent_link') {
+        // Agent QR / shareable link: attach the submission to that agent.
+        if (agentToken || agentId || explicit === 'qr' || explicit === 'agent_link') {
             return {
                 source: explicit === 'agent_link' ? 'agent_link' : 'qr',
                 token: token,
                 agentToken: agentToken,
-                agentId: params.get('agentId') || null,
+                agentId: agentId,
             };
         }
-        return { source: 'reviewer', token: token, agentToken: null, agentId: null };
+        // Direct public client assessment: no agent, no token. Routes to the
+        // REQUITY reviewer queue server-side. Must NOT default to 'reviewer'
+        // (that path requires a pre-created assessment token).
+        return { source: 'client', token: null, agentToken: null, agentId: null };
     }
 
     function submitAssessment() {

@@ -41,8 +41,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const leadId = optionalString(body, "leadId") ?? null;
     const clientAssessmentId = optionalString(body, "clientAssessmentId") ?? null;
     const email = optionalEmail(body, "email") ?? null;
-    const source = body["source"]
-      ? requireEnum(body, "source", ["qr", "agent_link", "reviewer"] as const)
+    const rawSource = body["source"]
+      ? requireEnum(body, "source", ["qr", "agent_link", "reviewer", "client"] as const)
+      : null;
+    // The leads table only allows qr/agent_link/reviewer; map direct public
+    // 'client' completions to the reviewer-queue follow-up source.
+    const source = rawSource
+      ? rawSource === "qr" || rawSource === "agent_link"
+        ? rawSource
+        : "reviewer"
       : null;
 
     if (!leadId && !clientAssessmentId && !(email && source)) {

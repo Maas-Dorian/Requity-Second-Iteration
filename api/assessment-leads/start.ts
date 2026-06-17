@@ -43,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const body = getJsonBody(req);
-    const source = requireEnum(body, "source", ["qr", "agent_link", "reviewer"] as const);
+    const source = requireEnum(body, "source", ["qr", "agent_link", "reviewer", "client"] as const);
     const agentId = optionalString(body, "agentId") ?? null;
     const agentToken = optionalString(body, "agentToken") ?? null;
 
@@ -53,13 +53,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       throw new HttpError(400, "An agentToken or agentId is required for qr/agent_link leads.");
     }
 
+    // The leads table only allows qr/agent_link/reviewer; a direct public
+    // 'client' lead is tracked as a reviewer-queue follow-up.
+    const leadSource = source === "qr" || source === "agent_link" ? source : "reviewer";
+
     const fullName = requireString(body, "fullName");
     const email = optionalEmail(body, "email") ?? null;
     const phone = sanitizePhone(body["phone"]) ?? null;
 
     try {
       const lead = await upsertAssessmentLeadStart({
-        source,
+        source: leadSource,
         fullName,
         email,
         phone,

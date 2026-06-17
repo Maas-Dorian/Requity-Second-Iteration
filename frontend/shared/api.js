@@ -317,8 +317,21 @@
    * Returns: { archetype, orientation, style, stressResponse, source, status, ... }
    */
   async function submitClientAssessment(payload) {
-    var source = payload.source || "reviewer";
+    // Direct public clients have no agent + no token; they route to the REQUITY
+    // reviewer queue server-side. Never default to "reviewer" (that path needs a
+    // pre-created assessment token and would reject a normal client submission).
+    var source = payload.source || "client";
     var result = calculateClientArchetype(payload.answers || {});
+    // #region agent log
+    reqDebug("api.js:submitClientAssessment", "submit", {
+      submitSource: source,
+      hasToken: !!payload.token,
+      hasAgentToken: !!payload.agentToken,
+      hasAgentId: !!payload.agentId,
+      hasLeadId: !!payload.leadId,
+      answersCount: payload.answers ? Object.keys(payload.answers).length : 0,
+    });
+    // #endregion
     return apiPost("/client-assessment/submit", Object.assign({ result: result, source: source }, payload));
   }
 

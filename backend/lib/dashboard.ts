@@ -1,7 +1,38 @@
+import { randomBytes } from "node:crypto";
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import { env } from "./env.js";
 import { getAgentNotifications, type NotificationRecord } from "./messages.js";
 import { getAgentAssessmentActivity, type AgentAssessmentActivity } from "./analytics.js";
+
+/**
+ * Return the agent's public assessment token, generating + persisting one when
+ * the row has none yet (e.g. an older agent created before the column default).
+ * This guarantees the dashboard link + QR code always have a real value to use.
+ * Returns null only when the token genuinely cannot be stored (e.g. the column
+ * is missing on a not-yet-migrated DB) so callers can show a clean error state.
+ */
+export async function ensureAgentPublicToken(agentId: string): Promise<string | null> {
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase
+    .from("agents")
+    .select("public_assessment_token")
+    .eq("id", agentId)
+    .maybeSingle();
+  if (data?.public_assessment_token) return data.public_assessment_token;
+
+  const token = randomBytes(16).toString("hex");
+  const { data: updated, error } = await supabase
+    .from("agents")
+    .update({ public_assessment_token: token })
+    .eq("id", agentId)
+    .select("public_assessment_token")
+    .maybeSingle();
+  if (error) {
+    console.error("[dashboard] ensureAgentPublicToken failed:", error.message);
+    return null;
+  }
+  return updated?.public_assessment_token ?? token;
+}
 
 /**
  * Aggregated agent dashboard payload for the secure API route.
@@ -77,13 +108,8 @@ export async function getAgentAssessmentLinks(
   agentId: string,
   options: { frontendUrl?: string } = {}
 ): Promise<{ assessmentLink: string; qrLink: string }> {
-  const supabase = getSupabaseAdmin();
-  const { data: agent } = await supabase
-    .from("agents")
-    .select("public_assessment_token")
-    .eq("id", agentId)
-    .maybeSingle();
-  return buildAgentAssessmentLinks(agent?.public_assessment_token, options.frontendUrl);
+  const token = await ensureAgentPublicToken(agentId);
+  return buildAgentAssessmentLinks(token, options.frontendUrl);
 }
 
 export async function getAgentDashboard(
@@ -98,6 +124,10 @@ export async function getAgentDashboard(
     .eq("id", agentId)
     .maybeSingle();
 
+  // Backfill a public token if this agent has none, so the link/QR always work.
+  const publicToken =
+    agent?.public_assessment_token ?? (agent ? await ensureAgentPublicToken(agentId) : null);
+
   const { data: clients, error: clientsError } = await supabase
     .from("clients")
     .select("*, assessments(*)")
@@ -108,7 +138,7 @@ export async function getAgentDashboard(
   const messages = await getAgentNotifications(agentId, { limit: 50 });
 
   const { assessmentLink, qrLink } = buildAgentAssessmentLinks(
-    agent?.public_assessment_token,
+    publicToken,
     options.frontendUrl
   );
 

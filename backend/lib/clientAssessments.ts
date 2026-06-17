@@ -12,12 +12,29 @@ import { sendAndRecordClientCompleteEmail } from "./emailEvents.js";
 import { completeAssessmentLead } from "./assessmentLeads.js";
 import { insertWithSchemaFallback, updateWithSchemaFallback } from "./supabaseWrite.js";
 
-/** Public-facing source values accepted by the API (mapped to DB enum below). */
-export type ClientLinkSource = "qr" | "agent_link" | "reviewer";
+/**
+ * Public-facing source values accepted by the API (mapped to DB enum below).
+ *  - qr / agent_link : came from an agent's QR/link → attaches to that agent.
+ *  - reviewer        : a REQUITY reviewer-created link (carries a token).
+ *  - client          : a direct public client assessment (no agent, no token) →
+ *                      routed to the REQUITY reviewer queue.
+ */
+export type ClientLinkSource = "qr" | "agent_link" | "reviewer" | "client";
 
 /** Map the API source to the database `client_source` enum. */
 export function normalizeClientSource(source: ClientLinkSource): ClientSource {
-  return source === "reviewer" ? "requity_reviewer" : "qr";
+  // Direct public clients and reviewer-created clients both enter the reviewer
+  // queue. Only qr/agent_link attach directly to an agent.
+  return source === "reviewer" || source === "client" ? "requity_reviewer" : "qr";
+}
+
+/**
+ * Map a public client source to the `assessment_leads.source` enum, which only
+ * allows qr/agent_link/reviewer. Direct public 'client' leads are tracked as
+ * reviewer-queue follow-ups.
+ */
+export function toLeadSource(source: ClientLinkSource): "qr" | "agent_link" | "reviewer" {
+  return source === "qr" || source === "agent_link" ? source : "reviewer";
 }
 
 /**
@@ -549,7 +566,7 @@ export async function submitClientAssessmentWithContact(
       leadId: params.leadId ?? null,
       clientAssessmentId: assessmentId,
       email: params.contact.email ?? null,
-      source: params.source,
+      source: toLeadSource(params.source),
       agentId,
       archetype: result.archetype,
       answeredCount: params.answers ? Object.keys(params.answers).length : null,

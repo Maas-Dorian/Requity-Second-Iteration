@@ -52,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const body = getJsonBody(req);
 
-    const source = requireEnum(body, "source", ["qr", "agent_link", "reviewer"] as const);
+    const source = requireEnum(body, "source", ["qr", "agent_link", "reviewer", "client"] as const);
     // `assessmentToken` is accepted as an alias for `token`.
     const token = optionalString(body, "assessmentToken") ?? optionalString(body, "token") ?? null;
     const agentId = optionalString(body, "agentId") ?? null;
@@ -61,8 +61,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // Submission rule:
     //  - qr / agent_link -> require agentToken or agentId (attach to that agent,
     //    no reviewer queue item).
-    //  - reviewer        -> require an assessment token (create reviewer queue item).
-    //  - neither present  -> reject.
+    //  - reviewer        -> require an assessment token (a reviewer-created link).
+    //  - client (direct) -> NO token/agent required; routed to the reviewer queue.
+    // A token/agent is ONLY mandatory for the reviewer + qr/agent_link paths.
     if (source === "qr" || source === "agent_link") {
       if (!agentToken && !agentId) {
         logValidationFailure(ROUTE, "missing_agent_reference", { source });
@@ -79,10 +80,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           "An assessmentToken/token is required for reviewer submissions."
         );
       }
-    } else if (!token && !agentToken && !agentId) {
-      logValidationFailure(ROUTE, "missing_link_reference", { source });
-      throw new HttpError(400, "A link token or agent reference is required for submission.");
     }
+    // source === "client": no extra reference required — a fresh assessment is
+    // created and routed to the REQUITY reviewer queue.
 
     const contactRaw = requireObject(body, "contact");
     const contact = {
