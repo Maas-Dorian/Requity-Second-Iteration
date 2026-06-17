@@ -140,12 +140,42 @@
 
   // --- Low-level transport ------------------------------------------------
 
+  // Safe debug logger. Toggle with: localStorage.setItem('requity_debug','1').
+  // Logs ONLY to the browser console (no network calls) and ONLY safe metadata:
+  // current page, has-session/has-token booleans, API route, response status,
+  // role, has-agent-row, and payload SHAPE (counts/keys) — never tokens,
+  // passwords, refresh tokens, service role keys, Brevo keys, or raw PII.
+  function reqDebugEnabled() {
+    try { return global.localStorage.getItem("requity_debug") === "1"; }
+    catch (e) { return false; }
+  }
+  function reqDebug(location, message, data) {
+    if (!reqDebugEnabled()) return;
+    var safe = {};
+    try {
+      var d = data || {};
+      // Shallow copy; callers only ever pass safe primitives/shape info.
+      for (var k in d) { if (Object.prototype.hasOwnProperty.call(d, k)) safe[k] = d[k]; }
+      if (global.location && safe.page === undefined) safe.page = global.location.pathname;
+      if (safe.hasSession === undefined) safe.hasSession = hasStoredSession();
+    } catch (e) { /* ignore */ }
+    try { console.debug("[requity]", location, message, safe); } catch (e) {}
+  }
+
   // Error that carries the HTTP status so callers can tell 401 (auth) apart
   // from transient/server errors (and avoid logging users out on a 500).
-  function makeApiError(path, status) {
-    var e = new Error("API " + path + " failed: " + status);
+  // Also carries the backend's JSON { error, code } so the UI can show the
+  // real cause instead of a generic message.
+  function makeApiError(path, status, bodyText) {
+    var parsed = null;
+    try { parsed = bodyText ? JSON.parse(bodyText) : null; } catch (e) { parsed = null; }
+    var serverMsg = parsed && (parsed.error || parsed.message);
+    var e = new Error(serverMsg || "API " + path + " failed: " + status);
     e.name = "ApiError";
     e.status = status;
+    e.code = parsed && parsed.code ? parsed.code : null;
+    e.serverError = serverMsg || null;
+    e.area = parsed && parsed.area ? parsed.area : null;
     return e;
   }
 
@@ -160,12 +190,24 @@
   async function apiPost(path, body) {
     var c = requireApi();
     var headers = await withAuthHeaders({ "Content-Type": "application/json" });
+    var hasAuth = !!headers.Authorization;
     var res = await fetch(c.apiBaseUrl.replace(/\/$/, "") + path, {
       method: "POST",
       headers: headers,
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw makeApiError(path, res.status);
+    if (!res.ok) {
+      var text = "";
+      try { text = await res.text(); } catch (e) {}
+      var err = makeApiError(path, res.status, text);
+      // #region agent log
+      reqDebug("api.js:apiPost", "POST failed", { path: path, status: res.status, hasAuth: hasAuth, code: err.code, area: err.area, serverError: err.serverError });
+      // #endregion
+      throw err;
+    }
+    // #region agent log
+    reqDebug("api.js:apiPost", "POST ok", { path: path, status: res.status, hasAuth: hasAuth });
+    // #endregion
     return res.json();
   }
 
@@ -173,7 +215,15 @@
     var c = requireApi();
     var headers = await withAuthHeaders({});
     var res = await fetch(c.apiBaseUrl.replace(/\/$/, "") + path, { method: "GET", headers: headers });
-    if (!res.ok) throw makeApiError(path, res.status);
+    if (!res.ok) {
+      var gtext = "";
+      try { gtext = await res.text(); } catch (e) {}
+      var gerr = makeApiError(path, res.status, gtext);
+      // #region agent log
+      reqDebug("api.js:apiGet", "GET failed", { path: path, status: res.status, code: gerr.code, area: gerr.area, serverError: gerr.serverError });
+      // #endregion
+      throw gerr;
+    }
     return res.json();
   }
 
@@ -618,6 +668,7 @@
     createClientAssessmentLink: createClientAssessmentLink,
     submitClientAssessment: submitClientAssessment,
     submitAgentAssessment: submitAgentAssessment,
+    __debug: reqDebug,
     fetchAgentDashboard: fetchAgentDashboard,
     fetchAgentQr: fetchAgentQr,
     fetchClientAssessments: fetchClientAssessments,

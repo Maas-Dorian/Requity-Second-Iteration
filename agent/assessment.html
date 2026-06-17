@@ -161,6 +161,9 @@
         }
         API.requireAgentSession()
           .then(function (s) {
+            /* #region agent log */
+            try { API.__debug && API.__debug('agent/assessment.html:gate', 'requireAgentSession resolved', { ok: !!(s && s.ok), reason: s && s.reason, role: s && s.me && s.me.role, hasAgentRow: !!(s && s.me && s.me.agent && s.me.agent.id), archetypeCompletedAt: !!(s && s.me && s.me.agent && s.me.agent.archetypeCompletedAt) }); } catch (e) {}
+            /* #endregion */
             if (!s || !s.ok) {
               // Transient/server error → don't loop back to login.
               if (s && s.reason === "error") {

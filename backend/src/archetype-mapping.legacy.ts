@@ -67,7 +67,7 @@ export function assignArchetype(answers: any[]): ArchetypeResult {
   const archetype = `${orientation}-${style}-${stressResponse}`;
   
   // Generate motivations based on archetype
-  const motivations = [];
+  const motivations: string[] = [];
   if (orientation === 'Driver') {
     motivations.push('Takes initiative', 'Prefers control', 'Values efficiency');
   } else {

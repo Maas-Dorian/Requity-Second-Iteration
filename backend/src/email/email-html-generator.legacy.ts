@@ -1,6 +1,55 @@
-import { Assessment, Agent } from "../shared/schema";
-import { storage } from "./storage";
-import { getArchetypeDisplayName } from "../client/src/lib/archetype-mapping";
+// NOTE: This legacy module originally imported `Assessment`, `Agent`, `storage`,
+// and `getArchetypeDisplayName` from modules that no longer exist. The types and
+// dependencies are defined locally here to cover the fields/behavior this file
+// actually accesses, keeping it self-contained and type-safe.
+interface Assessment {
+  archetype?: string | null;
+  reportToken?: string | null;
+  transactionType?: string | null;
+  transactionTypeOther?: string | null;
+  clientName?: string | null;
+  clientEmail?: string | null;
+  clientPhone?: string | null;
+  clientBirthday?: string | null;
+  completedAt?: string | Date | null;
+  appreciationStyle?: string | null;
+  openEndedResponse?: string | null;
+}
+
+interface Agent {
+  name?: string | null;
+}
+
+// Local shim for the published archetype template record this module reads.
+interface ArchetypeTemplate {
+  displayName: string;
+  summary?: string | null;
+  keyTraits?: string[];
+  buyerApproaches?: string[];
+  buyerAvoid?: string | string[] | null;
+  sellerApproaches?: string[];
+  sellerAvoid?: string | string[] | null;
+  simultaneousApproaches?: string[];
+  simultaneousAvoid?: string | string[] | null;
+  communicationRecommended?: string[];
+  communicationAvoid?: string[];
+  whatClientIsAfter?: string[];
+  idealExperience?: string[];
+  psychologyBased?: string[];
+}
+
+// Minimal local replacement for the former `./storage` module. Returns no
+// templates so callers fall back to the built-in default archetype data below.
+const storage = {
+  async getPublishedArchetypeTemplates(): Promise<ArchetypeTemplate[]> {
+    return [];
+  },
+};
+
+// Local replacement for the former archetype-mapping helper.
+function getArchetypeDisplayName(archetype: string): string {
+  return archetype;
+}
 
 interface ArchetypeData {
   name: string;

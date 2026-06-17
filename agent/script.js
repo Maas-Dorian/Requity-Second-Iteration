@@ -444,8 +444,14 @@ window.addEventListener('DOMContentLoaded', () => {
         const result = calculateResult();
         next.disabled = true;
         next.textContent = 'Saving...';
+        // #region agent log
+        try { window.RequityAPI && window.RequityAPI.__debug && window.RequityAPI.__debug('agent/script.js:showResult', 'submitting agent assessment', { answersCount: Object.keys(answers).length, totalQuestions: agentSurveyQuestions.length, archetype: result.archetype, hasSession: !!(window.RequityAPI && window.RequityAPI.hasSession && window.RequityAPI.hasSession()) }); } catch (e) {}
+        // #endregion
         try {
             await submitAgentAssessment(result);
+            // #region agent log
+            try { window.RequityAPI && window.RequityAPI.__debug && window.RequityAPI.__debug('agent/script.js:showResult', 'submit succeeded', { archetype: result.archetype }); } catch (e) {}
+            // #endregion
             if (errorCard) errorCard.hidden = true;
             card.hidden = true;
             resultCard.hidden = false;
@@ -454,13 +460,28 @@ window.addEventListener('DOMContentLoaded', () => {
                 heading.textContent = `Your agent profile is ready: ${result.archetype}.`;
             }
             resultCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // The save succeeded and the archetype is now on the agent row, so the
+            // dashboard will recognize the assessment as complete. Briefly show the
+            // result, then redirect to the dashboard. The result card also keeps a
+            // manual "Go to your dashboard" link as a fallback.
+            setTimeout(function () { window.location.href = 'dashboard.html'; }, 2200);
         } catch (err) {
             console.warn('[REQUITY] Agent assessment submission error:', err);
+            // #region agent log
+            try { window.RequityAPI && window.RequityAPI.__debug && window.RequityAPI.__debug('agent/script.js:showResult', 'submit failed', { status: err && err.status, code: err && err.code, serverError: err && err.serverError, area: err && err.area }); } catch (e) {}
+            // #endregion
             // Never pretend success: keep the result hidden and show a real error.
             card.hidden = true;
             resultCard.hidden = true;
             if (errorCard) {
                 errorCard.hidden = false;
+                // Surface the real, user-friendly cause instead of a generic message.
+                var detail = document.getElementById('agent-error-summary');
+                if (detail) {
+                    if (err && err.status === 401) detail.textContent = 'Your session expired. Please sign in again.';
+                    else if (err && err.serverError) detail.textContent = err.serverError;
+                    else detail.textContent = 'We couldn’t save your assessment. Please try again.';
+                }
                 errorCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
             next.disabled = false;
