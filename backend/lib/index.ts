@@ -6,6 +6,15 @@
 export { env } from "./env.js";
 export { getSupabaseClient, supabase } from "./supabaseClient.js";
 export { getSupabaseAdmin, supabaseAdmin } from "./supabaseAdmin.js";
+export {
+  insertWithSchemaFallback,
+  updateWithSchemaFallback,
+  isMissingColumnError,
+  extractMissingColumn,
+  DbWriteError,
+  type SchemaWriteOptions,
+  type SchemaWriteResult,
+} from "./supabaseWrite.js";
 export * from "./matching.js";
 export {
   sendBrevoEmail,

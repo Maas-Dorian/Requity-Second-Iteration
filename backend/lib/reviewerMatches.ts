@@ -33,15 +33,19 @@ function toClientProfile(row: any): ClientProfile {
 }
 
 function toAgentProfile(row: any): AgentProfile {
+  // Dimensions resolve scalar-column-first (highest fidelity when present),
+  // then the `assessment_summary` JSON snapshot (used when the live schema does
+  // not have the scalar dimension columns), then a safe default.
+  const summary = (row.assessment_summary ?? {}) as Record<string, string>;
   return {
     id: row.id,
     name: row.display_name,
-    archetype: row.archetype ?? "The Collaborator",
-    interactionStyle: row.interaction_style ?? "Facilitator",
-    focus: row.focus ?? "Pragmatic",
-    stressResponse: row.stress_response ?? "Freeze",
-    perceivedValue: row.perceived_value ?? "Trust",
-    negotiationStyle: row.negotiation_style ?? "Collaborative",
+    archetype: row.archetype ?? summary.archetype ?? "The Collaborator",
+    interactionStyle: row.interaction_style ?? summary.interactionStyle ?? "Facilitator",
+    focus: row.focus ?? summary.focus ?? "Pragmatic",
+    stressResponse: row.stress_response ?? summary.stressResponse ?? "Freeze",
+    perceivedValue: row.perceived_value ?? summary.perceivedValue ?? "Trust",
+    negotiationStyle: row.negotiation_style ?? summary.negotiationStyle ?? "Collaborative",
   };
 }
 

@@ -15,6 +15,7 @@ import {
   getClientIp,
   sendJson,
   HttpError,
+  asSubmitError,
 } from "../_lib/http.js";
 import {
   submitClientAssessmentWithContact,
@@ -111,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       sendJson(res, 200, result);
     } catch (error) {
       logSupabaseError(ROUTE, error, { source });
-      throw error;
+      throw asSubmitError(error, "CLIENT_ASSESSMENT_SUBMIT_FAILED", "public.clients");
     }
   });
 }

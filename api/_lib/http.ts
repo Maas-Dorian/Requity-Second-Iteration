@@ -6,10 +6,47 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
  */
 
 export class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  /**
+   * @param code   stable machine-readable error code (e.g. AGENT_ASSESSMENT_SUBMIT_FAILED)
+   * @param detail safe extra context (e.g. the Postgres error message) — never secrets
+   * @param area   the failing area (e.g. "public.agents")
+   */
+  constructor(
+    public status: number,
+    message: string,
+    public code?: string,
+    public detail?: string,
+    public area?: string
+  ) {
     super(message);
     this.name = "HttpError";
   }
+}
+
+/**
+ * Wrap an arbitrary error thrown during a submit flow into a structured
+ * HttpError. Existing HttpErrors (validation / auth) pass through unchanged so
+ * their original status + message are preserved. Database write failures carry
+ * a safe Postgres `detail` and the `area` (table) for actionable diagnostics.
+ */
+export function asSubmitError(error: unknown, code: string, fallbackArea: string): HttpError {
+  if (error instanceof HttpError) return error;
+  const anyErr = error as { status?: unknown; area?: unknown; detail?: unknown; message?: unknown };
+  const status = typeof anyErr?.status === "number" ? anyErr.status : 500;
+  const area = typeof anyErr?.area === "string" ? anyErr.area : fallbackArea;
+  const detail =
+    typeof anyErr?.detail === "string"
+      ? anyErr.detail
+      : error instanceof Error
+        ? error.message
+        : String(error);
+  return new HttpError(
+    status,
+    "We couldn’t save your assessment. Please try again.",
+    code,
+    detail,
+    area
+  );
 }
 
 export function applyCors(_req: VercelRequest, res: VercelResponse): void {
@@ -212,12 +249,16 @@ export async function runHandler(
     await fn();
   } catch (error) {
     // Honor any error carrying a numeric `status` (HttpError, AuthError, ...).
-    const status =
-      typeof (error as { status?: unknown })?.status === "number"
-        ? (error as { status: number }).status
-        : 500;
+    const err = error as { status?: unknown; code?: unknown; detail?: unknown; area?: unknown };
+    const status = typeof err?.status === "number" ? err.status : 500;
     const message = error instanceof Error ? error.message : "Internal server error";
     if (status >= 500) console.error("[api] handler error:", error);
-    sendJson(res, status, { error: message });
+    // Structured JSON: include code/detail/area when the error carries them so
+    // the frontend can show the real cause instead of a generic message.
+    const body: Record<string, unknown> = { error: message };
+    if (typeof err?.code === "string") body.code = err.code;
+    if (typeof err?.detail === "string") body.detail = err.detail;
+    if (typeof err?.area === "string") body.area = err.area;
+    sendJson(res, status, body);
   }
 }

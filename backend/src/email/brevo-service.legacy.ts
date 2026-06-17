@@ -11,6 +11,49 @@ interface BrevoContact {
   listIds?: number[];
 }
 
+// NOTE: This legacy module originally imported `storage` from `./storage`, which
+// no longer exists. The minimal shapes and behavior this file relies on are
+// defined locally to keep it self-contained and type-safe.
+interface Assessment {
+  clientName?: string | null;
+}
+
+interface ArchetypeTemplate {
+  displayName: string;
+  summary?: string | null;
+  keyTraits?: string[];
+  buyerApproaches?: string[];
+  buyerAvoid?: string | null;
+  sellerApproaches?: string[];
+  sellerAvoid?: string | null;
+  communicationRecommended?: string[];
+  communicationAvoid?: string[];
+  stressManagement?: string[];
+  decisionMaking?: string[];
+  psychologyBased?: string[];
+  summaryTitle?: string | null;
+  buyerApproachesTitle?: string | null;
+  buyerAvoidTitle?: string | null;
+  sellerApproachesTitle?: string | null;
+  sellerAvoidTitle?: string | null;
+  communicationRecommendedTitle?: string | null;
+  communicationAvoidTitle?: string | null;
+  stressManagementTitle?: string | null;
+  decisionMakingTitle?: string | null;
+  psychologyBasedTitle?: string | null;
+}
+
+// Minimal local replacement for the former `./storage` module. Returns no data
+// so callers fall back to the built-in default report content below.
+const storage = {
+  async getAssessmentById(_assessmentId: number): Promise<Assessment | null> {
+    return null;
+  },
+  async getPublishedArchetypeTemplates(): Promise<ArchetypeTemplate[]> {
+    return [];
+  },
+};
+
 class BrevoService {
   private apiKey: string;
   private listId: number;
@@ -699,8 +742,7 @@ class BrevoService {
 
   async generateCompleteReportHtml(assessmentId: number, archetype: string): Promise<string> {
     console.log(`[BREVO] Starting generateCompleteReportHtml for assessment ${assessmentId}, archetype: ${archetype}`);
-    const { storage } = await import('./storage');
-    
+
     // Get assessment details
     const assessment = await storage.getAssessmentById(assessmentId);
     if (!assessment) {

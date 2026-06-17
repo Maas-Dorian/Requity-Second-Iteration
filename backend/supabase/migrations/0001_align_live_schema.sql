@@ -204,6 +204,10 @@ alter table agents add column if not exists focus text;
 alter table agents add column if not exists stress_response text;
 alter table agents add column if not exists perceived_value text;
 alter table agents add column if not exists negotiation_style text;
+-- JSON snapshots of the agent assessment (used by the app even when the scalar
+-- dimension columns above are absent). Safe, additive, non-destructive.
+alter table agents add column if not exists assessment_responses jsonb default '{}'::jsonb;
+alter table agents add column if not exists assessment_summary jsonb default '{}'::jsonb;
 alter table agents add column if not exists public_assessment_token text default encode(gen_random_bytes(16), 'hex');
 alter table agents add column if not exists created_at timestamptz default now();
 alter table agents add column if not exists updated_at timestamptz default now();
@@ -321,6 +325,17 @@ create index if not exists idx_assessments_agent_id on assessments(agent_id);
 create index if not exists idx_assessment_leads_agent_id on assessment_leads(agent_id);
 create index if not exists idx_assessment_leads_status on assessment_leads(status);
 
+-- --- Refresh the PostgREST schema cache ------------------------------------
+-- After adding columns, PostgREST (the layer behind supabase-js) may still hold
+-- a stale schema cache and report "Could not find the 'X' column ... in the
+-- schema cache" until it reloads. This NOTIFY forces an immediate reload so the
+-- new columns are usable right away (no project restart needed).
+notify pgrst, 'reload schema';
+
 -- Done. Verify in the Supabase SQL editor:
 --   select column_name from information_schema.columns
 --   where table_name = 'agents' order by column_name;
+--
+-- NOTE: The application is resilient to a not-yet-applied migration — it drops
+-- columns the live schema is missing and still saves archetype + contact. Run
+-- this migration to restore full dimension fidelity (matching, analytics).

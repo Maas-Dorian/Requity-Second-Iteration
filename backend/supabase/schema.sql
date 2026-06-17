@@ -63,6 +63,9 @@ create table if not exists agents (
   stress_response text,
   perceived_value text,
   negotiation_style text,
+  -- JSON snapshots of the agent assessment (answers + resolved dimensions).
+  assessment_responses jsonb default '{}'::jsonb,
+  assessment_summary jsonb default '{}'::jsonb,
   public_assessment_token text unique default encode(gen_random_bytes(16), 'hex'),
   created_at timestamptz default now(),
   updated_at timestamptz default now()

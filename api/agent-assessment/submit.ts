@@ -14,6 +14,7 @@ import {
   getClientIp,
   sendJson,
   HttpError,
+  asSubmitError,
 } from "../_lib/http.js";
 import {
   submitAgentAssessment,
@@ -67,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         sendJson(res, 200, result);
       } catch (error) {
         logSupabaseError(ROUTE, error, { userId: user.id });
-        throw error;
+        throw asSubmitError(error, "AGENT_ASSESSMENT_SUBMIT_FAILED", "public.agents");
       }
       return;
     }
@@ -98,7 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       sendJson(res, 200, result);
     } catch (error) {
       logSupabaseError(ROUTE, error, { email: contact.email });
-      throw error;
+      throw asSubmitError(error, "AGENT_ASSESSMENT_SUBMIT_FAILED", "public.agents");
     }
   });
 }

@@ -368,9 +368,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return el;
     }
-    function showSubmitError() {
+    function showSubmitError(err) {
         const el = getSubmitErrorEl();
-        el.textContent = 'We couldn’t submit your assessment. Please check your connection and try again.';
+        // Prefer the real backend message when the request reached the server and
+        // returned a clear error. Only fall back to the connection message for a
+        // genuine network failure (no status / no server error).
+        let message = 'We couldn’t submit your assessment. Please check your connection and try again.';
+        if (err && err.status === 401) {
+            message = 'Your session expired. Please sign in again.';
+        } else if (err && err.serverError) {
+            message = err.serverError;
+        } else if (err && err.status >= 400) {
+            message = 'We couldn’t submit your assessment. Please try again.';
+        }
+        el.textContent = message;
         el.style.display = 'block';
     }
     function clearSubmitError() {
@@ -395,8 +406,13 @@ document.addEventListener('DOMContentLoaded', () => {
             currentStepIndex = consumerAssessmentQuestions.length;
             showWaitingPage();
         } catch (err) {
-            console.warn('[REQUITY] Client assessment submission error:', err);
-            showSubmitError();
+            console.warn('[REQUITY] Client assessment submission error:', {
+                status: err && err.status,
+                code: err && err.code,
+                area: err && err.area,
+                serverError: err && err.serverError,
+            });
+            showSubmitError(err);
             continueBtn.disabled = false;
             continueBtn.innerHTML = originalLabel;
         }

@@ -10,6 +10,7 @@ import {
 import { createNotification } from "./messages.js";
 import { sendAndRecordClientCompleteEmail } from "./emailEvents.js";
 import { completeAssessmentLead } from "./assessmentLeads.js";
+import { insertWithSchemaFallback, updateWithSchemaFallback } from "./supabaseWrite.js";
 
 /** Public-facing source values accepted by the API (mapped to DB enum below). */
 export type ClientLinkSource = "qr" | "agent_link" | "reviewer";
@@ -445,9 +446,16 @@ export async function submitClientAssessmentWithContact(
     dbSource === "qr" ? draft?.agent_id ?? (await resolveAgentId(params)) : null;
   const status = dbSource === "qr" ? "assigned" : "reviewer_matching";
 
-  const { data: client, error: clientError } = await supabase
-    .from("clients")
-    .insert({
+  // The full archetype + dimensions are always stored on the `assessments` row
+  // (result JSON). The client dimension columns below persist only where the
+  // live schema has them — the resilient writer drops any column the live DB is
+  // missing (e.g. a not-yet-migrated `orientation`) instead of failing submit.
+  const { data: client } = await insertWithSchemaFallback<{
+    id: string;
+    full_name: string;
+  }>(
+    "clients",
+    {
       assigned_agent_id: agentId,
       source: dbSource,
       full_name: params.contact.fullName,
@@ -459,11 +467,9 @@ export async function submitClientAssessmentWithContact(
       style: result.style,
       stress_response: result.stressResponse,
       status,
-    })
-    .select()
-    .single();
-  if (clientError)
-    throw new Error(`submitClientAssessmentWithContact (client) failed: ${clientError.message}`);
+    },
+    { required: ["full_name", "source"] }
+  );
 
   const assessmentPayload = {
     client_id: client.id,
@@ -476,16 +482,19 @@ export async function submitClientAssessmentWithContact(
 
   let assessmentId: string;
   if (draft) {
-    await supabase.from("assessments").update(assessmentPayload).eq("id", draft.id);
+    // Previously this update result was unchecked, so a failed final save could
+    // be silently lost. It is now error-checked via the resilient writer.
+    await updateWithSchemaFallback("assessments", assessmentPayload, {
+      column: "id",
+      value: draft.id,
+    });
     assessmentId = draft.id;
   } else {
-    const { data: created, error } = await supabase
-      .from("assessments")
-      .insert({ assessment_type: "client", ...assessmentPayload })
-      .select("id")
-      .single();
-    if (error)
-      throw new Error(`submitClientAssessmentWithContact (assessment) failed: ${error.message}`);
+    const { data: created } = await insertWithSchemaFallback<{ id: string }>(
+      "assessments",
+      { assessment_type: "client", ...assessmentPayload },
+      { select: "id", required: ["assessment_type"] }
+    );
     assessmentId = created.id;
   }
 

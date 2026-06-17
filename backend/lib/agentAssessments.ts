@@ -1,4 +1,3 @@
-import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import {
   agentArchetypeMap,
   type AgentInteractionStyle,
@@ -8,6 +7,7 @@ import {
   type NegotiationStyle,
 } from "./matching.js";
 import { createNotification } from "./messages.js";
+import { insertWithSchemaFallback, updateWithSchemaFallback } from "./supabaseWrite.js";
 
 /**
  * Agent assessment lifecycle: score the 18-question agent survey into the five
@@ -132,47 +132,67 @@ export type SubmitAgentAssessmentResult = AgentArchetypeResult & {
 export async function submitAgentAssessment(
   params: SubmitAgentAssessmentParams
 ): Promise<SubmitAgentAssessmentResult> {
-  const supabase = getSupabaseAdmin();
   const result = calculateAgentArchetype(params.answers);
+  const completedAt = new Date().toISOString();
 
-  const agentValues = {
+  // The full, authoritative dimensions live on the `assessments` row (result)
+  // and in the agent's `assessment_summary` JSON. The five scalar dimension
+  // columns are written too, but ONLY persist where the live schema has them —
+  // the resilient writer silently drops any column the live DB is missing
+  // (e.g. a not-yet-migrated `focus`) instead of failing the whole submit.
+  const summary = {
+    archetype: result.archetype,
+    interactionStyle: result.interactionStyle,
+    focus: result.focus,
+    stressResponse: result.stressResponse,
+    perceivedValue: result.perceivedValue,
+    negotiationStyle: result.negotiationStyle,
+  };
+
+  const agentValues: Record<string, unknown> = {
     display_name: params.contact.name,
     email: params.contact.email,
     phone: params.contact.phone ?? null,
     archetype: result.archetype,
-    archetype_completed_at: new Date().toISOString(),
+    archetype_completed_at: completedAt,
+    // Optional/drift-prone scalar dimension columns (dropped if absent live).
     interaction_style: result.interactionStyle,
     focus: result.focus,
     stress_response: result.stressResponse,
     perceived_value: result.perceivedValue,
     negotiation_style: result.negotiationStyle,
+    // JSON snapshot of the dimensions/answers (dropped if columns absent live).
+    assessment_summary: summary,
+    assessment_responses: params.answers,
     ...(params.profileId ? { profile_id: params.profileId } : {}),
   };
 
   let agentId = params.agentId ?? null;
   if (agentId) {
-    const { error } = await supabase.from("agents").update(agentValues).eq("id", agentId);
-    if (error) throw new Error(`submitAgentAssessment update failed: ${error.message}`);
+    // `archetype` is the field the dashboard routing depends on; never drop it.
+    await updateWithSchemaFallback("agents", agentValues, { column: "id", value: agentId }, {
+      required: ["archetype"],
+    });
   } else {
-    const { data, error } = await supabase.from("agents").insert(agentValues).select("id").single();
-    if (error) throw new Error(`submitAgentAssessment insert failed: ${error.message}`);
+    const { data } = await insertWithSchemaFallback<{ id: string }>("agents", agentValues, {
+      select: "id",
+      required: ["display_name", "email", "archetype"],
+    });
     agentId = data.id;
   }
 
-  const { data: assessment, error: assessmentError } = await supabase
-    .from("assessments")
-    .insert({
+  const { data: assessment } = await insertWithSchemaFallback<{ id: string }>(
+    "assessments",
+    {
       agent_id: agentId,
       assessment_type: "agent",
       answers: params.answers,
       result,
       status: "completed",
-      completed_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
-  if (assessmentError)
-    throw new Error(`submitAgentAssessment (assessment) failed: ${assessmentError.message}`);
+      completed_at: completedAt,
+    },
+    { select: "id", required: ["assessment_type"] }
+  );
 
   try {
     await createNotification({

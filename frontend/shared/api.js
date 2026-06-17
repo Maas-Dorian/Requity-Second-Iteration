@@ -176,6 +176,7 @@
     e.code = parsed && parsed.code ? parsed.code : null;
     e.serverError = serverMsg || null;
     e.area = parsed && parsed.area ? parsed.area : null;
+    e.detail = parsed && parsed.detail ? parsed.detail : null;
     return e;
   }
 
