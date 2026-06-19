@@ -343,10 +343,13 @@
     return apiPost("/agent-assessment/submit", payload);
   }
 
-  /** Full dashboard payload for an agent. Throws on failure. */
+  /**
+   * Full dashboard payload for the authenticated agent. The API derives the
+   * agent from the session, so agentId is OPTIONAL (admins may pass one to view
+   * another agent). Throws on failure.
+   */
   async function fetchAgentDashboard(agentId) {
-    if (!agentId) return null;
-    return apiGet("/dashboard/agent?agentId=" + encodeURIComponent(agentId));
+    return apiGet("/dashboard/agent" + (agentId ? "?agentId=" + encodeURIComponent(agentId) : ""));
   }
 
   /**
@@ -361,8 +364,7 @@
 
   /** Client assessments assigned to an agent. Returns an array. Throws on failure. */
   async function fetchClientAssessments(agentId) {
-    if (!agentId) return [];
-    var dash = await apiGet("/dashboard/agent?agentId=" + encodeURIComponent(agentId));
+    var dash = await apiGet("/dashboard/agent" + (agentId ? "?agentId=" + encodeURIComponent(agentId) : ""));
     return (dash && dash.clientAssessmentDetail) || [];
   }
 

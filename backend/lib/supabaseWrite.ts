@@ -24,11 +24,16 @@ import { getSupabaseAdmin } from "./supabaseAdmin.js";
 /** PostgREST/Postgres error codes that indicate an unknown column in the payload. */
 const MISSING_COLUMN_CODES = new Set(["PGRST204", "42703"]);
 
+/** PostgREST/Postgres error codes that indicate the table itself is missing. */
+const MISSING_TABLE_CODES = new Set(["PGRST205", "42P01"]);
+
 type PgLikeError = {
   message?: string | null;
   details?: string | null;
   hint?: string | null;
   code?: string | null;
+  /** DbWriteError carries the underlying Postgres code here. */
+  pgCode?: string | null;
 };
 
 /** Structured DB write failure carrying a safe Postgres message + the table area. */
@@ -67,8 +72,35 @@ export function extractMissingColumn(error: unknown): string | null {
 /** True when an error means a column in the payload is unknown to the live schema. */
 export function isMissingColumnError(error: unknown): boolean {
   const e = (error ?? {}) as PgLikeError;
-  if (e.code && MISSING_COLUMN_CODES.has(e.code)) return true;
+  const code = e.code ?? e.pgCode ?? null;
+  if (code && MISSING_COLUMN_CODES.has(code)) return true;
   return extractMissingColumn(error) !== null;
+}
+
+/** Pull the missing table name out of a PostgREST/Postgres "missing table" error. */
+export function extractMissingTable(error: unknown): string | null {
+  const e = (error ?? {}) as PgLikeError;
+  const text = [e.message, e.details, e.hint].filter(Boolean).join(" ");
+  if (!text) return null;
+  // PGRST205: Could not find the table 'public.clients' in the schema cache
+  const cacheMatch = text.match(/Could not find the table '([^']+)'/i);
+  if (cacheMatch) return cacheMatch[1];
+  // 42P01: relation "public.clients" does not exist
+  const relMatch = text.match(/relation "?([A-Za-z0-9_.]+)"? does not exist/i);
+  if (relMatch) return relMatch[1];
+  return null;
+}
+
+/**
+ * True when an error means the TABLE does not exist on the live schema (vs. a
+ * missing column). Callers use this to skip optional/legacy tables gracefully
+ * instead of failing the whole operation.
+ */
+export function isMissingTableError(error: unknown): boolean {
+  const e = (error ?? {}) as PgLikeError;
+  const code = e.code ?? e.pgCode ?? null;
+  if (code && MISSING_TABLE_CODES.has(code)) return true;
+  return extractMissingTable(error) !== null;
 }
 
 export type SchemaWriteOptions = {

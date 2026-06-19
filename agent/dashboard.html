@@ -1773,7 +1773,8 @@
       }
 
       try {
-        const dash = await API.fetchAgentDashboard(agentId);
+        // No agentId: the API derives the agent from the authenticated session.
+        const dash = await API.fetchAgentDashboard();
         if (!dash) { renderWeeklyActivity(null); return; }
         const linkInput = document.getElementById('assessmentLink');
         if (linkInput && dash.assessmentLink) linkInput.value = dash.assessmentLink;

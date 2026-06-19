@@ -11,6 +11,8 @@ export {
   updateWithSchemaFallback,
   isMissingColumnError,
   extractMissingColumn,
+  isMissingTableError,
+  extractMissingTable,
   DbWriteError,
   type SchemaWriteOptions,
   type SchemaWriteResult,

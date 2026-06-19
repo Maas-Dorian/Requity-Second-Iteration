@@ -9,8 +9,30 @@ import {
 } from "./matching.js";
 import { createNotification } from "./messages.js";
 import { sendAndRecordClientCompleteEmail } from "./emailEvents.js";
-import { completeAssessmentLead } from "./assessmentLeads.js";
-import { insertWithSchemaFallback, updateWithSchemaFallback } from "./supabaseWrite.js";
+import { completeAssessmentLead, upsertAssessmentLeadStart } from "./assessmentLeads.js";
+import {
+  insertWithSchemaFallback,
+  updateWithSchemaFallback,
+  isMissingTableError,
+} from "./supabaseWrite.js";
+import { logger } from "./logger.js";
+
+/**
+ * Thrown only when NO durable client-assessment storage exists on the live DB
+ * (no assessments table AND no assessment_leads table). The API maps this to a
+ * clear setup error rather than a generic failure.
+ */
+export class ClientAssessmentStorageError extends Error {
+  status = 500;
+  appCode = "CLIENT_ASSESSMENT_STORAGE_MISSING";
+  area = "public.assessments";
+  detail: string;
+  constructor(detail: string) {
+    super("Client assessment storage is not configured.");
+    this.name = "ClientAssessmentStorageError";
+    this.detail = detail;
+  }
+}
 
 /**
  * Public-facing source values accepted by the API (mapped to DB enum below).
@@ -265,7 +287,8 @@ export type SubmitClientAssessmentParams = {
 };
 
 export type SubmitClientAssessmentResult = ClientArchetypeResult & {
-  clientId: string;
+  /** Null when public.clients is missing on the live DB (optional enrichment). */
+  clientId: string | null;
   source: ClientSource;
   assignedAgentId: string | null;
   status: string;
@@ -426,7 +449,8 @@ export type SubmitClientAssessmentWithContactParams = {
 };
 
 export type SubmitClientAssessmentWithContactResult = SubmitClientAssessmentResult & {
-  assessmentId: string;
+  /** Null when public.assessments is missing (data saved to assessment_leads). */
+  assessmentId: string | null;
   emailed: boolean;
 };
 
@@ -463,80 +487,172 @@ export async function submitClientAssessmentWithContact(
     dbSource === "qr" ? draft?.agent_id ?? (await resolveAgentId(params)) : null;
   const status = dbSource === "qr" ? "assigned" : "reviewer_matching";
 
-  // The full archetype + dimensions are always stored on the `assessments` row
-  // (result JSON). The client dimension columns below persist only where the
-  // live schema has them — the resilient writer drops any column the live DB is
-  // missing (e.g. a not-yet-migrated `orientation`) instead of failing submit.
-  const { data: client } = await insertWithSchemaFallback<{
-    id: string;
-    full_name: string;
-  }>(
-    "clients",
-    {
-      assigned_agent_id: agentId,
-      source: dbSource,
-      full_name: params.contact.fullName,
-      email: params.contact.email ?? null,
-      phone: params.contact.phone ?? null,
-      date_of_birth: params.contact.dateOfBirth ?? null,
-      archetype: result.archetype,
-      orientation: result.orientation,
-      style: result.style,
-      stress_response: result.stressResponse,
-      status,
-    },
-    { required: ["full_name", "source"] }
-  );
+  const fullName = params.contact.fullName;
+  const answeredCount = params.answers ? Object.keys(params.answers).length : null;
+  const completedAt = new Date().toISOString();
+  const leadSrc = toLeadSource(params.source);
 
+  // ---- OPTIONAL: public.clients (legacy enrichment) ----------------------
+  // The full archetype + dimensions live on the `assessments` row and the
+  // `assessment_leads` row. public.clients is treated as optional enrichment:
+  // if the table is missing on a drifted live DB, we skip it and keep going;
+  // if only columns are missing, the resilient writer drops them.
+  let clientId: string | null = null;
+  let clientsTableMissing = false;
+  let skippedOptionalClientsWrite = false;
+  try {
+    const { data: client } = await insertWithSchemaFallback<{ id: string }>(
+      "clients",
+      {
+        assigned_agent_id: agentId,
+        source: dbSource,
+        full_name: fullName,
+        email: params.contact.email ?? null,
+        phone: params.contact.phone ?? null,
+        date_of_birth: params.contact.dateOfBirth ?? null,
+        archetype: result.archetype,
+        orientation: result.orientation,
+        style: result.style,
+        stress_response: result.stressResponse,
+        status,
+      },
+      { required: ["full_name", "source"] }
+    );
+    clientId = client.id;
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      clientsTableMissing = true;
+      skippedOptionalClientsWrite = true;
+    } else {
+      throw error; // a real clients error (constraint/RLS) still surfaces
+    }
+  }
+
+  // ---- DURABLE: public.assessments ---------------------------------------
   const assessmentPayload = {
-    client_id: client.id,
+    client_id: clientId,
     agent_id: agentId,
     answers: params.answers,
     result,
     status: "completed" as const,
-    completed_at: new Date().toISOString(),
+    completed_at: completedAt,
   };
 
-  let assessmentId: string;
-  if (draft) {
-    // Previously this update result was unchecked, so a failed final save could
-    // be silently lost. It is now error-checked via the resilient writer.
-    await updateWithSchemaFallback("assessments", assessmentPayload, {
-      column: "id",
-      value: draft.id,
-    });
-    assessmentId = draft.id;
-  } else {
-    const { data: created } = await insertWithSchemaFallback<{ id: string }>(
-      "assessments",
-      { assessment_type: "client", ...assessmentPayload },
-      { select: "id", required: ["assessment_type"] }
-    );
-    assessmentId = created.id;
+  let assessmentId: string | null = null;
+  let assessmentsTableMissing = false;
+  try {
+    if (draft) {
+      await updateWithSchemaFallback("assessments", assessmentPayload, {
+        column: "id",
+        value: draft.id,
+      });
+      assessmentId = draft.id;
+    } else {
+      const { data: created } = await insertWithSchemaFallback<{ id: string }>(
+        "assessments",
+        { assessment_type: "client", ...assessmentPayload },
+        { select: "id", required: ["assessment_type"] }
+      );
+      assessmentId = created.id;
+    }
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      assessmentsTableMissing = true;
+    } else {
+      throw error;
+    }
   }
 
-  // Notification: client_assessment_completed.
+  // ---- DURABLE: public.assessment_leads (also stores full answers) -------
+  // This is the fallback durable store when assessments is unavailable. We
+  // complete the existing lead (qr/agent-link/direct all create one at start);
+  // if none exists and assessments did not save, we create + complete one so
+  // the answers are never lost.
+  let leadSaved = false;
+  let assessmentLeadsAvailable = true;
+  try {
+    let lead = await completeAssessmentLead({
+      leadId: params.leadId ?? null,
+      clientAssessmentId: assessmentId,
+      email: params.contact.email ?? null,
+      source: leadSrc,
+      agentId,
+      archetype: result.archetype,
+      answeredCount,
+      partialAnswers: params.answers ?? null,
+    });
+    if (!lead && !assessmentId) {
+      const started = await upsertAssessmentLeadStart({
+        source: leadSrc,
+        fullName,
+        email: params.contact.email ?? null,
+        phone: params.contact.phone ?? null,
+        agentId,
+      });
+      lead = await completeAssessmentLead({
+        leadId: started.id,
+        clientAssessmentId: assessmentId,
+        email: params.contact.email ?? null,
+        source: leadSrc,
+        agentId,
+        archetype: result.archetype,
+        answeredCount,
+        partialAnswers: params.answers ?? null,
+      });
+    }
+    leadSaved = !!lead;
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      assessmentLeadsAvailable = false;
+    } else {
+      console.error("[clientAssessments] lead completion failed:", error);
+    }
+  }
+
+  logger.info("client_assessment_submit", {
+    area: "client_assessment_submit",
+    source: params.source,
+    clientsTableMissing,
+    skippedOptionalClientsWrite,
+    assessmentsTableMissing,
+    assessmentLeadsAvailable,
+    durableAssessmentSaved: !!assessmentId,
+    durableLeadSaved: leadSaved,
+  });
+
+  // Fail ONLY when nothing durable could be saved anywhere.
+  if (!assessmentId && !leadSaved) {
+    throw new ClientAssessmentStorageError(
+      "No durable client-assessment storage is available (assessments and assessment_leads are both unavailable)."
+    );
+  }
+
+  // Notification: client_assessment_completed (best-effort).
   let agentEmail: string | null = null;
   let agentDisplayName: string | undefined;
   let agentProfileId: string | null = null;
   if (agentId) {
-    const { data: agent } = await supabase
-      .from("agents")
-      .select("email, display_name, profile_id")
-      .eq("id", agentId)
-      .maybeSingle();
-    agentEmail = agent?.email ?? null;
-    agentDisplayName = agent?.display_name ?? undefined;
-    agentProfileId = agent?.profile_id ?? null;
+    try {
+      const { data: agent } = await supabase
+        .from("agents")
+        .select("email, display_name, profile_id")
+        .eq("id", agentId)
+        .maybeSingle();
+      agentEmail = agent?.email ?? null;
+      agentDisplayName = agent?.display_name ?? undefined;
+      agentProfileId = agent?.profile_id ?? null;
+    } catch (error) {
+      if (!isMissingTableError(error)) console.error("[clientAssessments] agent lookup failed:", error);
+    }
   }
 
   try {
     await createNotification({
       recipientProfileId: agentProfileId,
       agentId: agentId,
-      clientId: client.id,
+      clientId,
       type: "client_assessment_completed",
-      title: `${client.full_name} completed the assessment`,
+      title: `${fullName} completed the assessment`,
       body:
         dbSource === "qr"
           ? `Archetype: ${result.archetype}. This client stays assigned to you.`
@@ -552,7 +668,7 @@ export async function submitClientAssessmentWithContact(
     try {
       const { send } = await sendAndRecordClientCompleteEmail(
         { email: agentEmail, name: agentDisplayName },
-        { clientName: client.full_name, agentName: agentDisplayName, archetype: result.archetype }
+        { clientName: fullName, agentName: agentDisplayName, archetype: result.archetype }
       );
       emailed = send.sent;
     } catch (error) {
@@ -560,24 +676,9 @@ export async function submitClientAssessmentWithContact(
     }
   }
 
-  // Convert the incomplete lead (if any) to completed. Never blocks submission.
-  try {
-    await completeAssessmentLead({
-      leadId: params.leadId ?? null,
-      clientAssessmentId: assessmentId,
-      email: params.contact.email ?? null,
-      source: toLeadSource(params.source),
-      agentId,
-      archetype: result.archetype,
-      answeredCount: params.answers ? Object.keys(params.answers).length : null,
-    });
-  } catch (error) {
-    console.error("[clientAssessments] lead completion failed:", error);
-  }
-
   return {
     ...result,
-    clientId: client.id,
+    clientId,
     assessmentId,
     source: dbSource,
     assignedAgentId: agentId,

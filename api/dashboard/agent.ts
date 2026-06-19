@@ -2,7 +2,6 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   runHandler,
   ensureMethod,
-  requireQueryParam,
   getQueryParam,
   sendJson,
   HttpError,
@@ -21,16 +20,18 @@ const ROUTE = "dashboard/agent";
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {
     ensureMethod(req, "GET");
-    logApiStart(ROUTE);
 
+    // Identity comes from the authenticated session — agentId is NOT required.
+    // Admins may optionally pass ?agentId= to view another agent.
     const profile = await requireAgent(req);
-    let agentId: string;
-    if (profile.role === "admin") {
-      agentId = requireQueryParam(req, "agentId");
-    } else if (profile.agentId) {
-      agentId = profile.agentId;
-    } else {
-      throw new HttpError(403, "No agent profile is linked to this account.");
+    const overrideId = getQueryParam(req, "agentId");
+    const agentId =
+      profile.role === "admin" && overrideId ? overrideId : profile.agentId;
+
+    logApiStart(ROUTE, { hasAuthHeader: true, resolvedAgentId: !!agentId, isAdmin: profile.role === "admin" });
+
+    if (!agentId) {
+      throw new HttpError(404, "Agent profile not found.", "AGENT_NOT_FOUND");
     }
 
     const frontendUrl = getQueryParam(req, "frontendUrl");

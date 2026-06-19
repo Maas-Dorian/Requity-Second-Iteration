@@ -31,7 +31,13 @@ export class HttpError extends Error {
  */
 export function asSubmitError(error: unknown, code: string, fallbackArea: string): HttpError {
   if (error instanceof HttpError) return error;
-  const anyErr = error as { status?: unknown; area?: unknown; detail?: unknown; message?: unknown };
+  const anyErr = error as {
+    status?: unknown;
+    area?: unknown;
+    detail?: unknown;
+    message?: unknown;
+    appCode?: unknown;
+  };
   const status = typeof anyErr?.status === "number" ? anyErr.status : 500;
   const area = typeof anyErr?.area === "string" ? anyErr.area : fallbackArea;
   const detail =
@@ -40,6 +46,12 @@ export function asSubmitError(error: unknown, code: string, fallbackArea: string
       : error instanceof Error
         ? error.message
         : String(error);
+  // App-level errors (e.g. storage-not-configured) carry their own stable code
+  // and a user-safe message — surface those instead of the generic ones.
+  if (typeof anyErr?.appCode === "string") {
+    const message = error instanceof Error ? error.message : "Submission failed.";
+    return new HttpError(status, message, anyErr.appCode, detail, area);
+  }
   return new HttpError(
     status,
     "We couldn’t save your assessment. Please try again.",

@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import { env } from "./env.js";
 import { getAgentNotifications, type NotificationRecord } from "./messages.js";
 import { getAgentAssessmentActivity, type AgentAssessmentActivity } from "./analytics.js";
+import { isMissingTableError } from "./supabaseWrite.js";
+import { logger } from "./logger.js";
 
 /**
  * Return the agent's public assessment token, generating + persisting one when
@@ -128,21 +130,44 @@ export async function getAgentDashboard(
   const publicToken =
     agent?.public_assessment_token ?? (agent ? await ensureAgentPublicToken(agentId) : null);
 
-  const { data: clients, error: clientsError } = await supabase
-    .from("clients")
-    .select("*, assessments(*)")
-    .eq("assigned_agent_id", agentId)
-    .order("created_at", { ascending: false });
-  if (clientsError) throw new Error(`getAgentDashboard clients failed: ${clientsError.message}`);
+  // Clients are an OPTIONAL/legacy enrichment source. On a drifted live DB that
+  // is missing public.clients, the dashboard must still load with empty client
+  // data instead of crashing. A genuine (non-missing-table) error still throws.
+  let clientsList: any[] = [];
+  let clientsTableMissing = false;
+  {
+    const { data: clients, error: clientsError } = await supabase
+      .from("clients")
+      .select("*, assessments(*)")
+      .eq("assigned_agent_id", agentId)
+      .order("created_at", { ascending: false });
+    if (clientsError) {
+      if (isMissingTableError(clientsError)) {
+        clientsTableMissing = true;
+      } else {
+        throw new Error(`getAgentDashboard clients failed: ${clientsError.message}`);
+      }
+    } else {
+      clientsList = clients ?? [];
+    }
+  }
 
-  const messages = await getAgentNotifications(agentId, { limit: 50 });
+  // Messages are optional too — never let a missing table break the dashboard.
+  let messages: NotificationRecord[] = [];
+  try {
+    messages = await getAgentNotifications(agentId, { limit: 50 });
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      console.error("[dashboard] messages load failed:", error);
+    }
+  }
 
   const { assessmentLink, qrLink } = buildAgentAssessmentLinks(
     publicToken,
     options.frontendUrl
   );
 
-  const list = clients ?? [];
+  const list = clientsList;
   const activity = { linkOpened: 0, started: 0, completed: 0 };
   const flow = { total: list.length, qr: 0, reviewer: 0, assigned: 0, awaitingReview: 0 };
 
@@ -165,6 +190,14 @@ export async function getAgentDashboard(
     console.error("[dashboard] weeklyActivity failed:", error);
     weeklyActivity = null;
   }
+
+  logger.info("dashboard_agent", {
+    area: "dashboard_agent",
+    resolvedAgentId: !!agent,
+    clientsTableMissing,
+    clientCount: list.length,
+    weeklyActivityAvailable: !!weeklyActivity,
+  });
 
   const recentClients = list.slice(0, 8).map((c) => ({
     id: c.id,

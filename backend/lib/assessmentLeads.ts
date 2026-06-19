@@ -256,6 +256,8 @@ export type CompleteAssessmentLeadInput = {
   agentId?: string | null;
   archetype?: string | null;
   answeredCount?: number | null;
+  /** Full answers captured at completion (durable store of the responses). */
+  partialAnswers?: Record<string, unknown> | null;
 };
 
 /**
@@ -270,6 +272,10 @@ export async function completeAssessmentLead(
   const lead = await resolveLeadForCompletion(input);
   if (!lead) return null;
 
+  const mergedAnswers = input.partialAnswers
+    ? { ...(lead.partial_answers ?? {}), ...input.partialAnswers }
+    : undefined;
+
   const { data, error } = await supabase
     .from("assessment_leads")
     .update({
@@ -279,6 +285,7 @@ export async function completeAssessmentLead(
       archetype: input.archetype ?? lead.archetype,
       client_assessment_id: input.clientAssessmentId ?? lead.client_assessment_id,
       answered_count: input.answeredCount ?? lead.answered_count,
+      ...(mergedAnswers ? { partial_answers: mergedAnswers } : {}),
     })
     .eq("id", lead.id)
     .select()

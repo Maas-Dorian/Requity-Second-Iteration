@@ -3,7 +3,6 @@ import {
   runHandler,
   ensureMethod,
   getQueryParam,
-  requireQueryParam,
   sendJson,
   HttpError,
 } from "../_lib/http.js";
@@ -33,16 +32,19 @@ const ROUTE = "agent/qr";
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {
     ensureMethod(req, "GET");
-    logApiStart(ROUTE);
 
+    // Identity comes from the authenticated session — NOT a required agentId
+    // query param. An admin may optionally pass ?agentId= to view another agent;
+    // otherwise we use the caller's own agent row (agents AND admins can have one).
     const profile = await requireAgent(req);
-    let agentId: string;
-    if (profile.role === "admin") {
-      agentId = requireQueryParam(req, "agentId");
-    } else if (profile.agentId) {
-      agentId = profile.agentId;
-    } else {
-      throw new HttpError(403, "No agent profile is linked to this account.");
+    const overrideId = getQueryParam(req, "agentId");
+    const agentId =
+      profile.role === "admin" && overrideId ? overrideId : profile.agentId;
+
+    logApiStart(ROUTE, { hasAuthHeader: true, resolvedAgentId: !!agentId, isAdmin: profile.role === "admin" });
+
+    if (!agentId) {
+      throw new HttpError(404, "Agent profile not found.", "AGENT_NOT_FOUND");
     }
 
     const format = (getQueryParam(req, "format") || "dataUrl").toLowerCase();

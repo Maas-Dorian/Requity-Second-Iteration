@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
+import { isMissingTableError } from "./supabaseWrite.js";
 
 /**
  * Lightweight agent dashboard analytics.
@@ -75,7 +76,14 @@ export async function getAgentAssessmentActivity(
     .select("started_at, completed_at")
     .eq("agent_id", agentId)
     .or(`started_at.gte.${cutoff},completed_at.gte.${cutoff}`);
-  if (error) throw new Error(`getAgentAssessmentActivity failed: ${error.message}`);
+  if (error) {
+    // On a drifted live DB without assessment_leads, show a clean zero-filled
+    // chart ("No activity yet.") instead of failing.
+    if (isMissingTableError(error)) {
+      return { days: buckets, totalStarted: 0, totalCompleted: 0 };
+    }
+    throw new Error(`getAgentAssessmentActivity failed: ${error.message}`);
+  }
 
   let totalStarted = 0;
   let totalCompleted = 0;
