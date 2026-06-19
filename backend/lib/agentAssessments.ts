@@ -105,7 +105,9 @@ export function calculateAgentArchetype(answers: AgentAnswers): AgentArchetypeRe
 
   const triple = `${winners.interactionStyle}-${winners.focus}-${winners.stressResponse}`;
   return {
-    archetype: ARCHETYPE_BY_TRIPLE[triple] ?? "Relationship-Fit Agent",
+    // All 16 interactionStyle-focus-stressResponse combos are mapped; the
+    // fallback is an approved agent archetype, never an invalid placeholder.
+    archetype: ARCHETYPE_BY_TRIPLE[triple] ?? "The Collaborator",
     interactionStyle: winners.interactionStyle as AgentArchetypeResult["interactionStyle"],
     focus: winners.focus as AgentArchetypeResult["focus"],
     stressResponse: winners.stressResponse as AgentArchetypeResult["stressResponse"],

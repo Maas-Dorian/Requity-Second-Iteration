@@ -437,7 +437,7 @@ window.addEventListener('DOMContentLoaded', () => {
             result[dimension] = sorted[0]?.[0] || 'Flexible';
         });
         const key = `${result.interactionStyle}-${result.focus}-${result.stressResponse}`;
-        result.archetype = archetypes[key] || 'Relationship-Fit Agent';
+        result.archetype = archetypes[key] || 'The Collaborator';
         return result;
     }
     async function showResult() {

@@ -1196,6 +1196,14 @@
           <div class="archetype-modal-body">
             <p id="archetype-modal-summary"></p>
             <ul class="archetype-strengths" id="archetype-modal-strengths"></ul>
+            <div id="archetype-modal-workingstyle-wrap" hidden>
+              <h4 class="detail-label mt-2">Working style</h4>
+              <p id="archetype-modal-workingstyle"></p>
+            </div>
+            <div id="archetype-modal-clients-wrap" hidden>
+              <h4 class="detail-label mt-2">Ideal client fit</h4>
+              <ul class="archetype-strengths" id="archetype-modal-clients"></ul>
+            </div>
           </div>
           <div class="archetype-modal-foot">
             <a class="archetype-retake" href="assessment.html?retake=1">Retake assessment</a>
@@ -2002,8 +2010,8 @@
           summary: 'You are flexible and resourceful, adjusting your approach to fit each client and situation. You keep things moving with practical, inventive solutions.',
           strengths: ['Adjusts quickly to changing needs', 'Practical, creative problem-solving', 'Strong fit for clients who value flexibility and ease']
         },
-        'agent supporter': {
-          label: 'The Agent Supporter',
+        'supporter': {
+          label: 'The Supporter',
           summary: 'You lead with trust and dependability, giving clients steady, practical guidance they can rely on. You make people feel supported through every decision.',
           strengths: ['Dependable, trust-building communication', 'Practical guidance clients can count on', 'Strong fit for clients who value reliability and care']
         },
@@ -2032,8 +2040,8 @@
           summary: 'You bring structure and dependability, keeping the process organized and secure. You help clients feel safe with clear plans and steady follow-through.',
           strengths: ['Organized, structured process', 'Calm, security-focused guidance', 'Strong fit for clients who want order and reliability']
         },
-        'agent producer': {
-          label: 'The Agent Producer',
+        'producer': {
+          label: 'The Producer',
           summary: 'You are driven and execution-focused, moving clients efficiently toward high-quality outcomes. You combine standards with decisive follow-through.',
           strengths: ['Efficient, results-driven execution', 'High standards with clear direction', 'Strong fit for clients who want productivity and quality']
         },
@@ -2046,12 +2054,47 @@
           label: 'The Collaborator',
           summary: 'You lead through partnership and trust, working alongside clients to reach shared decisions. You make the process feel cooperative and reassuring.',
           strengths: ['Partnership-driven, trust-based approach', 'Strong shared decision-making', 'Strong fit for clients who value collaboration']
-        },
-        'relationship-fit agent': {
-          label: 'Relationship-Fit Agent',
-          summary: 'Your REQUITY archetype reflects a balanced, relationship-first style — adapting your communication and support to guide each client through their decisions.',
-          strengths: ['Adapts naturally to different clients', 'Balances guidance with support', 'Strong fit for a wide range of client needs']
         }
+      };
+
+      // Approved agent → client compatibility (mirrors backend/lib/archetypes.ts).
+      var AGENT_COMPATIBILITY = {
+        'the creative guide': ['The Visionary', 'The Dreamchaser', 'The Harmonizer'],
+        'the trendsetter': ['The Trailblazer', 'The Inspirer', 'The Organizer'],
+        'the stylist': ['The Visionary', 'The Harmonizer', 'The Producer'],
+        'the cheerleader': ['The Inspirer', 'The Navigator', 'The Explorer'],
+        'the analyst': ['The Strategist', 'The Closer', 'The Supporter'],
+        'the deal maker': ['The Trailblazer', 'The Closer', 'The Curator'],
+        'the adapter': ['The Pathfinder', 'The Spark', 'The Explorer'],
+        'the supporter': ['The Supporter', 'The Navigator', 'The Harmonizer'],
+        'the refiner': ['The Strategist', 'The Organizer', 'The Curator'],
+        'the catalyst': ['The Trailblazer', 'The Dreamchaser', 'The Spark'],
+        'the observer': ['The Visionary', 'The Pathfinder', 'The Producer'],
+        'the encourager': ['The Inspirer', 'The Harmonizer', 'The Explorer'],
+        'the coordinator': ['The Organizer', 'The Producer', 'The Curator'],
+        'the producer': ['The Closer', 'The Strategist', 'The Supporter'],
+        'the adjuster': ['The Advocate', 'The Navigator', 'The Spark'],
+        'the collaborator': ['The Supporter', 'The Harmonizer', 'The Explorer']
+      };
+
+      // Working style per approved agent archetype (mirrors backend/lib/archetypes.ts).
+      var AGENT_WORKING_STYLE = {
+        'the creative guide': 'Motivating and design-focused, with a calm, analytical approach under pressure.',
+        'the trendsetter': 'Motivating and aesthetic, with a directive, take-charge negotiation style.',
+        'the stylist': 'Motivating and aesthetic, with an emotive, relationship-led negotiation style.',
+        'the cheerleader': 'Motivating and aesthetic, with an accommodating, supportive negotiation style.',
+        'the analyst': 'Motivating and pragmatic, with a calm, analytical approach under pressure.',
+        'the deal maker': 'Motivating and pragmatic, with a competitive, authority-led negotiation style.',
+        'the adapter': 'Motivating and pragmatic, with a compromising, adaptable negotiation style.',
+        'the supporter': 'Motivating and pragmatic, with an accommodating, trust-led approach.',
+        'the refiner': 'Facilitating and aesthetic, with a calm, analytical approach under pressure.',
+        'the catalyst': 'Facilitating and aesthetic, with a directive, energizing negotiation style.',
+        'the observer': 'Facilitating and aesthetic, with a measured, avoidance-aware negotiation style.',
+        'the encourager': 'Facilitating and aesthetic, with an emotive, trust-led negotiation style.',
+        'the coordinator': 'Facilitating and pragmatic, with a calm, analytical approach under pressure.',
+        'the producer': 'Facilitating and pragmatic, with a directive, execution-led negotiation style.',
+        'the adjuster': 'Facilitating and pragmatic, with a compromising, security-focused negotiation style.',
+        'the collaborator': 'Facilitating and pragmatic, with a collaborative, trust-led negotiation style.'
       };
 
       function normalizeKey(raw) {
@@ -2139,8 +2182,11 @@
           });
         }
 
-        if (hasArchetype) {
-          var d = detailsFor(archetype);
+        var normalizedKey = hasArchetype ? normalizeKey(archetype) : '';
+        var isApproved = hasArchetype && Object.prototype.hasOwnProperty.call(AGENT_ARCHETYPE_DETAILS, normalizedKey);
+
+        if (hasArchetype && isApproved) {
+          var d = AGENT_ARCHETYPE_DETAILS[normalizedKey];
           if (pill) pill.textContent = d.label;
           if (headerArchetype) { headerArchetype.hidden = false; headerArchetype.style.display = ''; }
           if (discover) { discover.hidden = true; discover.style.display = 'none'; }
@@ -2158,6 +2204,37 @@
               strengthsEl.appendChild(li);
             });
           }
+
+          var wsWrap = document.getElementById('archetype-modal-workingstyle-wrap');
+          var wsEl = document.getElementById('archetype-modal-workingstyle');
+          var workingStyle = AGENT_WORKING_STYLE['the ' + normalizedKey];
+          if (wsWrap && wsEl) {
+            if (workingStyle) { wsEl.textContent = workingStyle; wsWrap.hidden = false; }
+            else { wsWrap.hidden = true; }
+          }
+
+          var clientsWrap = document.getElementById('archetype-modal-clients-wrap');
+          var clientsEl = document.getElementById('archetype-modal-clients');
+          var idealClients = AGENT_COMPATIBILITY['the ' + normalizedKey] || [];
+          if (clientsWrap && clientsEl) {
+            clientsEl.innerHTML = '';
+            if (idealClients.length) {
+              idealClients.forEach(function (c) {
+                var li = document.createElement('li');
+                li.textContent = c;
+                clientsEl.appendChild(li);
+              });
+              clientsWrap.hidden = false;
+            } else {
+              clientsWrap.hidden = true;
+            }
+          }
+        } else if (hasArchetype && !isApproved) {
+          // Stored archetype is no longer valid: never show an invalid/old name.
+          // Prompt a retake instead of silently mapping to a random archetype.
+          if (pill) pill.textContent = 'Retake assessment to complete your archetype';
+          if (headerArchetype) { headerArchetype.hidden = false; headerArchetype.style.display = ''; }
+          if (discover) { discover.hidden = false; discover.style.display = ''; }
         } else {
           // No archetype yet: hide the pill, show the Discover button.
           if (headerArchetype) { headerArchetype.hidden = true; headerArchetype.style.display = 'none'; }

@@ -18,6 +18,7 @@ export {
   type SchemaWriteResult,
 } from "./supabaseWrite.js";
 export * from "./matching.js";
+export * from "./archetypes.js";
 export {
   sendBrevoEmail,
   sendReviewerMatchEmail,
