@@ -102,7 +102,6 @@
                                 <option value="">All statuses</option>
                                 <option value="started">Started</option>
                                 <option value="in_progress">In progress</option>
-                                <option value="abandoned">Abandoned</option>
                                 <option value="followed_up">Followed up</option>
                                 <option value="completed">Completed</option>
                             </select>
@@ -240,6 +239,19 @@
         </div>
     </div>
 
+    <!-- Delete confirmation modal (permanent delete of an assessment lead) -->
+    <div id="delete-lead-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h2 class="section-title text-xl mb-2">Delete assessment</h2>
+            <p class="helper-text mb-4">Are you sure you'd like to permanently delete this?</p>
+            <div id="delete-lead-error" class="helper-text mb-3" style="color:#C0392B; display:none;"></div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" id="delete-lead-cancel" type="button">Cancel</button>
+                <button class="btn btn-primary" id="delete-lead-confirm" type="button">Delete permanently</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Supabase/API config (copy frontend/shared/config.example.js to config.js with real public values). -->
     <!-- Load order matters: config.js → api.js → page/auth code. -->
     <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
@@ -353,6 +365,55 @@
         var searchEl = document.getElementById('leads-search');
         var searchTimer = null;
 
+        // --- Permanent-delete confirmation modal ---------------------------
+        var deleteModal = document.getElementById('delete-lead-modal');
+        var deleteCancelBtn = document.getElementById('delete-lead-cancel');
+        var deleteConfirmBtn = document.getElementById('delete-lead-confirm');
+        var deleteErrorEl = document.getElementById('delete-lead-error');
+        var pendingDeleteId = null;
+        var deleting = false;
+
+        function dbg(loc, data) {
+            try { if (window.RequityAPI && window.RequityAPI.__debug) window.RequityAPI.__debug(loc, loc, data); } catch (e) {}
+        }
+
+        function openDeleteModal(leadId) {
+            pendingDeleteId = leadId;
+            if (deleteErrorEl) { deleteErrorEl.style.display = 'none'; deleteErrorEl.textContent = ''; }
+            if (deleteConfirmBtn) { deleteConfirmBtn.disabled = false; deleteConfirmBtn.textContent = 'Delete permanently'; }
+            if (deleteModal) deleteModal.classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            pendingDeleteId = null;
+            if (deleteModal) deleteModal.classList.add('hidden');
+        }
+
+        if (deleteCancelBtn) deleteCancelBtn.addEventListener('click', function () { if (!deleting) closeDeleteModal(); });
+        if (deleteModal) deleteModal.addEventListener('click', function (e) { if (e.target === deleteModal && !deleting) closeDeleteModal(); });
+        if (deleteConfirmBtn) deleteConfirmBtn.addEventListener('click', function () {
+            if (deleting || !pendingDeleteId || !window.RequityAPI || !window.RequityAPI.deleteReviewerAssessmentLead) return;
+            var leadId = pendingDeleteId;
+            deleting = true;
+            deleteConfirmBtn.disabled = true;
+            deleteConfirmBtn.textContent = 'Deleting…';
+            if (deleteErrorEl) { deleteErrorEl.style.display = 'none'; deleteErrorEl.textContent = ''; }
+            dbg('reviewer:delete-request', { leadId: leadId });
+            Promise.resolve(window.RequityAPI.deleteReviewerAssessmentLead(leadId)).then(function () {
+                dbg('reviewer:delete-success', { leadId: leadId });
+                // Remove the row immediately, then reload to stay in sync.
+                var card = listEl.querySelector('[data-lead-id="' + leadId + '"]');
+                if (card && card.parentNode) card.parentNode.removeChild(card);
+                deleting = false;
+                closeDeleteModal();
+                load();
+            }).catch(function () {
+                deleting = false;
+                if (deleteConfirmBtn) { deleteConfirmBtn.disabled = false; deleteConfirmBtn.textContent = 'Delete permanently'; }
+                if (deleteErrorEl) { deleteErrorEl.textContent = 'We couldn’t delete this item. Please try again.'; deleteErrorEl.style.display = 'block'; }
+            });
+        });
+
         function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
         function fmtDate(s) { if (!s) return '—'; try { var d = new Date(s); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return s; } }
         function sourceLabel(s) { return s === 'qr' ? 'QR' : (s === 'agent_link' ? 'Agent Link' : 'Reviewer'); }
@@ -365,6 +426,7 @@
                 var agent = l.agent_name || l.agentName || null;
                 var card = document.createElement('div');
                 card.className = 'lead-card';
+                card.setAttribute('data-lead-id', l.id);
                 card.innerHTML =
                     '<div class="lead-top">' +
                         '<div><div class="lead-name">' + esc(l.full_name || 'Unknown') + '</div>' +
@@ -394,6 +456,11 @@
 
         function onAction(lead, act) {
             if (!window.RequityAPI) return;
+            // "Mark Abandoned" is now a permanent delete behind a confirmation.
+            if (act === 'abandoned') {
+                openDeleteModal(lead.id);
+                return;
+            }
             var payload = { leadId: lead.id };
             if (act === 'note') {
                 var note = prompt('Follow-up note for ' + (lead.full_name || 'lead') + ':', lead.notes || '');
@@ -410,7 +477,13 @@
         function loadInner() {
             if (!window.RequityAPI) return;
             Promise.resolve(window.RequityAPI.fetchReviewerAssessmentLeads(filters())).then(function (leads) {
-                render(leads || []);
+                var rows = leads || [];
+                render(rows);
+                dbg('reviewer:queue-loaded', {
+                    count: rows.length,
+                    statuses: rows.map(function (l) { return l.status; }),
+                    archetypes: rows.map(function (l) { return l.archetype || null; })
+                });
             }).catch(function () {
                 listEl.innerHTML = '<div class="leads-empty">We could not load incomplete assessments. Please refresh or try again later.</div>';
             });

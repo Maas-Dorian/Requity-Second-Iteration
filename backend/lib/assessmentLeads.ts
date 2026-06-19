@@ -451,6 +451,33 @@ export async function updateAssessmentLeadFollowUpStatus(
   return data as AssessmentLeadRecord;
 }
 
+// --- Permanent delete -----------------------------------------------------
+
+/**
+ * Permanently delete a reviewer-queue lead by id (service role).
+ *
+ * This is the destructive action behind the reviewer "Mark abandoned" →
+ * "Delete permanently" flow. We only remove the `assessment_leads` row so the
+ * lead disappears for good from the reviewer page. Linked `assessments` /
+ * `clients` rows (and never agents/profiles) are intentionally left untouched
+ * to avoid cascading into matching/assignment history.
+ *
+ * Throws when the id is missing/blank or the delete errors. When the id simply
+ * does not exist we still resolve ok:true (idempotent — the goal is "it's gone").
+ */
+export async function deleteAssessmentLead(
+  leadId: string
+): Promise<{ ok: true; deletedId: string }> {
+  const id = (leadId ?? "").trim();
+  if (!id) throw new Error("deleteAssessmentLead: leadId is required");
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.from("assessment_leads").delete().eq("id", id);
+  if (error) throw new Error(`deleteAssessmentLead failed: ${error.message}`);
+
+  return { ok: true, deletedId: id };
+}
+
 // --- Follow-up messaging foundation (disabled by default) -----------------
 
 async function notifyLeadStarted(lead: AssessmentLeadRecord): Promise<void> {

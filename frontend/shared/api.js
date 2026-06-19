@@ -231,6 +231,23 @@
     return res.json();
   }
 
+  async function apiDelete(path) {
+    var c = requireApi();
+    var headers = await withAuthHeaders({});
+    var hasAuth = !!headers.Authorization;
+    var res = await fetch(c.apiBaseUrl.replace(/\/$/, "") + path, { method: "DELETE", headers: headers });
+    if (!res.ok) {
+      var dtext = "";
+      try { dtext = await res.text(); } catch (e) {}
+      var derr = makeApiError(path, res.status, dtext);
+      // #region agent log
+      reqDebug("api.js:apiDelete", "DELETE failed", { path: path, status: res.status, hasAuth: hasAuth, code: derr.code, area: derr.area, serverError: derr.serverError });
+      // #endregion
+      throw derr;
+    }
+    return res.json();
+  }
+
   // --- Client archetype scoring (mirrors backend/lib/clientAssessments) ----
   var ORIENTATION_VOTES = {
     decide_quickly: "Driver", lead_process: "Driver", direct_assertive: "Driver",
@@ -447,6 +464,14 @@
    */
   async function updateReviewerAssessmentLead(payload) {
     return apiPost("/reviewer/assessment-leads/update", payload);
+  }
+
+  /**
+   * Reviewer: permanently delete an assessment lead by id. Reviewer/admin auth
+   * is enforced server-side. Resolves { ok: true, deletedId }. Throws on failure.
+   */
+  async function deleteReviewerAssessmentLead(leadId) {
+    return apiDelete("/reviewer/assessment-leads/delete?id=" + encodeURIComponent(leadId));
   }
 
   /**
@@ -707,6 +732,7 @@
     completeAssessmentLead: completeAssessmentLead,
     fetchReviewerAssessmentLeads: fetchReviewerAssessmentLeads,
     updateReviewerAssessmentLead: updateReviewerAssessmentLead,
+    deleteReviewerAssessmentLead: deleteReviewerAssessmentLead,
     fetchReviewerMatches: fetchReviewerMatches,
     approveReviewerMatch: approveReviewerMatch,
     copyAssessmentLink: copyAssessmentLink,

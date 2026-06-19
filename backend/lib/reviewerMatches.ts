@@ -11,6 +11,7 @@ import {
   REVIEWER_MATCH_NOTIFICATION_BODY,
 } from "./messages.js";
 import { sendAndRecordReviewerMatchEmail } from "./emailEvents.js";
+import { assignArchetype, isApprovedClientArchetype } from "./archetypes.js";
 
 /**
  * REQUITY reviewer queue: rank agents for a reviewer-sourced client, record a
@@ -111,23 +112,138 @@ export type ReviewerQueueItem = {
   rankings: RankedAgent[];
 };
 
-/** All clients currently awaiting reviewer matching, with ranked agent options. */
+/**
+ * All clients currently awaiting reviewer matching ("Up for review"), with
+ * ranked agent options.
+ *
+ * Primary source is `public.clients` (source = requity_reviewer, status =
+ * reviewer_matching). As a resilience layer we ALSO surface completed
+ * reviewer-sourced `assessment_leads` whose submission never made it into
+ * `public.clients` (e.g. the optional clients insert failed at submit time), so
+ * a live submission is never hidden. Lead-derived items are deduped against
+ * existing client rows by email, restricted to approved client archetypes, and
+ * never include abandoned/incomplete leads.
+ */
 export async function listReviewerQueue(): Promise<ReviewerQueueItem[]> {
   const supabase = getSupabaseAdmin();
-  const { data: clients, error } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("source", "requity_reviewer")
-    .eq("status", "reviewer_matching")
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`listReviewerQueue failed: ${error.message}`);
-
   const queue: ReviewerQueueItem[] = [];
-  for (const client of clients ?? []) {
-    const rankings = await rankAgentsForClient(client.id);
-    queue.push({ client, rankings });
+  const clientEmails = new Set<string>();
+
+  // --- Primary: reviewer-sourced clients awaiting matching ----------------
+  try {
+    const { data: clients, error } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("source", "requity_reviewer")
+      .eq("status", "reviewer_matching")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    for (const client of clients ?? []) {
+      const rankings = await rankAgentsForClient(client.id);
+      queue.push({ client, rankings });
+    }
+  } catch (error) {
+    // Missing/drifted clients table → fall through to the lead-based source.
+    console.error("[reviewerMatches] clients queue unavailable:", error);
   }
+
+  // --- Resilience: completed reviewer leads not represented in clients ----
+  try {
+    const leadItems = await leadOnlyQueueItems(clientEmails);
+    for (const item of leadItems) queue.push(item);
+  } catch (error) {
+    // Never let the fallback break the primary queue.
+    console.error("[reviewerMatches] lead-based queue fallback skipped:", error);
+  }
+
   return queue;
+}
+
+/**
+ * Build view-only queue items from completed reviewer `assessment_leads` whose
+ * email does not correspond to any existing `clients` row. Dimensions are
+ * recomputed from the stored answers; only approved client archetypes appear.
+ */
+async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem[]> {
+  const supabase = getSupabaseAdmin();
+
+  const { data: leads, error } = await supabase
+    .from("assessment_leads")
+    .select("*")
+    .eq("source", "reviewer")
+    .eq("status", "completed")
+    .order("last_activity_at", { ascending: false })
+    .limit(200);
+  if (error) throw new Error(error.message);
+  if (!leads || !leads.length) return [];
+
+  // Which of these emails already exist as a client row (any status)? Those are
+  // already (or were) in the pipeline and must not be duplicated here.
+  const emails = Array.from(
+    new Set(leads.map((l: any) => (l.email ? String(l.email).toLowerCase() : null)).filter(Boolean))
+  ) as string[];
+  const existingClientEmails = new Set<string>();
+  if (emails.length) {
+    try {
+      const { data: existing } = await supabase
+        .from("clients")
+        .select("email")
+        .in("email", emails);
+      (existing ?? []).forEach((c: any) => {
+        if (c.email) existingClientEmails.add(String(c.email).toLowerCase());
+      });
+    } catch {
+      // clients table missing → treat all leads as not-yet-represented.
+    }
+  }
+
+  // Fetch rankable agents once for all lead-derived items.
+  const { data: agentRows } = await supabase
+    .from("agents")
+    .select("*")
+    .not("archetype", "is", null);
+  const agentProfiles = (agentRows ?? []).map(toAgentProfile);
+
+  const items: ReviewerQueueItem[] = [];
+  for (const lead of leads as any[]) {
+    const email = lead.email ? String(lead.email).toLowerCase() : null;
+    // Without an email we cannot dedupe reliably; skip to avoid resurfacing
+    // assessments that were already assigned.
+    if (!email || existingClientEmails.has(email)) continue;
+
+    const scored = assignArchetype((lead.partial_answers as Record<string, string>) || {});
+    const archetype = isApprovedClientArchetype(lead.archetype) ? lead.archetype : scored.archetype;
+    if (!isApprovedClientArchetype(archetype)) continue;
+
+    const profile: ClientProfile = {
+      id: lead.id,
+      name: lead.full_name,
+      archetype,
+      orientation: scored.orientation as ClientProfile["orientation"],
+      style: scored.style as ClientProfile["style"],
+      stressResponse: scored.stressResponse as ClientProfile["stressResponse"],
+      source: "requity_reviewer",
+    };
+    const ranked = rankProfiles(profile, agentProfiles).map((match) => ({
+      ...match,
+      agentRow: (agentRows ?? []).find((a) => a.id === match.agent.id),
+    }));
+
+    items.push({
+      client: {
+        id: lead.id,
+        full_name: lead.full_name,
+        archetype,
+        orientation: scored.orientation,
+        style: scored.style,
+        stress_response: scored.stressResponse,
+        source: "requity_reviewer",
+        status: "reviewer_matching",
+      },
+      rankings: ranked,
+    });
+  }
+  return items;
 }
 
 export type ApproveReviewerMatchResult = {
