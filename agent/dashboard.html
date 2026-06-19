@@ -1740,9 +1740,13 @@
       const me = session.me;
       agentId = me && me.agent ? me.agent.id : null;
 
-      // Onboarding gate: agents/admins must complete the agent assessment first.
-      // Without a completed archetype, the dashboard has nothing meaningful to show.
-      if (!me || !me.agent || !API.agentHasCompletedAssessment(me)) {
+      // Onboarding gate: agents/admins must take the agent assessment first.
+      // The single rule is Boolean(agent.archetype) — archetype_completed_at is
+      // NOT required. An agent who already has an archetype always sees the
+      // dashboard (they can retake from the View More modal); only an agent with
+      // NO archetype is sent to the assessment.
+      var meArchetype = me && me.agent && (me.agent.archetype || (me.agent.assessment_summary && me.agent.assessment_summary.archetype));
+      if (!me || !me.agent || !meArchetype) {
         window.location.href = 'assessment.html';
         return;
       }
@@ -2174,14 +2178,6 @@
         // required for this.
         var hasArchetype = Boolean(archetype);
 
-        if (window.RequityAPI && window.RequityAPI.__debug) {
-          window.RequityAPI.__debug('dashboard:archetype-state', 'render', {
-            archetype: archetype || null,
-            hasArchetype: hasArchetype,
-            discoverActionFound: Boolean(discover)
-          });
-        }
-
         var normalizedKey = hasArchetype ? normalizeKey(archetype) : '';
         var isApproved = hasArchetype && Object.prototype.hasOwnProperty.call(AGENT_ARCHETYPE_DETAILS, normalizedKey);
 
@@ -2239,6 +2235,15 @@
           // No archetype yet: hide the pill, show the Discover button.
           if (headerArchetype) { headerArchetype.hidden = true; headerArchetype.style.display = 'none'; }
           if (discover) { discover.hidden = false; discover.style.display = ''; }
+        }
+
+        if (window.RequityAPI && window.RequityAPI.__debug) {
+          window.RequityAPI.__debug('dashboard:archetype-state', 'render', {
+            archetype: archetype || null,
+            hasArchetype: hasArchetype,
+            discoverActionFound: Boolean(discover),
+            discoverHidden: discover ? Boolean(discover.hidden) : null
+          });
         }
       };
     })();

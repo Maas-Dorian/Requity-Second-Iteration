@@ -181,15 +181,23 @@
               }
               return;
             }
-            // Retake/force override: an agent who already has an archetype can
-            // intentionally retake the assessment from the dashboard button. When
-            // ?retake=1 or ?force=1 is present we do NOT bounce them back.
+            // The assessment page ALWAYS loads for a signed-in agent/admin —
+            // whether it's their first time or an intentional retake. We do NOT
+            // bounce to the dashboard just because an archetype already exists.
+            // Onboarding redirects live in the dashboard/auth gate, never here,
+            // so the Discover button and the ?retake=1 link can never loop back.
             var qp = new URLSearchParams(window.location.search);
-            var forceRetake = qp.get("retake") === "1" || qp.get("force") === "1";
-            // Already completed (and not retaking)? Skip straight to the dashboard.
-            if (!forceRetake && API.agentHasCompletedAssessment(s.me)) {
-              window.location.href = "dashboard.html";
-            }
+            var isRetake = qp.get("retake") === "1" || qp.get("force") === "1";
+            var agentRow = s.me && s.me.agent;
+            var archetype = (agentRow && agentRow.archetype) || null;
+            try {
+              API.__debug && API.__debug("agent/assessment.html:gate", "assessment:gate", {
+                archetype: archetype,
+                hasArchetype: Boolean(archetype),
+                isRetake: isRetake,
+                allowedToLoad: true
+              });
+            } catch (e) {}
           })
           .catch(function () { window.location.href = "login.html"; });
       })();
