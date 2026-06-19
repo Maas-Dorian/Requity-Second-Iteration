@@ -84,6 +84,11 @@
     .row { display: flex; gap: 0.75rem; }
     .row .field { flex: 1; }
 
+    .terms-field { display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 0.25rem; }
+    .terms-field input { margin-top: 0.15rem; width: 1rem; height: 1rem; flex: 0 0 auto; cursor: pointer; }
+    .terms-field label { font-size: 0.85rem; color: var(--secondary-text); font-weight: 400; line-height: 1.4; }
+    .terms-field a { color: var(--primary-blue); font-weight: 600; }
+
     .btn-primary {
       background: var(--accent-orange); color: var(--white); padding: 0.8rem 1.5rem; font-size: 0.95rem;
       border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; font-family: inherit;
@@ -162,6 +167,13 @@
         <div class="field">
           <label for="su-phone">Phone <span class="opt">(optional)</span></label>
           <input type="tel" id="su-phone" autocomplete="tel" />
+        </div>
+        <div class="terms-field">
+          <input type="checkbox" id="su-terms" />
+          <label for="su-terms">
+            I have read and agree to the
+            <a href="/legal/requity-terms-of-service.pdf" target="_blank" rel="noopener noreferrer">Terms of Service</a>.
+          </label>
         </div>
         <button class="btn-primary" type="submit" id="signup-btn">Create agent account</button>
       </form>
@@ -274,11 +286,19 @@
       signupForm.addEventListener("submit", async function (e) {
         e.preventDefault();
         clearMsg();
+        // Terms of Service are mandatory for account creation. Block the request
+        // (no Supabase signup, no profile/agent rows) until the box is checked.
+        if (!document.getElementById("su-terms").checked) {
+          showMsg("You must agree to the Terms of Service before creating an account.", "error");
+          return;
+        }
         var btn = document.getElementById("signup-btn");
         btn.disabled = true; btn.textContent = "Creating account...";
         var profile = {
           fullName: document.getElementById("su-name").value.trim(),
           phone: document.getElementById("su-phone").value.trim() || null,
+          termsAccepted: true,
+          termsVersion: API.TERMS_VERSION,
         };
         try {
           var result = await API.signUpAgent(

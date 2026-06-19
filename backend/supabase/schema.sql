@@ -41,6 +41,9 @@ create table if not exists profiles (
   email text unique not null,
   phone text,
   date_of_birth date,
+  -- Terms of Service acceptance captured at agent account creation.
+  terms_accepted_at timestamptz,
+  terms_version text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

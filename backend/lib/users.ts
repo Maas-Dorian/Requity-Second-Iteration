@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
+import { insertWithSchemaFallback } from "./supabaseWrite.js";
 
 /**
  * User / profile / agent management for Supabase Auth.
@@ -40,6 +41,9 @@ export type AgentInput = {
   phone?: string | null;
   brokerage?: string | null;
   licenseNumber?: string | null;
+  /** ToS acceptance — recorded only when a NEW profile row is created. */
+  termsAccepted?: boolean;
+  termsVersion?: string | null;
 };
 
 export async function getProfileByUserId(userId: string): Promise<ProfileRecord | null> {
@@ -113,18 +117,26 @@ async function ensureAgentProfile(input: AgentInput): Promise<ProfileRecord> {
     return existing;
   }
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .insert({
+  // New profile: record ToS acceptance. The resilient writer drops the
+  // terms_* columns automatically if the live schema has not been migrated yet,
+  // so account creation still works before the migration is applied.
+  const { data } = await insertWithSchemaFallback<ProfileRecord>(
+    "profiles",
+    {
       id: input.userId,
       email: input.email,
       full_name: input.fullName ?? null,
       role: "agent",
-    })
-    .select()
-    .single();
-  if (error) throw new Error(`ensureAgentProfile (insert) failed: ${error.message}`);
-  return data as ProfileRecord;
+      ...(input.termsAccepted
+        ? {
+            terms_accepted_at: new Date().toISOString(),
+            terms_version: input.termsVersion ?? null,
+          }
+        : {}),
+    },
+    { required: ["id", "email", "role"] }
+  );
+  return data;
 }
 
 /** Get or create the agent row for a user (idempotent). */

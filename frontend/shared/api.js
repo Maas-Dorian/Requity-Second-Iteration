@@ -16,6 +16,9 @@
 (function (global) {
   "use strict";
 
+  // Current Terms of Service version recorded on agent account creation.
+  var TERMS_VERSION = "2026-06";
+
   // --- Config -------------------------------------------------------------
   function getSupabaseConfig() {
     var cfg = global.REQUITY_CONFIG || {};
@@ -597,11 +600,19 @@
   async function bootstrapAgentProfile(profile) {
     var c = requireApi();
     var meta = profile || {};
-    return apiPost("/auth/bootstrap-agent", {
+    var body = {
       fullName: meta.fullName || null,
       phone: meta.phone || null,
       frontendUrl: c.frontendUrl,
-    });
+    };
+    // Only the account-creation flow passes ToS acceptance. The sign-in
+    // auto-bootstrap path passes no profile, so existing users are never asked
+    // to re-accept (the server only enforces this when creating a NEW profile).
+    if (meta.termsAccepted === true) {
+      body.termsAccepted = true;
+      body.termsVersion = meta.termsVersion || TERMS_VERSION;
+    }
+    return apiPost("/auth/bootstrap-agent", body);
   }
 
   /**
@@ -671,6 +682,7 @@
     setStoredSession: setStoredSession,
     clearStoredSession: clearStoredSession,
     getAccessToken: getAccessToken,
+    TERMS_VERSION: TERMS_VERSION,
     signUpAgent: signUpAgent,
     signIn: signIn,
     signOut: signOut,

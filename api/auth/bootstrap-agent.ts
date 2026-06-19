@@ -10,7 +10,7 @@ import {
   HttpError,
 } from "../_lib/http.js";
 import { getUserFromRequest } from "../../backend/lib/auth.js";
-import { createAgentProfileForUser } from "../../backend/lib/users.js";
+import { createAgentProfileForUser, getProfileByUserId } from "../../backend/lib/users.js";
 import { env } from "../../backend/lib/env.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
@@ -35,6 +35,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const email = optionalString(body, "email") ?? user.email;
     if (!email) throw new HttpError(400, "An email is required to bootstrap the agent.");
 
+    const termsAccepted = body["termsAccepted"] === true;
+    const termsVersion = optionalString(body, "termsVersion") ?? null;
+
+    // ToS gate: required ONLY when creating a brand-new profile (account
+    // creation). Existing users (sign-in auto-bootstrap, agent-row backfill)
+    // already have a profile and are never asked to re-accept.
+    const existingProfile = await getProfileByUserId(user.id);
+    if (!existingProfile && !termsAccepted) {
+      throw new HttpError(
+        400,
+        "Terms of Service acceptance is required.",
+        "TERMS_REQUIRED"
+      );
+    }
+
     try {
       const { profile, agent } = await createAgentProfileForUser({
         userId: user.id,
@@ -43,6 +58,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         phone: sanitizePhone(body["phone"]) ?? null,
         brokerage: optionalString(body, "brokerage") ?? null,
         licenseNumber: optionalString(body, "licenseNumber") ?? null,
+        termsAccepted,
+        termsVersion,
       });
 
       const base = (optionalString(body, "frontendUrl") ?? env.frontendUrl).replace(/\/$/, "");

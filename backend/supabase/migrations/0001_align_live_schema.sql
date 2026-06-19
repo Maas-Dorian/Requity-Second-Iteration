@@ -189,6 +189,10 @@ create table if not exists assessment_leads (
 alter table profiles add column if not exists full_name text;
 alter table profiles add column if not exists phone text;
 alter table profiles add column if not exists date_of_birth date;
+-- Terms of Service acceptance (recorded at agent account creation). Additive and
+-- non-destructive; existing users keep signing in without re-accepting.
+alter table profiles add column if not exists terms_accepted_at timestamptz;
+alter table profiles add column if not exists terms_version text;
 alter table profiles add column if not exists created_at timestamptz default now();
 alter table profiles add column if not exists updated_at timestamptz default now();
 
