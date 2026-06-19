@@ -1441,11 +1441,19 @@
         setQrState('loading');
         try {
           const data = await api.fetchAgentQr();
+          if (api.__debug) api.__debug('dashboard:loadAgentQr', 'qr response', {
+            hasAssessmentLink: !!(data && data.assessmentLink),
+            hasQrCodeDataUrl: !!(data && data.qrCodeDataUrl),
+          });
           if (!data || !data.qrCodeDataUrl) throw new Error('No QR code returned.');
           qrState.dataUrl = data.qrCodeDataUrl;
           qrState.link = data.qrLink || data.assessmentLink || '';
           const img = document.getElementById('qrImage');
           if (img) img.src = data.qrCodeDataUrl;
+          // Fallback: fill the client assessment link input from the QR payload
+          // so it populates even if the dashboard payload's link was empty.
+          const linkInput = document.getElementById('assessmentLink');
+          if (linkInput && !linkInput.value && data.assessmentLink) linkInput.value = data.assessmentLink;
           setQrState('ready');
           if (api.__debug) api.__debug('dashboard:loadAgentQr', 'qr loaded', { qrLoaded: true });
         } catch (e) {
@@ -1457,7 +1465,12 @@
       }
       const qrRetryBtn = document.getElementById('qrRetryBtn');
       if (qrRetryBtn) qrRetryBtn.addEventListener('click', loadAgentQr);
-      loadAgentQr();
+      // IMPORTANT: do NOT load the QR here. The auth block calls this AFTER
+      // requireAgentSession() resolves, so the access token is validated/refreshed
+      // exactly once — avoiding a single-use refresh-token race between two
+      // concurrent getAccessToken() calls on page load.
+      setQrState('loading');
+      window.__requityLoadAgentQr = loadAgentQr;
 
       document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
@@ -1572,6 +1585,20 @@
         window.location.href = 'assessment.html';
         return;
       }
+
+      // Auth is fully resolved (token validated/refreshed by requireAgentSession).
+      // Now load the real QR/link. Safe debug logs (no tokens/keys/PII).
+      if (API.__debug) {
+        let hasAccessToken = false;
+        try { hasAccessToken = !!(await API.getAccessToken()); } catch (e) {}
+        API.__debug('dashboard:auth', 'session ok', {
+          authOk: true,
+          hasAccessToken: hasAccessToken,
+          role: me && me.role ? me.role : null,
+          hasAgentRow: !!(me && me.agent),
+        });
+      }
+      if (typeof window.__requityLoadAgentQr === 'function') window.__requityLoadAgentQr();
 
       // Personalize the shell from the authenticated profile.
       if (me && me.agent) {
