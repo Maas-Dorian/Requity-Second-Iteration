@@ -1175,8 +1175,8 @@
           <h1><span class="welcome-text">Welcome back</span><span class="header-archetype" id="header-archetype" hidden><span class="archetype-pill" id="archetype-pill"></span><button type="button" class="archetype-viewmore" id="archetype-viewmore" aria-haspopup="dialog">View more</button></span></h1>
           <p>Share your client assessment and track client activity.</p>
         </div>
-        <div class="header-actions">
-          <a href="assessment.html" class="btn-primary" id="discover-archetype-btn" hidden>Discover your Agent Archetype</a>
+        <div class="header-actions" id="discover-archetype-action" hidden>
+          <a href="assessment.html" class="btn-primary">Discover your Agent Archetype</a>
         </div>
       </header>
 
@@ -2112,25 +2112,35 @@
       if (viewMore) viewMore.addEventListener('click', openModal);
 
       /**
-       * Render the archetype pill + "View more" when the agent has completed
-       * their assessment; otherwise show the Discover button. Accepts the agent
-       * object from /api/auth/me (archetypeCompletedAt boolean) or
-       * /api/dashboard/agent (archetypeCompletedAt timestamp).
+       * Show the archetype pill + "View more" whenever the agent HAS an
+       * archetype; otherwise show the Discover button. The single rule is
+       * Boolean(agent.archetype) — archetype_completed_at is NOT required.
+       * Accepts the agent object from /api/auth/me or /api/dashboard/agent.
        */
       window.__requityRenderAgentArchetype = function (agent) {
         var headerArchetype = document.getElementById('header-archetype');
         var pill = document.getElementById('archetype-pill');
-        var discover = document.getElementById('discover-archetype-btn');
+        var discover = document.getElementById('discover-archetype-action');
         if (!agent) return;
         var archetype = agent.archetype || (agent.assessment_summary && agent.assessment_summary.archetype) || null;
-        // Completion mirrors the app rule: archetype present AND completion flag.
-        var completed = !!(archetype && agent.archetypeCompletedAt);
+        // Simplest rule: the presence of an archetype alone hides the Discover
+        // button and shows the pill + View more. archetype_completed_at is NOT
+        // required for this.
+        var hasArchetype = Boolean(archetype);
 
-        if (completed) {
+        if (window.RequityAPI && window.RequityAPI.__debug) {
+          window.RequityAPI.__debug('dashboard:archetype-state', 'render', {
+            archetype: archetype || null,
+            hasArchetype: hasArchetype,
+            discoverActionFound: Boolean(discover)
+          });
+        }
+
+        if (hasArchetype) {
           var d = detailsFor(archetype);
           if (pill) pill.textContent = d.label;
-          if (headerArchetype) headerArchetype.hidden = false;
-          if (discover) discover.hidden = true;
+          if (headerArchetype) { headerArchetype.hidden = false; headerArchetype.style.display = ''; }
+          if (discover) { discover.hidden = true; discover.style.display = 'none'; }
 
           var titleEl = document.getElementById('archetype-modal-title');
           var summaryEl = document.getElementById('archetype-modal-summary');
@@ -2146,9 +2156,9 @@
             });
           }
         } else {
-          // Not completed: hide the pill, show the Discover button.
-          if (headerArchetype) headerArchetype.hidden = true;
-          if (discover) discover.hidden = false;
+          // No archetype yet: hide the pill, show the Discover button.
+          if (headerArchetype) { headerArchetype.hidden = true; headerArchetype.style.display = 'none'; }
+          if (discover) { discover.hidden = false; discover.style.display = ''; }
         }
       };
     })();
