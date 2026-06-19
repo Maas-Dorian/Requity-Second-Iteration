@@ -48,6 +48,8 @@ export type AgentDashboard = {
     displayName: string;
     email: string;
     archetype: string | null;
+    /** ISO timestamp the agent completed their archetype assessment, or null. */
+    archetypeCompletedAt: string | null;
   } | null;
   assessmentLink: string;
   qrLink: string;
@@ -122,7 +124,7 @@ export async function getAgentDashboard(
 
   const { data: agent } = await supabase
     .from("agents")
-    .select("id, display_name, email, archetype, public_assessment_token")
+    .select("id, display_name, email, archetype, archetype_completed_at, public_assessment_token")
     .eq("id", agentId)
     .maybeSingle();
 
@@ -215,6 +217,7 @@ export async function getAgentDashboard(
           displayName: agent.display_name,
           email: agent.email,
           archetype: agent.archetype ?? null,
+          archetypeCompletedAt: agent.archetype_completed_at ?? null,
         }
       : null,
     assessmentLink,

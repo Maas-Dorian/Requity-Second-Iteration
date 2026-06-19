@@ -361,6 +361,135 @@
       font-size: 1rem;
     }
 
+    /* Agent archetype pill + "View more" (native dashboard styling). */
+    .header-archetype {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-left: 0.6rem;
+      vertical-align: middle;
+    }
+    .archetype-pill {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      background: var(--accent-orange);
+      color: var(--white);
+      border-radius: 999px;
+      padding: 0.3rem 0.8rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .archetype-viewmore {
+      background: transparent;
+      border: none;
+      color: var(--primary-blue);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.2rem 0.25rem;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .archetype-viewmore:hover { color: var(--deep-blue); }
+
+    /* Archetype explanation modal — reuses the dashboard card look. */
+    .archetype-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 54, 110, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      z-index: 1000;
+    }
+    .archetype-modal-overlay[hidden] { display: none; }
+    .archetype-modal {
+      background: var(--white);
+      border: 1px solid var(--blue-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+      width: 100%;
+      max-width: 460px;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .archetype-modal-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.25rem 1.25rem 0.5rem;
+    }
+    .archetype-modal-eyebrow {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-orange);
+      margin-bottom: 0.25rem;
+    }
+    .archetype-modal-head h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--deep-blue);
+    }
+    .archetype-modal-close {
+      background: transparent;
+      border: none;
+      color: var(--secondary-text);
+      font-size: 1.4rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0.1rem 0.4rem;
+      border-radius: var(--radius-sm);
+    }
+    .archetype-modal-close:hover { background: var(--light-surface); color: var(--primary-text); }
+    .archetype-modal-body { padding: 0.25rem 1.25rem 0.5rem; }
+    .archetype-modal-body p { color: var(--secondary-text); font-size: 0.92rem; }
+    .archetype-strengths {
+      list-style: none;
+      margin: 1rem 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .archetype-strengths li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.55rem;
+      font-size: 0.88rem;
+      color: var(--primary-text);
+    }
+    .archetype-strengths li::before {
+      content: "";
+      flex: 0 0 auto;
+      width: 7px;
+      height: 7px;
+      margin-top: 0.45rem;
+      border-radius: 50%;
+      background: var(--accent-orange);
+    }
+    .archetype-modal-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 1.25rem 1.25rem;
+      flex-wrap: wrap;
+    }
+    .archetype-retake {
+      color: var(--secondary-text);
+      font-size: 0.82rem;
+      font-weight: 500;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .archetype-retake:hover { color: var(--primary-blue); }
+
     button, .btn-primary, .btn-secondary, .btn-outline {
       cursor: pointer;
       font-family: inherit;
@@ -1043,13 +1172,34 @@
     <main class="main-content">
       <header class="top-bar">
         <div class="header-text">
-          <h1>Welcome back</h1>
+          <h1><span class="welcome-text">Welcome back</span><span class="header-archetype" id="header-archetype" hidden><span class="archetype-pill" id="archetype-pill"></span><button type="button" class="archetype-viewmore" id="archetype-viewmore" aria-haspopup="dialog">View more</button></span></h1>
           <p>Share your client assessment and track client activity.</p>
         </div>
         <div class="header-actions">
-          <a href="assessment.html?retake=1" class="btn-primary">Discover your Agent Archetype</a>
+          <a href="assessment.html" class="btn-primary" id="discover-archetype-btn" hidden>Discover your Agent Archetype</a>
         </div>
       </header>
+
+      <!-- Agent archetype explanation modal (matches dashboard card style). -->
+      <div class="archetype-modal-overlay" id="archetype-modal-overlay" hidden>
+        <div class="archetype-modal" role="dialog" aria-modal="true" aria-labelledby="archetype-modal-title">
+          <div class="archetype-modal-head">
+            <div>
+              <div class="archetype-modal-eyebrow">Your REQUITY agent archetype</div>
+              <h3 id="archetype-modal-title">&mdash;</h3>
+            </div>
+            <button type="button" class="archetype-modal-close" id="archetype-modal-close" aria-label="Close">&times;</button>
+          </div>
+          <div class="archetype-modal-body">
+            <p id="archetype-modal-summary"></p>
+            <ul class="archetype-strengths" id="archetype-modal-strengths"></ul>
+          </div>
+          <div class="archetype-modal-foot">
+            <a class="archetype-retake" href="assessment.html?retake=1">Retake assessment</a>
+            <button type="button" class="btn-secondary btn-sm" id="archetype-modal-done">Close</button>
+          </div>
+        </div>
+      </div>
 
       <section class="dashboard-view view-section active-view" id="dashboard-view">
       <div class="dashboard-grid">
@@ -1604,7 +1754,7 @@
       if (me && me.agent) {
         const nameEl = document.querySelector('.agent-name');
         const emailEl = document.querySelector('.agent-email');
-        const welcomeEl = document.querySelector('.header-text h1');
+        const welcomeEl = document.querySelector('.header-text h1 .welcome-text');
         const avatarEl = document.querySelector('.agent-profile .avatar');
         if (nameEl && me.agent.displayName) nameEl.textContent = me.agent.displayName;
         if (emailEl && me.agent.email) emailEl.textContent = me.agent.email;
@@ -1614,6 +1764,11 @@
         }
         const acctEmail = document.getElementById('settings-account-email');
         if (acctEmail && me.agent.email) acctEmail.textContent = me.agent.email;
+        // Show the archetype pill + "View more" (or the Discover button) based on
+        // the saved backend archetype + completion — never on UI state.
+        if (typeof window.__requityRenderAgentArchetype === 'function') {
+          window.__requityRenderAgentArchetype(me.agent);
+        }
       }
 
       // Sign-out control for the authenticated agent.
@@ -1788,6 +1943,10 @@
         // weeklyActivity is null only if the analytics query failed server-side;
         // the chart then shows a clean error state without affecting the rest.
         renderWeeklyActivity(dash.weeklyActivity);
+        // Re-render the archetype from the authoritative dashboard payload.
+        if (dash.agent && typeof window.__requityRenderAgentArchetype === 'function') {
+          window.__requityRenderAgentArchetype(dash.agent);
+        }
       } catch (e) {
         console.warn('[dashboard] failed to load live data:', e.message);
         const clientsEmpty = document.getElementById('clients-empty');
@@ -1795,6 +1954,204 @@
         renderWeeklyActivity(null);
       }
     });
+  </script>
+
+  <!-- Agent archetype pill / "View more" modal logic. Uses the saved backend
+       archetype only; never fabricates data. -->
+  <script>
+    (function () {
+      // Real agent archetype labels from the backend scoring code
+      // (backend/lib/matching.ts agentArchetypeMap). Keys are normalized
+      // (lowercased, leading "the " removed). Each entry is REQUITY's own copy.
+      var AGENT_ARCHETYPE_DETAILS = {
+        'creative guide': {
+          label: 'The Creative Guide',
+          summary: 'You blend imagination with steady guidance, helping clients see possibility while keeping the process calm and considered. You lead with ideas and thoughtful direction.',
+          strengths: ['Turns vision into a clear, workable plan', 'Keeps clients calm while exploring bold options', 'Strong fit for clients who want creativity with reassurance']
+        },
+        'trendsetter': {
+          label: 'The Trendsetter',
+          summary: 'You are energetic and forward-looking, bringing momentum and confidence to every step. You help clients move decisively and stay ahead of the curve.',
+          strengths: ['Brings energy and momentum to the process', 'Confident, decisive guidance under pressure', 'Strong fit for clients who want a bold, proactive agent']
+        },
+        'stylist': {
+          label: 'The Stylist',
+          summary: 'You combine a strong sense of presentation with genuine attentiveness, helping clients feel understood while elevating how options look and feel. You lead with taste and empathy.',
+          strengths: ['Sharp eye for presentation and fit', 'Reads client emotion and adjusts gracefully', 'Strong fit for design-minded, relationship-driven clients']
+        },
+        'cheerleader': {
+          label: 'The Cheerleader',
+          summary: 'You bring warmth, encouragement, and positive energy that keeps clients motivated. You make the journey feel supportive and upbeat from start to finish.',
+          strengths: ['Keeps clients motivated and reassured', 'Approachable, encouraging communication', 'Strong fit for clients who value support and positivity']
+        },
+        'analyst': {
+          label: 'The Analyst',
+          summary: 'You lead with clarity and insight, helping clients make confident decisions grounded in solid reasoning. You bring calm, data-aware direction to complex moments.',
+          strengths: ['Translates detail into clear decisions', 'Calm, methodical under complexity', 'Strong fit for clients who want logic and clarity']
+        },
+        'deal maker': {
+          label: 'The Deal Maker',
+          summary: 'You are assertive and results-focused, thriving in negotiation and pushing confidently toward the close. You help clients win when it matters most.',
+          strengths: ['Confident, competitive negotiator', 'Drives momentum toward the close', 'Strong fit for clients who want results-first representation']
+        },
+        'adapter': {
+          label: 'The Adapter',
+          summary: 'You are flexible and resourceful, adjusting your approach to fit each client and situation. You keep things moving with practical, inventive solutions.',
+          strengths: ['Adjusts quickly to changing needs', 'Practical, creative problem-solving', 'Strong fit for clients who value flexibility and ease']
+        },
+        'agent supporter': {
+          label: 'The Agent Supporter',
+          summary: 'You lead with trust and dependability, giving clients steady, practical guidance they can rely on. You make people feel supported through every decision.',
+          strengths: ['Dependable, trust-building communication', 'Practical guidance clients can count on', 'Strong fit for clients who value reliability and care']
+        },
+        'refiner': {
+          label: 'The Refiner',
+          summary: 'You bring precision and a high standard, helping clients get the details right with a calm, considered touch. You quietly elevate the quality of every step.',
+          strengths: ['Meticulous attention to detail', 'Calm, quality-focused guidance', 'Strong fit for clients who want excellence without pressure']
+        },
+        'catalyst': {
+          label: 'The Catalyst',
+          summary: 'You spark action and fresh thinking, helping clients break through hesitation with confident, creative direction. You turn ideas into forward motion.',
+          strengths: ['Inspires action and new ideas', 'Confident direction when clients stall', 'Strong fit for clients who want creative momentum']
+        },
+        'observer': {
+          label: 'The Observer',
+          summary: 'You are perceptive and measured, noticing what others miss and guiding clients with thoughtful, low-pressure insight. You lead with understanding.',
+          strengths: ['Perceptive, insight-led guidance', 'Low-pressure, considered approach', 'Strong fit for clients who want a thoughtful, patient agent']
+        },
+        'encourager': {
+          label: 'The Encourager',
+          summary: 'You combine empathy with genuine support, helping clients feel safe and confident throughout. You build trust through warmth and steady reassurance.',
+          strengths: ['Builds trust through empathy', 'Reassuring through uncertainty', 'Strong fit for clients who value emotional support']
+        },
+        'coordinator': {
+          label: 'The Coordinator',
+          summary: 'You bring structure and dependability, keeping the process organized and secure. You help clients feel safe with clear plans and steady follow-through.',
+          strengths: ['Organized, structured process', 'Calm, security-focused guidance', 'Strong fit for clients who want order and reliability']
+        },
+        'agent producer': {
+          label: 'The Agent Producer',
+          summary: 'You are driven and execution-focused, moving clients efficiently toward high-quality outcomes. You combine standards with decisive follow-through.',
+          strengths: ['Efficient, results-driven execution', 'High standards with clear direction', 'Strong fit for clients who want productivity and quality']
+        },
+        'adjuster': {
+          label: 'The Adjuster',
+          summary: 'You are steady and adaptable, balancing practicality with a calm, accommodating style. You keep things on track while flexing to client needs.',
+          strengths: ['Balances structure with flexibility', 'Calm, accommodating under change', 'Strong fit for clients who want steady, adaptable support']
+        },
+        'collaborator': {
+          label: 'The Collaborator',
+          summary: 'You lead through partnership and trust, working alongside clients to reach shared decisions. You make the process feel cooperative and reassuring.',
+          strengths: ['Partnership-driven, trust-based approach', 'Strong shared decision-making', 'Strong fit for clients who value collaboration']
+        },
+        'relationship-fit agent': {
+          label: 'Relationship-Fit Agent',
+          summary: 'Your REQUITY archetype reflects a balanced, relationship-first style — adapting your communication and support to guide each client through their decisions.',
+          strengths: ['Adapts naturally to different clients', 'Balances guidance with support', 'Strong fit for a wide range of client needs']
+        }
+      };
+
+      function normalizeKey(raw) {
+        return String(raw || '')
+          .toLowerCase()
+          .replace(/[_-]+/g, ' ')
+          .replace(/[^a-z0-9 ]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .replace(/^the\s+/, '');
+      }
+
+      function titleCase(raw) {
+        return String(raw || '')
+          .replace(/[_-]+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .split(' ')
+          .map(function (w) { return w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w; })
+          .join(' ');
+      }
+
+      function detailsFor(rawArchetype) {
+        var key = normalizeKey(rawArchetype);
+        var known = AGENT_ARCHETYPE_DETAILS[key];
+        if (known) return known;
+        return {
+          label: titleCase(rawArchetype) || 'Your Agent Archetype',
+          summary: 'Your REQUITY archetype reflects your communication style, client support approach, and how you tend to guide clients through decisions.',
+          strengths: [
+            'Builds rapport and trust with clients',
+            'Guides clients clearly through key decisions',
+            'Adapts your approach to each client\u2019s needs'
+          ]
+        };
+      }
+
+      var overlay = document.getElementById('archetype-modal-overlay');
+
+      function openModal() {
+        if (overlay) overlay.hidden = false;
+        document.addEventListener('keydown', onKeydown);
+      }
+      function closeModal() {
+        if (overlay) overlay.hidden = true;
+        document.removeEventListener('keydown', onKeydown);
+      }
+      function onKeydown(e) { if (e.key === 'Escape') closeModal(); }
+
+      // Wire up close interactions once.
+      var closeX = document.getElementById('archetype-modal-close');
+      var closeBtn = document.getElementById('archetype-modal-done');
+      if (closeX) closeX.addEventListener('click', closeModal);
+      if (closeBtn) closeBtn.addEventListener('click', closeModal);
+      if (overlay) {
+        overlay.addEventListener('click', function (e) {
+          if (e.target === overlay) closeModal(); // click outside the card
+        });
+      }
+      var viewMore = document.getElementById('archetype-viewmore');
+      if (viewMore) viewMore.addEventListener('click', openModal);
+
+      /**
+       * Render the archetype pill + "View more" when the agent has completed
+       * their assessment; otherwise show the Discover button. Accepts the agent
+       * object from /api/auth/me (archetypeCompletedAt boolean) or
+       * /api/dashboard/agent (archetypeCompletedAt timestamp).
+       */
+      window.__requityRenderAgentArchetype = function (agent) {
+        var headerArchetype = document.getElementById('header-archetype');
+        var pill = document.getElementById('archetype-pill');
+        var discover = document.getElementById('discover-archetype-btn');
+        if (!agent) return;
+        var archetype = agent.archetype || (agent.assessment_summary && agent.assessment_summary.archetype) || null;
+        // Completion mirrors the app rule: archetype present AND completion flag.
+        var completed = !!(archetype && agent.archetypeCompletedAt);
+
+        if (completed) {
+          var d = detailsFor(archetype);
+          if (pill) pill.textContent = d.label;
+          if (headerArchetype) headerArchetype.hidden = false;
+          if (discover) discover.hidden = true;
+
+          var titleEl = document.getElementById('archetype-modal-title');
+          var summaryEl = document.getElementById('archetype-modal-summary');
+          var strengthsEl = document.getElementById('archetype-modal-strengths');
+          if (titleEl) titleEl.textContent = d.label;
+          if (summaryEl) summaryEl.textContent = d.summary;
+          if (strengthsEl) {
+            strengthsEl.innerHTML = '';
+            (d.strengths || []).forEach(function (s) {
+              var li = document.createElement('li');
+              li.textContent = s;
+              strengthsEl.appendChild(li);
+            });
+          }
+        } else {
+          // Not completed: hide the pill, show the Discover button.
+          if (headerArchetype) headerArchetype.hidden = true;
+          if (discover) discover.hidden = false;
+        }
+      };
+    })();
   </script>
 </body>
 </html>
