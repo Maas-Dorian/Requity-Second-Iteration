@@ -48,6 +48,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const body = getJsonBody(req);
     const answers = requireAnswers(body, "answers") as AgentAnswers;
 
+    // City/market the agent primarily works in. Required, trimmed, 2–120 chars.
+    // This is metadata only and never affects archetype scoring.
+    const marketCity = (optionalString(body, "marketCity") ?? "").trim();
+    if (marketCity.length < 2 || marketCity.length > 120) {
+      logValidationFailure(ROUTE, "invalid_market_city", { length: marketCity.length });
+      throw new HttpError(400, "Please enter the city or market you work in (2–120 characters).");
+    }
+
     // --- Authenticated agent/admin: attach to their own agent row -----------
     const user = await getUserFromRequest(req);
     if (user) {
@@ -62,6 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         const result = await submitAgentAssessment({
           contact: { name: agent.display_name, email: agent.email, phone: agent.phone },
           answers,
+          marketCity,
           agentId: agent.id,
           profileId: profile.profileId,
         });
@@ -93,6 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const result = await submitAgentAssessment({
         contact,
         answers,
+        marketCity,
         agentId: optionalString(body, "agentId") ?? null,
         profileId: optionalString(body, "profileId") ?? null,
       });

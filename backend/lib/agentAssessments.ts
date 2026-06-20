@@ -119,6 +119,8 @@ export function calculateAgentArchetype(answers: AgentAnswers): AgentArchetypeRe
 export type SubmitAgentAssessmentParams = {
   contact: { name: string; email: string; phone?: string | null; dateOfBirth?: string | null };
   answers: AgentAnswers;
+  /** City/market the agent primarily works in (metadata, not scored). */
+  marketCity?: string | null;
   /** Optional existing agent id (e.g. logged-in agent retaking/updating). */
   agentId?: string | null;
   /** Optional profile id to attach the agent to an auth user. */
@@ -128,6 +130,7 @@ export type SubmitAgentAssessmentParams = {
 export type SubmitAgentAssessmentResult = AgentArchetypeResult & {
   agentId: string;
   assessmentId: string;
+  marketCity: string;
 };
 
 /** Score the agent survey and save the resulting archetype + dimensions to Supabase. */
@@ -136,6 +139,7 @@ export async function submitAgentAssessment(
 ): Promise<SubmitAgentAssessmentResult> {
   const result = calculateAgentArchetype(params.answers);
   const completedAt = new Date().toISOString();
+  const marketCity = (params.marketCity ?? "").trim();
 
   // The full, authoritative dimensions live on the `assessments` row (result)
   // and in the agent's `assessment_summary` JSON. The five scalar dimension
@@ -149,6 +153,7 @@ export async function submitAgentAssessment(
     stressResponse: result.stressResponse,
     perceivedValue: result.perceivedValue,
     negotiationStyle: result.negotiationStyle,
+    marketCity,
   };
 
   const agentValues: Record<string, unknown> = {
@@ -157,6 +162,8 @@ export async function submitAgentAssessment(
     phone: params.contact.phone ?? null,
     archetype: result.archetype,
     archetype_completed_at: completedAt,
+    // City/market column (dropped by the resilient writer if absent live).
+    market_city: marketCity || null,
     // Optional/drift-prone scalar dimension columns (dropped if absent live).
     interaction_style: result.interactionStyle,
     focus: result.focus,
@@ -208,5 +215,5 @@ export async function submitAgentAssessment(
     console.error("[agentAssessments] notification failed:", error);
   }
 
-  return { ...result, agentId: agentId!, assessmentId: assessment.id };
+  return { ...result, agentId: agentId!, assessmentId: assessment.id, marketCity };
 }

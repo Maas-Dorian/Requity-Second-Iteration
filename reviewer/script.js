@@ -80,6 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'Not specified';
     }
 
+    // Human-readable city/market for a client row.
+    function marketText(c) {
+        if (!c) return 'Not specified';
+        var m = c.market_city;
+        return (m && String(m).trim()) ? String(m).trim() : 'Not specified';
+    }
+
     // Map a live /api/reviewer/matches item ({ client, rankings }) into the
     // shape the reviewer UI renders. Only real fields are used.
     function mapQueueItem(item) {
@@ -106,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             style: c.style || '—',
             stressResponse: c.stress_response || '—',
             transaction: transactionText(c),
+            market: marketText(c),
             status: 'Pending Review',
             highestMatch: fits.length ? fits[0].name : null,
             highestMatchAgentId: fits.length ? fits[0].agentId : null,
@@ -146,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 '<div class="queue-item ' + isActive + '" onclick="selectClient(\'' + esc(client.id) + '\')" id="q-' + esc(client.id) + '">' +
                     '<div class="queue-info">' +
                         '<h3>' + esc(client.name) + '</h3>' +
-                        '<div class="queue-meta">Transaction: ' + esc(client.transaction) + ' &bull; ' + esc(client.archetype) + '</div>' +
+                        '<div class="queue-meta">Transaction: ' + esc(client.transaction) + ' &bull; Market: ' + esc(client.market) + ' &bull; ' + esc(client.archetype) + '</div>' +
                     '</div>' +
                     '<span class="badge badge-pending">' + esc(client.status) + '</span>' +
                 '</div>';
@@ -184,6 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
             '<p class="helper-text mb-2">This profile helps the reviewer understand which real estate agent relationship may support the client best.</p>' +
             '<div class="profile-grid">' +
                 '<div class="profile-field"><span class="detail-label">Transaction</span><span class="detail-value text-blue">' + esc(client.transaction) + '</span></div>' +
+                '<div class="profile-field"><span class="detail-label">Market</span><span class="detail-value text-blue">' + esc(client.market) + '</span></div>' +
                 '<div class="profile-field"><span class="detail-label">Client Archetype</span><span class="detail-value text-blue">' + esc(client.archetype) + '</span></div>' +
                 '<div class="profile-field"><span class="detail-label">Orientation</span><span class="detail-value">' + esc(client.orientation) + '</span></div>' +
                 '<div class="profile-field"><span class="detail-label">Style</span><span class="detail-value">' + esc(client.style) + '</span></div>' +

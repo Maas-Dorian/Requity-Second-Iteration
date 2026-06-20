@@ -71,7 +71,26 @@
                     </div>
                 </div>
 
-                <div class="agent-assessment-card" id="agent-assessment-card" aria-live="polite">
+                <div class="agent-assessment-card" id="agent-market-card" aria-live="polite">
+                    <div class="agent-assessment-top">
+                        <div>
+                            <span class="progress-label">Before we begin</span>
+                            <h3>What city or market do you primarily work in?</h3>
+                        </div>
+                        <div class="assessment-mini-badge">New REQUITY</div>
+                    </div>
+                    <div class="contact-field" style="margin-top:8px;">
+                        <span>City or market *</span>
+                        <input type="text" id="agent-market-city" maxlength="120" placeholder="Example: Miami, FL" autocomplete="address-level2" />
+                        <p id="agent-market-error" style="color:#B3261E;font-size:0.85rem;margin:0;display:none;">Please enter your city or market (at least 2 characters).</p>
+                    </div>
+                    <div class="agent-assessment-actions">
+                        <span></span>
+                        <button class="btn btn-primary" id="agent-market-continue" type="button">Continue</button>
+                    </div>
+                </div>
+
+                <div class="agent-assessment-card" id="agent-assessment-card" aria-live="polite" hidden>
                     <div class="agent-assessment-top">
                         <div>
                             <span class="progress-label" id="agent-question-count">Question 1 of 18</span>

@@ -66,6 +66,8 @@ create table if not exists agents (
   stress_response text,
   perceived_value text,
   negotiation_style text,
+  -- City/market the agent primarily works in (metadata, not scored).
+  market_city text,
   -- JSON snapshots of the agent assessment (answers + resolved dimensions).
   assessment_responses jsonb default '{}'::jsonb,
   assessment_summary jsonb default '{}'::jsonb,
@@ -89,6 +91,7 @@ create table if not exists clients (
   transaction_intent text,
   transaction_intent_label text,
   transaction_intent_other text,
+  market_city text,
   status assessment_status default 'draft',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -106,6 +109,7 @@ create table if not exists assessments (
   transaction_intent text,
   transaction_intent_label text,
   transaction_intent_other text,
+  market_city text,
   completed_at timestamptz,
   created_at timestamptz default now()
 );
@@ -170,6 +174,7 @@ create table if not exists assessment_leads (
   transaction_intent text,
   transaction_intent_label text,
   transaction_intent_other text,
+  market_city text,
   notes text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()

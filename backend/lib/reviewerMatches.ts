@@ -240,6 +240,7 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
         transaction_intent: lead.transaction_intent ?? null,
         transaction_intent_label: lead.transaction_intent_label ?? null,
         transaction_intent_other: lead.transaction_intent_other ?? null,
+        market_city: lead.market_city ?? null,
         source: "requity_reviewer",
         status: "reviewer_matching",
       },

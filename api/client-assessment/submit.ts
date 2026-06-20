@@ -129,6 +129,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             ? transactionIntentOther
             : null;
 
+    // City/market the client wants to buy/sell in. Required, trimmed, 2–120
+    // chars. Metadata only — it never affects archetype scoring.
+    const marketCity = (optionalString(body, "marketCity") ?? "").trim();
+    if (marketCity.length < 2 || marketCity.length > 120) {
+      logValidationFailure(ROUTE, "invalid_market_city", { length: marketCity.length });
+      throw new HttpError(400, "Please enter the city or market you’re looking in (2–120 characters).");
+    }
+
     try {
       const result = await submitClientAssessmentWithContact({
         token,
@@ -142,6 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         transactionIntent,
         transactionIntentLabel,
         transactionIntentOther,
+        marketCity,
       });
       sendJson(res, 200, result);
     } catch (error) {

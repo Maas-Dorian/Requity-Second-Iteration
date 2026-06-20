@@ -377,6 +377,7 @@ window.addEventListener('DOMContentLoaded', () => {
         'Motivator-Aesthetic-Freeze':'The Creative Guide','Motivator-Aesthetic-Fight':'The Trendsetter','Motivator-Aesthetic-Flight':'The Stylist','Motivator-Aesthetic-Fawn':'The Cheerleader','Motivator-Pragmatic-Freeze':'The Analyst','Motivator-Pragmatic-Fight':'The Deal Maker','Motivator-Pragmatic-Flight':'The Adapter','Motivator-Pragmatic-Fawn':'The Supporter','Facilitator-Aesthetic-Freeze':'The Refiner','Facilitator-Aesthetic-Fight':'The Catalyst','Facilitator-Aesthetic-Flight':'The Observer','Facilitator-Aesthetic-Fawn':'The Encourager','Facilitator-Pragmatic-Freeze':'The Coordinator','Facilitator-Pragmatic-Fight':'The Producer','Facilitator-Pragmatic-Flight':'The Adjuster','Facilitator-Pragmatic-Fawn':'The Collaborator'
     };
     let current = 0;
+    let marketCity = '';
     const answers = {};
     const questionCount = document.getElementById('agent-question-count');
     const questionText = document.getElementById('agent-question-text');
@@ -387,12 +388,45 @@ window.addEventListener('DOMContentLoaded', () => {
     const card = document.getElementById('agent-assessment-card') || document.querySelector('.agent-assessment-card');
     const resultCard = document.getElementById('agent-result-card');
     const errorCard = document.getElementById('agent-error-card');
+    const marketCard = document.getElementById('agent-market-card');
+    const marketInput = document.getElementById('agent-market-city');
+    const marketContinue = document.getElementById('agent-market-continue');
+    const marketError = document.getElementById('agent-market-error');
     if (!questionCount || !questionText || !optionsWrap || !back || !next) return;
 
     // The agent is already authenticated (enforced by the page auth gate) and we
     // have their account details, so we start directly with the questions — no
-    // duplicate name/email/phone/DOB collection.
-    if (card) card.hidden = false;
+    // duplicate name/email/phone/DOB collection. We first ask the required
+    // city/market question (metadata only — it never affects archetype scoring),
+    // then reveal the question card.
+    function startQuestions() {
+        if (marketCard) marketCard.hidden = true;
+        if (card) card.hidden = false;
+        renderQuestion();
+    }
+    if (marketCard && marketInput && marketContinue) {
+        marketContinue.addEventListener('click', () => {
+            marketCity = (marketInput.value || '').trim();
+            if (marketCity.length < 2 || marketCity.length > 120) {
+                if (marketError) marketError.style.display = 'block';
+                marketInput.focus();
+                return;
+            }
+            if (marketError) marketError.style.display = 'none';
+            startQuestions();
+        });
+        marketInput.addEventListener('input', () => {
+            if (marketError) marketError.style.display = 'none';
+        });
+        marketInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); marketContinue.click(); }
+        });
+        marketInput.focus();
+    } else {
+        // Fallback: if the market card is missing for any reason, don't block the
+        // assessment — go straight to the questions as before.
+        startQuestions();
+    }
 
     function renderQuestion() {
         const q = agentSurveyQuestions[current];
@@ -492,7 +526,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // resolved server-side from the session — we only send the answers.
     function submitAgentAssessment(result) {
         if (!window.RequityAPI) return Promise.reject(new Error('REQUITY is not configured.'));
-        return window.RequityAPI.submitAgentAssessment({ answers: answers, result: result });
+        return window.RequityAPI.submitAgentAssessment({ answers: answers, result: result, marketCity: marketCity });
     }
     const retryBtn = document.getElementById('agent-retry-btn');
     if (retryBtn) {
@@ -507,5 +541,4 @@ window.addEventListener('DOMContentLoaded', () => {
         if (current < agentSurveyQuestions.length - 1) { current += 1; renderQuestion(); }
         else showResult();
     });
-    renderQuestion();
 });

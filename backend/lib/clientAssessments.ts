@@ -450,6 +450,8 @@ export type SubmitClientAssessmentWithContactParams = {
   transactionIntent?: "buying" | "selling" | "other" | null;
   transactionIntentLabel?: string | null;
   transactionIntentOther?: string | null;
+  /** City/market the client wants to buy/sell in — metadata, not scored. */
+  marketCity?: string | null;
 };
 
 export type SubmitClientAssessmentWithContactResult = SubmitClientAssessmentResult & {
@@ -459,6 +461,7 @@ export type SubmitClientAssessmentWithContactResult = SubmitClientAssessmentResu
   transactionIntent: "buying" | "selling" | "other" | null;
   transactionIntentLabel: string | null;
   transactionIntentOther: string | null;
+  marketCity: string | null;
 };
 
 /**
@@ -504,6 +507,7 @@ export async function submitClientAssessmentWithContact(
   const transactionIntent = params.transactionIntent ?? null;
   const transactionIntentLabel = params.transactionIntentLabel ?? null;
   const transactionIntentOther = params.transactionIntentOther ?? null;
+  const marketCity = (params.marketCity ?? "").trim() || null;
 
   // ---- OPTIONAL: public.clients (legacy enrichment) ----------------------
   // The full archetype + dimensions live on the `assessments` row and the
@@ -530,6 +534,7 @@ export async function submitClientAssessmentWithContact(
         transaction_intent: transactionIntent,
         transaction_intent_label: transactionIntentLabel,
         transaction_intent_other: transactionIntentOther,
+        market_city: marketCity,
         status,
       },
       { required: ["full_name", "source"] }
@@ -552,6 +557,7 @@ export async function submitClientAssessmentWithContact(
     transactionIntent,
     transactionIntentLabel,
     transactionIntentOther,
+    marketCity,
   };
   const assessmentPayload = {
     client_id: clientId,
@@ -561,6 +567,7 @@ export async function submitClientAssessmentWithContact(
     transaction_intent: transactionIntent,
     transaction_intent_label: transactionIntentLabel,
     transaction_intent_other: transactionIntentOther,
+    market_city: marketCity,
     status: "completed" as const,
     completed_at: completedAt,
   };
@@ -610,6 +617,7 @@ export async function submitClientAssessmentWithContact(
       transactionIntent,
       transactionIntentLabel,
       transactionIntentOther,
+      marketCity,
     });
     if (!lead && !assessmentId) {
       const started = await upsertAssessmentLeadStart({
@@ -631,6 +639,7 @@ export async function submitClientAssessmentWithContact(
         transactionIntent,
         transactionIntentLabel,
         transactionIntentOther,
+        marketCity,
       });
     }
     leadSaved = !!lead;
@@ -706,6 +715,7 @@ export async function submitClientAssessmentWithContact(
           agentName: agentDisplayName,
           archetype: result.archetype,
           transaction: transactionIntentLabel,
+          market: marketCity,
         }
       );
       emailed = send.sent;
@@ -725,6 +735,7 @@ export async function submitClientAssessmentWithContact(
     transactionIntent,
     transactionIntentLabel,
     transactionIntentOther,
+    marketCity,
   };
 }
 

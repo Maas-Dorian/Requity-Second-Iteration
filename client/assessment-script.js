@@ -196,11 +196,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputs = ['fname', 'lname', 'email'].map(id => document.getElementById(id));
     const otherIntentWrap = document.getElementById('otherIntentWrap');
     const otherIntentInput = document.getElementById('otherIntent');
+    const marketCityInput = document.getElementById('marketCity');
 
     // --- Transaction intent helpers ---------------------------------------
     // selectedGoal holds the transaction intent value: 'buying' | 'selling' | 'other'.
     function isOtherIntent() { return selectedGoal === 'other'; }
     function otherIntentText() { return otherIntentInput ? otherIntentInput.value.trim() : ''; }
+    // City/market the client wants to buy/sell in. Metadata only — it is never
+    // included in the answers used for archetype scoring.
+    function marketCityText() { return marketCityInput ? marketCityInput.value.trim() : ''; }
+    function marketCityValid() { const v = marketCityText(); return v.length >= 2 && v.length <= 120; }
     function transactionIntentLabel() {
         if (selectedGoal === 'buying') return 'Buying';
         if (selectedGoal === 'selling') return 'Selling';
@@ -218,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Utility Elements
     const mainCard = document.getElementById('mainCard');
-    const restartDemoBtn = document.getElementById('restartDemoBtn');
 
 
     // --- View Controller ---
@@ -242,11 +246,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasGoal = selectedGoal !== null;
         // When "Other" is chosen, a non-empty custom description is required.
         const otherOk = !isOtherIntent() || otherIntentText() !== '';
-        startAssessmentBtn.disabled = !(hasText && hasGoal && otherOk);
+        // City/market is required (2–120 characters).
+        const marketOk = marketCityValid();
+        startAssessmentBtn.disabled = !(hasText && hasGoal && otherOk && marketOk);
     }
 
     inputs.forEach(inp => inp.addEventListener('input', checkContactValid));
     if (otherIntentInput) otherIntentInput.addEventListener('input', checkContactValid);
+    if (marketCityInput) marketCityInput.addEventListener('input', checkContactValid);
 
     goalOptions.forEach(card => {
         card.addEventListener('click', () => {
@@ -290,6 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
             transactionIntent: selectedGoal || null,
             transactionIntentLabel: transactionIntentLabel() || null,
             transactionIntentOther: isOtherIntent() ? (otherIntentText() || null) : null,
+            marketCity: marketCityText() || null,
         };
         // Reuse a recent lead id for this email if we have one cached.
         try {
@@ -491,6 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
             transactionIntent: selectedGoal,
             transactionIntentLabel: transactionIntentLabel(),
             transactionIntentOther: isOtherIntent() ? otherIntentText() : null,
+            marketCity: marketCityText(),
             answers: answers,
             source: src.source,
             agentId: src.agentId,
@@ -546,20 +555,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Demo automation has been removed. The form and assessment now work manually.
     // Scroll-based page animations are handled on the landing page.
-
-    restartDemoBtn.addEventListener('click', () => {
-        currentStepIndex = -1;
-        selectedGoal = null;
-        userAnswers = {};
-        leadId = null;
-        try { localStorage.removeItem('requity_lead'); } catch (e) { /* ignore */ }
-        inputs.forEach(i => i.value = '');
-        goalOptions.forEach(c => c.classList.remove('selected'));
-        if (otherIntentWrap) otherIntentWrap.classList.add('hidden');
-        if (otherIntentInput) otherIntentInput.value = '';
-        startAssessmentBtn.disabled = true;
-        showView('contact');
-    });
+    // The "start a new assessment" restart control was intentionally removed from
+    // the completion screen — a submitted client assessment is final and the
+    // completion view should not encourage starting over.
 
 
     // Animated triangle background pattern behind the assessment while preserving the current page background color.

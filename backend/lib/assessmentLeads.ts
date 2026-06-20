@@ -43,6 +43,7 @@ export type AssessmentLeadRecord = {
   transaction_intent: string | null;
   transaction_intent_label: string | null;
   transaction_intent_other: string | null;
+  market_city: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -265,6 +266,8 @@ export type CompleteAssessmentLeadInput = {
   transactionIntent?: string | null;
   transactionIntentLabel?: string | null;
   transactionIntentOther?: string | null;
+  /** City/market the client wants to buy/sell in (metadata, not scored). */
+  marketCity?: string | null;
 };
 
 /**
@@ -295,6 +298,7 @@ export async function completeAssessmentLead(
       transaction_intent: input.transactionIntent ?? lead.transaction_intent ?? null,
       transaction_intent_label: input.transactionIntentLabel ?? lead.transaction_intent_label ?? null,
       transaction_intent_other: input.transactionIntentOther ?? lead.transaction_intent_other ?? null,
+      market_city: input.marketCity ?? lead.market_city ?? null,
       ...(mergedAnswers ? { partial_answers: mergedAnswers } : {}),
     })
     .eq("id", lead.id)

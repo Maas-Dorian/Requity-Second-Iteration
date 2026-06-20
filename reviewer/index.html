@@ -426,6 +426,10 @@
             if (intent === 'other') return (l && l.transaction_intent_other) || 'Other';
             return 'Not specified';
         }
+        function marketText(l) {
+            var m = l && l.market_city;
+            return (m && String(m).trim()) ? String(m).trim() : 'Not specified';
+        }
 
         function render(leads) {
             listEl.innerHTML = '';
@@ -444,6 +448,7 @@
                     '</div>' +
                     '<div class="lead-meta">' +
                         '<span>Transaction <strong>' + esc(transactionText(l)) + '</strong></span>' +
+                        '<span>Market <strong>' + esc(marketText(l)) + '</strong></span>' +
                         '<span>Started <strong>' + fmtDate(l.started_at) + '</strong></span>' +
                         '<span>Last activity <strong>' + fmtDate(l.last_activity_at) + '</strong></span>' +
                         '<span>Answered <strong>' + (l.answered_count || 0) + '</strong></span>' +

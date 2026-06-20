@@ -50,6 +50,8 @@ export type AgentDashboard = {
     archetype: string | null;
     /** ISO timestamp the agent completed their archetype assessment, or null. */
     archetypeCompletedAt: string | null;
+    /** City/market the agent works in, or null when not provided/migrated. */
+    marketCity: string | null;
   } | null;
   assessmentLink: string;
   qrLink: string;
@@ -131,6 +133,20 @@ export async function getAgentDashboard(
   // Backfill a public token if this agent has none, so the link/QR always work.
   const publicToken =
     agent?.public_assessment_token ?? (agent ? await ensureAgentPublicToken(agentId) : null);
+
+  // City/market is read separately and resiliently: on a not-yet-migrated DB the
+  // `market_city` column may be absent, which must NOT break the dashboard. A
+  // missing column surfaces as an error (not a throw), so we simply fall back to
+  // null and the UI shows "Not specified".
+  let marketCity: string | null = null;
+  if (agent) {
+    const { data: marketRow } = await supabase
+      .from("agents")
+      .select("market_city")
+      .eq("id", agentId)
+      .maybeSingle();
+    marketCity = (marketRow && (marketRow as { market_city?: string | null }).market_city) || null;
+  }
 
   // Clients are an OPTIONAL/legacy enrichment source. On a drifted live DB that
   // is missing public.clients, the dashboard must still load with empty client
@@ -218,6 +234,7 @@ export async function getAgentDashboard(
           email: agent.email,
           archetype: agent.archetype ?? null,
           archetypeCompletedAt: agent.archetype_completed_at ?? null,
+          marketCity,
         }
       : null,
     assessmentLink,

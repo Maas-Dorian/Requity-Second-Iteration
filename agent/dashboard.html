@@ -1337,6 +1337,11 @@
             <div class="settings-field" id="settings-account-email">—</div>
           </article>
           <article class="settings-card card">
+            <h3>Market</h3>
+            <p>The city or market you primarily work in, from your agent assessment.</p>
+            <div class="settings-field" id="settings-market">Not specified</div>
+          </article>
+          <article class="settings-card card">
             <h3>Password</h3>
             <p>We’ll email a secure password reset link to your account email.</p>
             <button class="btn-secondary settings-action" type="button" id="btn-password-reset">Send password reset</button>
@@ -1830,6 +1835,10 @@
         if (intent === 'other') return c.transaction_intent_other || 'Other';
         return 'Not specified';
       }
+      function clientMarketText(c) {
+        const m = c && c.market_city;
+        return (m && String(m).trim()) ? String(m).trim() : 'Not specified';
+      }
 
       function renderClients(clients) {
         const grid = document.querySelector('#clients-view .client-detail-grid');
@@ -1853,6 +1862,7 @@
               '</div>' +
               '<div class="client-meta-grid">' +
                 '<div><span>Transaction</span><strong>' + esc(clientTransactionText(c)) + '</strong></div>' +
+                '<div><span>Market</span><strong>' + esc(clientMarketText(c)) + '</strong></div>' +
                 '<div><span>Orientation</span><strong>' + esc(c.orientation || 'Pending') + '</strong></div>' +
                 '<div><span>Style</span><strong>' + esc(c.style || 'Pending') + '</strong></div>' +
                 '<div><span>Under stress</span><strong>' + esc(c.stress_response || 'Pending') + '</strong></div>' +
@@ -1982,6 +1992,12 @@
         // Re-render the archetype from the authoritative dashboard payload.
         if (dash.agent && typeof window.__requityRenderAgentArchetype === 'function') {
           window.__requityRenderAgentArchetype(dash.agent);
+        }
+        // Subtle market display in Settings (kept in the existing card style).
+        const marketField = document.getElementById('settings-market');
+        if (marketField) {
+          const m = dash.agent && dash.agent.marketCity ? String(dash.agent.marketCity).trim() : '';
+          marketField.textContent = m || 'Not specified';
         }
       } catch (e) {
         console.warn('[dashboard] failed to load live data:', e.message);
