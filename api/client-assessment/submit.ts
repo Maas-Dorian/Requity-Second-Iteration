@@ -98,6 +98,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         ? (body.result as ClientArchetypeResult)
         : null;
 
+    // Transaction intent (buying / selling / other). Optional for backward
+    // compatibility, but when present it must be valid; "other" requires a
+    // non-empty custom description. Stored separately from archetype answers so
+    // it never affects scoring.
+    const TRANSACTION_INTENTS = ["buying", "selling", "other"] as const;
+    const intentRaw = optionalString(body, "transactionIntent");
+    let transactionIntent: "buying" | "selling" | "other" | null = null;
+    if (intentRaw) {
+      if (!TRANSACTION_INTENTS.includes(intentRaw as (typeof TRANSACTION_INTENTS)[number])) {
+        logValidationFailure(ROUTE, "invalid_transaction_intent", { transactionIntent: intentRaw });
+        throw new HttpError(400, "Invalid transactionIntent. Expected one of: buying, selling, other.");
+      }
+      transactionIntent = intentRaw as "buying" | "selling" | "other";
+    }
+    const transactionIntentOther =
+      transactionIntent === "other"
+        ? (optionalString(body, "transactionIntentOther") ?? "").trim() || null
+        : null;
+    if (transactionIntent === "other" && !transactionIntentOther) {
+      logValidationFailure(ROUTE, "missing_transaction_intent_other", {});
+      throw new HttpError(400, "Please describe what you’re looking to do.");
+    }
+    const transactionIntentLabel =
+      transactionIntent === "buying"
+        ? "Buying"
+        : transactionIntent === "selling"
+          ? "Selling"
+          : transactionIntent === "other"
+            ? transactionIntentOther
+            : null;
+
     try {
       const result = await submitClientAssessmentWithContact({
         token,
@@ -108,6 +139,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         agentToken,
         archetypeResult,
         leadId: optionalString(body, "leadId") ?? null,
+        transactionIntent,
+        transactionIntentLabel,
+        transactionIntentOther,
       });
       sendJson(res, 200, result);
     } catch (error) {

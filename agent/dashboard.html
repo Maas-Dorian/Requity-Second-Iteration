@@ -1720,8 +1720,24 @@
         window.location.href = 'login.html';
         return;
       }
+      // Safe guard debug log (no tokens/PII). Only when requity_debug === '1'.
+      if (API.__debug) {
+        var guardRedirectingToLogin =
+          !session.ok && session.reason !== 'error' &&
+          !(session.reason === 'role_mismatch' && session.me &&
+            (session.me.role === 'reviewer' || session.me.role === 'admin'));
+        API.__debug('agent/dashboard.html:guard', 'auth:dashboard-guard', {
+          hasSupabaseSession: API.hasSession ? API.hasSession() : null,
+          hasLocalSession: API.hasSession ? API.hasSession() : null,
+          meStatus: session.ok ? 'ok' : (session.reason || 'unknown'),
+          redirectingToLogin: guardRedirectingToLogin
+        });
+      }
+
       if (!session.ok) {
-        // Transient/server error: do NOT redirect (avoids a login loop).
+        // Transient/server error: do NOT redirect (avoids a login loop). The
+        // session may still be initializing/refreshing — never bounce to login
+        // on a server error.
         if (session.reason === 'error') {
           showAuthError("We couldn't verify your account. Please try again.");
           return;
@@ -1740,16 +1756,10 @@
       const me = session.me;
       agentId = me && me.agent ? me.agent.id : null;
 
-      // Onboarding gate: agents/admins must take the agent assessment first.
-      // The single rule is Boolean(agent.archetype) — archetype_completed_at is
-      // NOT required. An agent who already has an archetype always sees the
-      // dashboard (they can retake from the View More modal); only an agent with
-      // NO archetype is sent to the assessment.
-      var meArchetype = me && me.agent && (me.agent.archetype || (me.agent.assessment_summary && me.agent.assessment_summary.archetype));
-      if (!me || !me.agent || !meArchetype) {
-        window.location.href = 'assessment.html';
-        return;
-      }
+      // No onboarding redirect: an authenticated agent ALWAYS sees the dashboard.
+      // When they have no archetype yet, __requityRenderAgentArchetype shows the
+      // "Discover your Agent Archetype" button / onboarding state in place — we
+      // never bounce them to the assessment or login page from here.
 
       // Auth is fully resolved (token validated/refreshed by requireAgentSession).
       // Now load the real QR/link. Safe debug logs (no tokens/keys/PII).
@@ -1811,6 +1821,16 @@
         draft: { cls: 'neutral', label: 'Link opened' }
       };
 
+      function clientTransactionText(c) {
+        if (!c) return 'Not specified';
+        if (c.transaction_intent_label) return c.transaction_intent_label;
+        const intent = c.transaction_intent;
+        if (intent === 'buying') return 'Buying';
+        if (intent === 'selling') return 'Selling';
+        if (intent === 'other') return c.transaction_intent_other || 'Other';
+        return 'Not specified';
+      }
+
       function renderClients(clients) {
         const grid = document.querySelector('#clients-view .client-detail-grid');
         if (!grid) return;
@@ -1832,6 +1852,7 @@
                 '</div>' +
               '</div>' +
               '<div class="client-meta-grid">' +
+                '<div><span>Transaction</span><strong>' + esc(clientTransactionText(c)) + '</strong></div>' +
                 '<div><span>Orientation</span><strong>' + esc(c.orientation || 'Pending') + '</strong></div>' +
                 '<div><span>Style</span><strong>' + esc(c.style || 'Pending') + '</strong></div>' +
                 '<div><span>Under stress</span><strong>' + esc(c.stress_response || 'Pending') + '</strong></div>' +

@@ -446,12 +446,19 @@ export type SubmitClientAssessmentWithContactParams = {
   archetypeResult?: ClientArchetypeResult | null;
   /** Optional incomplete-lead id to convert to completed. */
   leadId?: string | null;
+  /** Transaction intent — stored separately so it never affects scoring. */
+  transactionIntent?: "buying" | "selling" | "other" | null;
+  transactionIntentLabel?: string | null;
+  transactionIntentOther?: string | null;
 };
 
 export type SubmitClientAssessmentWithContactResult = SubmitClientAssessmentResult & {
   /** Null when public.assessments is missing (data saved to assessment_leads). */
   assessmentId: string | null;
   emailed: boolean;
+  transactionIntent: "buying" | "selling" | "other" | null;
+  transactionIntentLabel: string | null;
+  transactionIntentOther: string | null;
 };
 
 /**
@@ -492,6 +499,12 @@ export async function submitClientAssessmentWithContact(
   const completedAt = new Date().toISOString();
   const leadSrc = toLeadSource(params.source);
 
+  // Transaction intent (buying/selling/other). Stored on every durable surface;
+  // schema-fallback writers drop these columns if a drifted DB lacks them.
+  const transactionIntent = params.transactionIntent ?? null;
+  const transactionIntentLabel = params.transactionIntentLabel ?? null;
+  const transactionIntentOther = params.transactionIntentOther ?? null;
+
   // ---- OPTIONAL: public.clients (legacy enrichment) ----------------------
   // The full archetype + dimensions live on the `assessments` row and the
   // `assessment_leads` row. public.clients is treated as optional enrichment:
@@ -514,6 +527,9 @@ export async function submitClientAssessmentWithContact(
         orientation: result.orientation,
         style: result.style,
         stress_response: result.stressResponse,
+        transaction_intent: transactionIntent,
+        transaction_intent_label: transactionIntentLabel,
+        transaction_intent_other: transactionIntentOther,
         status,
       },
       { required: ["full_name", "source"] }
@@ -529,11 +545,22 @@ export async function submitClientAssessmentWithContact(
   }
 
   // ---- DURABLE: public.assessments ---------------------------------------
+  // Transaction intent is embedded in the result JSON (so it survives even when
+  // the scalar columns are absent) AND written to scalar columns when present.
+  const resultWithIntent = {
+    ...result,
+    transactionIntent,
+    transactionIntentLabel,
+    transactionIntentOther,
+  };
   const assessmentPayload = {
     client_id: clientId,
     agent_id: agentId,
     answers: params.answers,
-    result,
+    result: resultWithIntent,
+    transaction_intent: transactionIntent,
+    transaction_intent_label: transactionIntentLabel,
+    transaction_intent_other: transactionIntentOther,
     status: "completed" as const,
     completed_at: completedAt,
   };
@@ -580,6 +607,9 @@ export async function submitClientAssessmentWithContact(
       archetype: result.archetype,
       answeredCount,
       partialAnswers: params.answers ?? null,
+      transactionIntent,
+      transactionIntentLabel,
+      transactionIntentOther,
     });
     if (!lead && !assessmentId) {
       const started = await upsertAssessmentLeadStart({
@@ -598,6 +628,9 @@ export async function submitClientAssessmentWithContact(
         archetype: result.archetype,
         answeredCount,
         partialAnswers: params.answers ?? null,
+        transactionIntent,
+        transactionIntentLabel,
+        transactionIntentOther,
       });
     }
     leadSaved = !!lead;
@@ -668,7 +701,12 @@ export async function submitClientAssessmentWithContact(
     try {
       const { send } = await sendAndRecordClientCompleteEmail(
         { email: agentEmail, name: agentDisplayName },
-        { clientName: fullName, agentName: agentDisplayName, archetype: result.archetype }
+        {
+          clientName: fullName,
+          agentName: agentDisplayName,
+          archetype: result.archetype,
+          transaction: transactionIntentLabel,
+        }
       );
       emailed = send.sent;
     } catch (error) {
@@ -684,6 +722,9 @@ export async function submitClientAssessmentWithContact(
     assignedAgentId: agentId,
     status,
     emailed,
+    transactionIntent,
+    transactionIntentLabel,
+    transactionIntentOther,
   };
 }
 

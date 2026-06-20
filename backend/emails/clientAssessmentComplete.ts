@@ -7,6 +7,8 @@ export type ClientCompleteEmailParams = {
   agentName?: string;
   /** Optional computed client archetype. */
   archetype?: string;
+  /** Optional transaction intent label (Buying / Selling / custom text). */
+  transaction?: string | null;
 };
 
 export const CLIENT_COMPLETE_SUBJECT = "A client completed their REQUITY assessment";
@@ -16,17 +18,19 @@ export const CLIENT_COMPLETE_SUBJECT = "A client completed their REQUITY assessm
  * REQUITY assessment. (Reviewer-sourced clients use the reviewer match email.)
  */
 export function clientAssessmentCompleteEmail(params: ClientCompleteEmailParams): string {
-  const { clientName, agentName, archetype } = params;
+  const { clientName, agentName, archetype, transaction } = params;
   const greeting = agentName ? `Hi ${agentName},` : "Hi there,";
+  const transactionLabel = transaction && transaction.trim() ? transaction.trim() : "Not specified";
 
   const body = `
 <h1 style="margin:0 0 12px;font-size:22px;color:${REQUITY_COLORS.navy};">A client completed their assessment</h1>
 <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">${greeting}</p>
-<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">
+<p style="font-size:16px;line-height:1.6;margin:0 0 8px;">
 <b>${clientName}</b> just completed their REQUITY assessment.${
     archetype ? ` Their client archetype is <b>${archetype}</b>.` : ""
 }
 </p>
+<p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Transaction: <b>${transactionLabel}</b></p>
 <p style="font-size:15px;line-height:1.6;margin:0 0 18px;">
 This client came from your link, so their profile is saved directly in your dashboard. Review their communication guidance before reaching out.
 </p>

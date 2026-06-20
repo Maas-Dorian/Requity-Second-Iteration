@@ -194,6 +194,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const goalOptions = document.querySelectorAll('#goalOptions .option-card');
     const startAssessmentBtn = document.getElementById('startAssessmentBtn');
     const inputs = ['fname', 'lname', 'email'].map(id => document.getElementById(id));
+    const otherIntentWrap = document.getElementById('otherIntentWrap');
+    const otherIntentInput = document.getElementById('otherIntent');
+
+    // --- Transaction intent helpers ---------------------------------------
+    // selectedGoal holds the transaction intent value: 'buying' | 'selling' | 'other'.
+    function isOtherIntent() { return selectedGoal === 'other'; }
+    function otherIntentText() { return otherIntentInput ? otherIntentInput.value.trim() : ''; }
+    function transactionIntentLabel() {
+        if (selectedGoal === 'buying') return 'Buying';
+        if (selectedGoal === 'selling') return 'Selling';
+        if (selectedGoal === 'other') return otherIntentText();
+        return '';
+    }
     
     // Assessment Elements
     const qCounter = document.getElementById('qCounter');
@@ -227,10 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkContactValid() {
         const hasText = inputs.every(inp => inp.value.trim() !== '');
         const hasGoal = selectedGoal !== null;
-        startAssessmentBtn.disabled = !(hasText && hasGoal);
+        // When "Other" is chosen, a non-empty custom description is required.
+        const otherOk = !isOtherIntent() || otherIntentText() !== '';
+        startAssessmentBtn.disabled = !(hasText && hasGoal && otherOk);
     }
 
     inputs.forEach(inp => inp.addEventListener('input', checkContactValid));
+    if (otherIntentInput) otherIntentInput.addEventListener('input', checkContactValid);
 
     goalOptions.forEach(card => {
         card.addEventListener('click', () => {
@@ -238,6 +254,16 @@ document.addEventListener('DOMContentLoaded', () => {
             goalOptions.forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
             selectedGoal = card.getAttribute('data-goal');
+            // Reveal the free-text field only for "Other"; clear it otherwise.
+            if (otherIntentWrap) {
+                if (isOtherIntent()) {
+                    otherIntentWrap.classList.remove('hidden');
+                    if (otherIntentInput) otherIntentInput.focus();
+                } else {
+                    otherIntentWrap.classList.add('hidden');
+                    if (otherIntentInput) otherIntentInput.value = '';
+                }
+            }
             checkContactValid();
         });
     });
@@ -261,6 +287,9 @@ document.addEventListener('DOMContentLoaded', () => {
             phone: (document.getElementById('phone') || {}).value || null,
             agentId: src.agentId,
             agentToken: src.agentToken,
+            transactionIntent: selectedGoal || null,
+            transactionIntentLabel: transactionIntentLabel() || null,
+            transactionIntentOther: isOtherIntent() ? (otherIntentText() || null) : null,
         };
         // Reuse a recent lead id for this email if we have one cached.
         try {
@@ -459,6 +488,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 dateOfBirth: (document.getElementById('birthday') || {}).value || null,
             },
             goal: selectedGoal,
+            transactionIntent: selectedGoal,
+            transactionIntentLabel: transactionIntentLabel(),
+            transactionIntentOther: isOtherIntent() ? otherIntentText() : null,
             answers: answers,
             source: src.source,
             agentId: src.agentId,
@@ -523,6 +555,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try { localStorage.removeItem('requity_lead'); } catch (e) { /* ignore */ }
         inputs.forEach(i => i.value = '');
         goalOptions.forEach(c => c.classList.remove('selected'));
+        if (otherIntentWrap) otherIntentWrap.classList.add('hidden');
+        if (otherIntentInput) otherIntentInput.value = '';
         startAssessmentBtn.disabled = true;
         showView('contact');
     });

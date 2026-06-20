@@ -418,6 +418,14 @@
         function fmtDate(s) { if (!s) return '—'; try { var d = new Date(s); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return s; } }
         function sourceLabel(s) { return s === 'qr' ? 'QR' : (s === 'agent_link' ? 'Agent Link' : 'Reviewer'); }
         function statusLabel(s) { return ({ started: 'Started', in_progress: 'In Progress', abandoned: 'Abandoned', followed_up: 'Followed Up', completed: 'Completed' })[s] || s; }
+        function transactionText(l) {
+            if (l && l.transaction_intent_label) return l.transaction_intent_label;
+            var intent = l && l.transaction_intent;
+            if (intent === 'buying') return 'Buying';
+            if (intent === 'selling') return 'Selling';
+            if (intent === 'other') return (l && l.transaction_intent_other) || 'Other';
+            return 'Not specified';
+        }
 
         function render(leads) {
             listEl.innerHTML = '';
@@ -435,6 +443,7 @@
                         '<span class="badge badge-status-' + esc(l.status) + '">' + statusLabel(l.status) + '</span></div>' +
                     '</div>' +
                     '<div class="lead-meta">' +
+                        '<span>Transaction <strong>' + esc(transactionText(l)) + '</strong></span>' +
                         '<span>Started <strong>' + fmtDate(l.started_at) + '</strong></span>' +
                         '<span>Last activity <strong>' + fmtDate(l.last_activity_at) + '</strong></span>' +
                         '<span>Answered <strong>' + (l.answered_count || 0) + '</strong></span>' +

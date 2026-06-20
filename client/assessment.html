@@ -95,26 +95,27 @@
                 </div>
 
                 <div class="mt-l">
-                    <h3 class="mb-s">Are you looking to buy or sell?</h3>
+                    <h3 class="mb-s">Are you buying, selling, or something else?</h3>
                     <p class="subtitle mb-m">This helps us tailor the assessment to your specific needs.</p>
                     
                     <div class="options-grid" id="goalOptions">
-                        <div class="option-card" data-goal="buy">
-                            <span class="opt-title">I'm looking to buy</span>
+                        <div class="option-card" data-goal="buying">
+                            <span class="opt-title">Buying</span>
                             <span class="opt-desc">Finding my next home or investment property</span>
                         </div>
-                        <div class="option-card" data-goal="sell">
-                            <span class="opt-title">I'm looking to sell</span>
+                        <div class="option-card" data-goal="selling">
+                            <span class="opt-title">Selling</span>
                             <span class="opt-desc">Selling my current property</span>
                         </div>
-                        <div class="option-card" data-goal="both">
-                            <span class="opt-title">Both buying and selling</span>
-                            <span class="opt-desc">Selling my current property and buying a new one</span>
-                        </div>
                         <div class="option-card" data-goal="other">
-                            <span class="opt-title">Something else</span>
+                            <span class="opt-title">Other</span>
                             <span class="opt-desc">I have a different real estate need</span>
                         </div>
+                    </div>
+
+                    <div class="input-group full-width mt-m hidden" id="otherIntentWrap">
+                        <label for="otherIntent">Tell us what you’re looking to do *</label>
+                        <input type="text" id="otherIntent" maxlength="120" placeholder="e.g. Buying and selling, Relocating, Investing">
                     </div>
                 </div>
 

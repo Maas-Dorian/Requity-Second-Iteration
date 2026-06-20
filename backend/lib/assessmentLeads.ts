@@ -40,6 +40,9 @@ export type AssessmentLeadRecord = {
   answered_count: number;
   partial_answers: Record<string, unknown>;
   archetype: string | null;
+  transaction_intent: string | null;
+  transaction_intent_label: string | null;
+  transaction_intent_other: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -258,6 +261,10 @@ export type CompleteAssessmentLeadInput = {
   answeredCount?: number | null;
   /** Full answers captured at completion (durable store of the responses). */
   partialAnswers?: Record<string, unknown> | null;
+  /** Transaction intent captured at submit (buying/selling/other). */
+  transactionIntent?: string | null;
+  transactionIntentLabel?: string | null;
+  transactionIntentOther?: string | null;
 };
 
 /**
@@ -285,6 +292,9 @@ export async function completeAssessmentLead(
       archetype: input.archetype ?? lead.archetype,
       client_assessment_id: input.clientAssessmentId ?? lead.client_assessment_id,
       answered_count: input.answeredCount ?? lead.answered_count,
+      transaction_intent: input.transactionIntent ?? lead.transaction_intent ?? null,
+      transaction_intent_label: input.transactionIntentLabel ?? lead.transaction_intent_label ?? null,
+      transaction_intent_other: input.transactionIntentOther ?? lead.transaction_intent_other ?? null,
       ...(mergedAnswers ? { partial_answers: mergedAnswers } : {}),
     })
     .eq("id", lead.id)

@@ -86,6 +86,9 @@ create table if not exists clients (
   orientation text,
   style text,
   stress_response text,
+  transaction_intent text,
+  transaction_intent_label text,
+  transaction_intent_other text,
   status assessment_status default 'draft',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -100,6 +103,9 @@ create table if not exists assessments (
   status assessment_status default 'draft',
   answers jsonb default '{}'::jsonb,
   result jsonb default '{}'::jsonb,
+  transaction_intent text,
+  transaction_intent_label text,
+  transaction_intent_other text,
   completed_at timestamptz,
   created_at timestamptz default now()
 );
@@ -161,6 +167,9 @@ create table if not exists assessment_leads (
   answered_count integer default 0,
   partial_answers jsonb default '{}'::jsonb,
   archetype text,
+  transaction_intent text,
+  transaction_intent_label text,
+  transaction_intent_other text,
   notes text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()

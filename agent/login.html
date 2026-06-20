@@ -222,6 +222,20 @@
         document.getElementById("role-switch").classList.add("show");
       }
 
+      // Wait until the freshly stored session is actually readable (so the
+      // dashboard's own auth gate recognizes it immediately) and then land the
+      // agent on the dashboard — never back on this login page.
+      async function redirectToDashboardAfterAuth() {
+        for (var i = 0; i < 10; i++) {
+          try {
+            var current = await API.getCurrentUser();
+            if (current && (current.user || current.agent || current.profile || current.role)) break;
+          } catch (e) { /* keep polling briefly */ }
+          await new Promise(function (resolve) { setTimeout(resolve, 150); });
+        }
+        window.location.replace("dashboard.html");
+      }
+
       // Routes to the right place once we have a verified /auth/me payload.
       // Returns false when it couldn't route (so callers can re-enable the form).
       async function routeAfterAuth(me) {
@@ -230,8 +244,9 @@
           return false;
         }
         var role = me.role;
-        // Agents and admins use the agent flow. Send them to the assessment until
-        // their archetype is complete, then to the dashboard.
+        // Agents and admins use the agent flow. Always land on the dashboard —
+        // the dashboard handles the onboarding/Discover state when the agent has
+        // no archetype yet. We never route to the login page after a good auth.
         if (role === "agent" || role === "admin") {
           var hasAgentRow = me.agent && me.agent.id;
           // Ensure the agent row exists before routing into the agent flow.
@@ -248,7 +263,7 @@
             showMsg("We couldn't set up your agent profile. Please try again.", "error");
             return false;
           }
-          window.location.href = API.agentHasCompletedAssessment(me) ? "dashboard.html" : "assessment.html";
+          await redirectToDashboardAfterAuth();
           return true;
         }
         // Reviewer-only accounts get the reviewer portal panel.
@@ -264,7 +279,14 @@
         var btn = document.getElementById("signin-btn");
         btn.disabled = true; btn.textContent = "Signing in...";
         try {
-          await API.signIn(document.getElementById("si-email").value.trim(), document.getElementById("si-password").value);
+          var signInResult = await API.signIn(document.getElementById("si-email").value.trim(), document.getElementById("si-password").value);
+          if (API.__debug) {
+            API.__debug("agent/login.html:signin", "auth:signin-success", {
+              hasSession: !!(signInResult && signInResult.session && signInResult.session.access_token),
+              hasUser: !!(signInResult && signInResult.user),
+              redirectingToDashboard: true
+            });
+          }
           // requireAgentSession distinguishes a 500 (server can't verify) from a
           // 401 (no valid session), so we never clear a good session on a 500.
           var session = await API.requireAgentSession();
@@ -309,13 +331,23 @@
             document.getElementById("su-password").value,
             profile
           );
+          if (API.__debug) {
+            API.__debug("agent/login.html:signup", "auth:signup-success", {
+              hasSession: !!(result && result.session && result.session.access_token),
+              hasUser: !!(result && result.user),
+              redirectingToDashboard: !(result && result.needsEmailConfirmation)
+            });
+          }
+          // Only show the confirmation message when Supabase actually returned no
+          // session (email confirmation is required). Otherwise the agent is
+          // signed in and we route straight to the dashboard.
           if (result && result.needsEmailConfirmation) {
             showMsg("Account created. Check your email to confirm, then sign in.", "success");
             btn.disabled = false; btn.textContent = "Create agent account";
             setTab("signin");
             return;
           }
-          // New agent is signed in + bootstrapped → route to the assessment.
+          // New agent is signed in + bootstrapped → route to the dashboard.
           var session = await API.requireAgentSession();
           if (session.ok) {
             var routed = await routeAfterAuth(session.me);

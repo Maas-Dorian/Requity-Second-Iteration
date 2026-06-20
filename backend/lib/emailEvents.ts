@@ -106,6 +106,7 @@ export async function sendAndRecordClientCompleteEmail(
         clientName: params.clientName,
         agentName: params.agentName ?? null,
         archetype: params.archetype ?? null,
+        transaction: params.transaction ?? null,
       },
       status: statusFromResult(send),
     });
