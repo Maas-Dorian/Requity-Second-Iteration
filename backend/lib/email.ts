@@ -100,6 +100,34 @@ function firstError(results: SendResult[]): string | null {
   return null;
 }
 
+/**
+ * Safe structured email logging for Vercel. Never logs the Brevo API key,
+ * sender values, or full HTML payloads — only event type, status, recipient
+ * presence and short error text.
+ */
+function logEmailEvent(
+  tag: "EMAIL_SEND_ATTEMPT" | "EMAIL_SEND_RESULT" | "EMAIL_SEND_FAILED",
+  fields: Record<string, unknown>
+): void {
+  try {
+    console.log(tag, JSON.stringify({ provider: "brevo", ...fields }));
+  } catch {
+    console.log(tag, { provider: "brevo", ...fields });
+  }
+}
+
+/** Short, secret-free error code for logs (e.g. the Brevo error `code`). */
+function safeErrorCode(message: string | null): string {
+  if (!message) return "unknown";
+  try {
+    const parsed = JSON.parse(message) as { code?: string };
+    if (parsed && typeof parsed.code === "string") return parsed.code;
+  } catch {
+    // not JSON — fall through to a generic code
+  }
+  return "send_error";
+}
+
 export type ClientCompletedEmailInput = {
   /** Idempotency key, e.g. `assessment_completed:<assessmentId>`. */
   eventKey?: string | null;
@@ -121,6 +149,10 @@ export async function sendClientAssessmentCompletedEmail(
   input: ClientCompletedEmailInput
 ): Promise<EmailDeliveryResult> {
   const recipients = normalizeTargets(input.recipients);
+  logEmailEvent("EMAIL_SEND_ATTEMPT", {
+    eventType: "assessment_completed",
+    recipientFound: recipients.length > 0,
+  });
 
   if (!recipients.length) {
     await recordEmailEvent({
@@ -132,10 +164,12 @@ export async function sendClientAssessmentCompletedEmail(
       eventKey: null,
       payload: { reason: "No recipient found", clientName: input.clientName ?? null },
     });
+    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "assessment_completed", status: "skipped" });
     return { emailed: false, emailStatus: "skipped", recipients: [], reason: "No recipient found" };
   }
 
   if (input.eventKey && (await emailEventAlreadySent(input.eventKey))) {
+    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "assessment_completed", status: "skipped" });
     return {
       emailed: false,
       emailStatus: "skipped",
@@ -182,6 +216,16 @@ export async function sendClientAssessmentCompletedEmail(
     },
   });
 
+  logEmailEvent("EMAIL_SEND_RESULT", { eventType: "assessment_completed", status });
+  if (status === "failed") {
+    const message = firstError(results);
+    logEmailEvent("EMAIL_SEND_FAILED", {
+      eventType: "assessment_completed",
+      code: safeErrorCode(message),
+      message: message ?? "send failed",
+    });
+  }
+
   return {
     emailed: status === "sent",
     emailStatus: status,
@@ -209,6 +253,10 @@ export async function sendClientMatchedEmail(
   input: ClientMatchedEmailInput
 ): Promise<EmailDeliveryResult> {
   const recipients = normalizeTargets(input.recipients);
+  logEmailEvent("EMAIL_SEND_ATTEMPT", {
+    eventType: "client_matched",
+    recipientFound: recipients.length > 0,
+  });
 
   if (!recipients.length) {
     await recordEmailEvent({
@@ -220,10 +268,12 @@ export async function sendClientMatchedEmail(
       eventKey: null,
       payload: { reason: "No recipient found", clientName: input.clientName ?? null },
     });
+    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "client_matched", status: "skipped" });
     return { emailed: false, emailStatus: "skipped", recipients: [], reason: "No recipient found" };
   }
 
   if (input.eventKey && (await emailEventAlreadySent(input.eventKey))) {
+    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "client_matched", status: "skipped" });
     return {
       emailed: false,
       emailStatus: "skipped",
@@ -269,6 +319,16 @@ export async function sendClientMatchedEmail(
       recipients: recipients.map((r) => r.email),
     },
   });
+
+  logEmailEvent("EMAIL_SEND_RESULT", { eventType: "client_matched", status });
+  if (status === "failed") {
+    const message = firstError(results);
+    logEmailEvent("EMAIL_SEND_FAILED", {
+      eventType: "client_matched",
+      code: safeErrorCode(message),
+      message: message ?? "send failed",
+    });
+  }
 
   return {
     emailed: status === "sent",

@@ -688,6 +688,22 @@ export async function submitClientAssessmentWithContact(
     } catch (error) {
       if (!isMissingTableError(error)) console.error("[clientAssessments] agent lookup failed:", error);
     }
+
+    // Fallback: the agent row may not carry an email but the linked auth profile
+    // does. Resolve it so QR/agent-link clients still notify the right person.
+    if (!agentEmail && agentProfileId) {
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email, display_name")
+          .eq("id", agentProfileId)
+          .maybeSingle();
+        agentEmail = profile?.email ?? null;
+        if (!agentDisplayName && profile?.display_name) agentDisplayName = profile.display_name;
+      } catch (error) {
+        if (!isMissingTableError(error)) console.error("[clientAssessments] profile email lookup failed:", error);
+      }
+    }
   }
 
   try {

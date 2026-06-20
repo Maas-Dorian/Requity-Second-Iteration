@@ -4,6 +4,7 @@ import { env } from "./env.js";
 import { getAgentNotifications, type NotificationRecord } from "./messages.js";
 import { getAgentAssessmentActivity, type AgentAssessmentActivity } from "./analytics.js";
 import { isMissingTableError } from "./supabaseWrite.js";
+import { attachClientReport } from "./clientReport.js";
 import { logger } from "./logger.js";
 
 /**
@@ -244,7 +245,9 @@ export async function getAgentDashboard(
     clientFlowCounts: flow,
     recentClients,
     messages,
-    clientAssessmentDetail: list,
+    // Each client carries a `.report` with the full Relational-Roadmap detail
+    // derived from the canonical archetype data (no extra DB columns required).
+    clientAssessmentDetail: list.map((c) => attachClientReport(c)),
     settings: {
       accountEmail: agent?.email ?? null,
       supabaseConnected: true,

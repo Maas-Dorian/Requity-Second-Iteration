@@ -108,17 +108,140 @@ document.addEventListener('DOMContentLoaded', () => {
             id: c.id,
             clientId: c.id,
             name: c.full_name || 'Unknown client',
+            email: c.email || '',
+            phone: c.phone || '',
+            birthday: c.date_of_birth || '',
             archetype: c.archetype || '—',
             orientation: c.orientation || '—',
             style: c.style || '—',
             stressResponse: c.stress_response || '—',
             transaction: transactionText(c),
             market: marketText(c),
+            report: c.report || null,
             status: 'Pending Review',
             highestMatch: fits.length ? fits[0].name : null,
             highestMatchAgentId: fits.length ? fits[0].agentId : null,
             fits: fits
         };
+    }
+
+    function clientFieldText(v, fallback) {
+        const s = (v === null || v === undefined) ? '' : String(v).trim();
+        return s ? s : (fallback || 'Not specified');
+    }
+
+    function reportListHtml(items, max) {
+        if (!Array.isArray(items) || !items.length) return '';
+        return '<ul class="report-list">' +
+            items.slice(0, max || 6).map(function (x) { return '<li>' + esc(String(x)) + '</li>'; }).join('') +
+            '</ul>';
+    }
+
+    function reportApproachSection(title, approachLabel, approaches, avoidLabel, avoid, extras) {
+        let body = '';
+        if (Array.isArray(approaches) && approaches.length) {
+            body += '<span class="report-subhead">' + esc(approachLabel) + '</span>' + reportListHtml(approaches);
+        }
+        if (avoid && String(avoid).trim()) {
+            body += '<span class="report-subhead">' + esc(avoidLabel) + '</span>' +
+                '<p class="report-avoid">' + esc(String(avoid)) + '</p>';
+        }
+        (extras || []).forEach(function (ex) {
+            if (Array.isArray(ex.items) && ex.items.length) {
+                body += '<span class="report-subhead">' + esc(ex.label) + '</span>' + reportListHtml(ex.items);
+            }
+        });
+        if (!body) return '';
+        return '<div class="report-section"><h4>' + esc(title) + '</h4>' + body + '</div>';
+    }
+
+    // Full Relational-Roadmap-style detail for the active client profile.
+    function buildClientReportHtml(client) {
+        const r = client && client.report ? client.report : null;
+        const g = r && r.guidelines ? r.guidelines : null;
+        const buyer = r && r.buyerProfile ? r.buyerProfile : null;
+        const seller = r && r.sellerProfile ? r.sellerProfile : null;
+
+        if (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1') {
+            try {
+                console.log('client-assessment-detail-render', {
+                    id: client.id,
+                    archetype: client.archetype || null,
+                    hasGuidelines: !!g,
+                    hasBuyerProfile: !!buyer,
+                    hasSellerProfile: !!seller,
+                    transactionIntentLabel: client.transaction,
+                    marketCity: client.market
+                });
+            } catch (e) {}
+        }
+
+        const contact =
+            '<div class="report-section"><h4>Contact Information</h4>' +
+                '<div class="profile-grid">' +
+                    '<div class="profile-field"><span class="detail-label">Name</span><span class="detail-value">' + esc(clientFieldText(client.name)) + '</span></div>' +
+                    '<div class="profile-field"><span class="detail-label">Email</span><span class="detail-value">' + esc(clientFieldText(client.email)) + '</span></div>' +
+                    '<div class="profile-field"><span class="detail-label">Phone</span><span class="detail-value">' + esc(clientFieldText(client.phone)) + '</span></div>' +
+                    '<div class="profile-field"><span class="detail-label">Birthday</span><span class="detail-value">' + esc(clientFieldText(client.birthday)) + '</span></div>' +
+                '</div>' +
+            '</div>';
+
+        if (!r || (!g && !buyer && !seller)) {
+            return '<div class="client-report">' + contact +
+                '<div class="report-section"><h4>Relational Roadmap</h4>' +
+                    '<p class="report-text">Detailed guidance is not available for this client yet.</p>' +
+                '</div></div>';
+        }
+
+        const afterBullets = (r.whatThisClientIsAfter && r.whatThisClientIsAfter.length)
+            ? reportListHtml(r.whatThisClientIsAfter, 4)
+            : (r.summary ? '<p class="report-text">' + esc(r.summary) + '</p>' : '<p class="report-text">Not available</p>');
+        const context = '<p class="report-text">Transaction: ' + esc(client.transaction) +
+            ' &nbsp;·&nbsp; Market: ' + esc(client.market) + '</p>';
+        const after = '<div class="report-section"><h4>What This Client Is After</h4>' + afterBullets + context + '</div>';
+
+        const buyerSection = reportApproachSection(
+            'As a Buyer',
+            'Recommended Buyer Approaches', g ? (g.buyer && g.buyer.approaches) : null,
+            'What Buyers Should Avoid', g ? (g.buyer && g.buyer.avoid) : null,
+            [
+                { label: 'Communication', items: buyer ? buyer.communication : null },
+                { label: 'Reducing Stress', items: buyer ? buyer.stressReduction : null }
+            ]
+        );
+        const sellerSection = reportApproachSection(
+            'As a Seller',
+            'Key Approaches', g ? (g.seller && g.seller.approaches) : null,
+            'Avoid', g ? (g.seller && g.seller.avoid) : null,
+            [
+                { label: 'Communication', items: seller ? seller.communication : null },
+                { label: 'Reducing Stress', items: seller ? seller.stressReduction : null }
+            ]
+        );
+        const simultaneousSection = reportApproachSection(
+            'Buying & Selling Together',
+            'Approaches', g ? (g.simultaneous && g.simultaneous.approaches) : null,
+            'Avoid', g ? (g.simultaneous && g.simultaneous.avoid) : null,
+            []
+        );
+        const commSection = reportApproachSection(
+            'Communication & Interaction Guidelines',
+            'Recommended Approaches', g ? (g.communication && g.communication.recommended) : null,
+            '', null,
+            [{ label: 'Approaches to Avoid', items: g ? (g.communication && g.communication.avoid) : null }]
+        );
+
+        const appreciation = (r.appreciationStyle)
+            ? '<div class="report-section"><h4>Client\'s Appreciation Style</h4><p class="report-text">' + esc(r.appreciationStyle) + '</p></div>'
+            : '';
+        const expectations =
+            '<div class="report-section"><h4>Client\'s Expectations &amp; Questions</h4><p class="report-text">' +
+            esc(r.expectationsOrQuestions || 'No additional expectations provided') + '</p></div>';
+
+        return '<div class="client-report">' + contact + after +
+            '<div class="report-grid">' + buyerSection + sellerSection + '</div>' +
+            simultaneousSection + commSection + appreciation + expectations +
+            '</div>';
     }
 
     function recomputeCounts() {
@@ -197,7 +320,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 '<div class="profile-field"><span class="detail-label">Orientation</span><span class="detail-value">' + esc(client.orientation) + '</span></div>' +
                 '<div class="profile-field"><span class="detail-label">Style</span><span class="detail-value">' + esc(client.style) + '</span></div>' +
                 '<div class="profile-field"><span class="detail-label">Stress Response</span><span class="detail-value">' + esc(client.stressResponse) + '</span></div>' +
-            '</div>';
+            '</div>' +
+            buildClientReportHtml(client);
         elProfileCard.classList.remove('fade-in');
         void elProfileCard.offsetWidth; // trigger reflow
         elProfileCard.classList.add('fade-in');

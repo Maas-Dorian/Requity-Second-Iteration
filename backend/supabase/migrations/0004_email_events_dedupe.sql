@@ -22,6 +22,18 @@
 --   - Never drops columns, tables, or data. Old rows keep working (event_key NULL).
 -- ============================================================================
 
+-- Ensure the base table exists (no-op when it already does). Makes this
+-- migration self-sufficient on a DB that never ran the full schema.sql.
+create table if not exists public.email_events (
+  id uuid primary key default gen_random_uuid(),
+  recipient_email text not null,
+  template_key text,
+  brevo_message_id text,
+  payload jsonb default '{}'::jsonb,
+  status text default 'queued',
+  created_at timestamptz default now()
+);
+
 alter table public.email_events add column if not exists event_key text;
 alter table public.email_events add column if not exists event_type text;
 alter table public.email_events add column if not exists provider text;

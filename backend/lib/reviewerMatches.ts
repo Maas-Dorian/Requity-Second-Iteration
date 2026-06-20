@@ -13,6 +13,7 @@ import {
 import { sendClientMatchedEmail, type EmailTarget } from "./email.js";
 import { env } from "./env.js";
 import { assignArchetype, isApprovedClientArchetype } from "./archetypes.js";
+import { attachClientReport } from "./clientReport.js";
 
 /**
  * REQUITY reviewer queue: rank agents for a reviewer-sourced client, record a
@@ -141,7 +142,7 @@ export async function listReviewerQueue(): Promise<ReviewerQueueItem[]> {
     if (error) throw new Error(error.message);
     for (const client of clients ?? []) {
       const rankings = await rankAgentsForClient(client.id);
-      queue.push({ client, rankings });
+      queue.push({ client: attachClientReport(client), rankings });
     }
   } catch (error) {
     // Missing/drifted clients table → fall through to the lead-based source.
@@ -231,9 +232,11 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
     }));
 
     items.push({
-      client: {
+      client: attachClientReport({
         id: lead.id,
         full_name: lead.full_name,
+        email: lead.email ?? null,
+        phone: lead.phone ?? null,
         archetype,
         orientation: scored.orientation,
         style: scored.style,
@@ -244,7 +247,7 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
         market_city: lead.market_city ?? null,
         source: "requity_reviewer",
         status: "reviewer_matching",
-      },
+      }),
       rankings: ranked,
     });
   }
