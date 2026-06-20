@@ -54,6 +54,35 @@ export function getRequiredEnvStatus(): {
   };
 }
 
+/**
+ * Booleans-only snapshot of the Brevo/email config. Safe to return from the
+ * email health endpoint — never includes the key or sender values themselves.
+ *
+ * `canSendConfigured` is true when an API key is present AND a sender email is
+ * resolvable. The sender email/name fall back to project-approved defaults
+ * (REQUITY / hello@requityapp.com), so the only hard requirement for live
+ * sending is the API key.
+ */
+export function getEmailConfigStatus(): {
+  hasBrevoApiKey: boolean;
+  hasSenderEmail: boolean;
+  hasSenderName: boolean;
+  hasReviewNotificationEmail: boolean;
+  canSendConfigured: boolean;
+} {
+  const hasBrevoApiKey = has("BREVO_API_KEY");
+  return {
+    hasBrevoApiKey,
+    // Presence of an explicit env override (a default is always available).
+    hasSenderEmail: has("BREVO_SENDER_EMAIL"),
+    hasSenderName: has("BREVO_SENDER_NAME"),
+    hasReviewNotificationEmail: has("REQUITY_REVIEW_EMAIL", "ADMIN_NOTIFICATION_EMAIL"),
+    // A sender email is always resolvable (env override or approved default),
+    // so live sending only requires the API key.
+    canSendConfigured: hasBrevoApiKey,
+  };
+}
+
 export function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }
@@ -213,6 +242,14 @@ export const env = {
   },
   get brevoSenderName(): string {
     return read("BREVO_SENDER_NAME") ?? "REQUITY";
+  },
+  /**
+   * Optional reviewer/admin fallback recipient for notifications that have no
+   * assigned agent (e.g. a direct/reviewer-queue client completing the
+   * assessment). Returns null when not configured. Never throws.
+   */
+  get reviewNotificationEmail(): string | null {
+    return read("REQUITY_REVIEW_EMAIL", "ADMIN_NOTIFICATION_EMAIL") ?? null;
   },
   get frontendUrl(): string {
     return (

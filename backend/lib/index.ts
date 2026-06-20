@@ -39,10 +39,21 @@ export {
 
 export {
   recordEmailEvent,
-  sendAndRecordReviewerMatchEmail,
+  emailEventAlreadySent,
   type EmailEventRecord,
   type RecordEmailEventParams,
 } from "./emailEvents.js";
+
+export {
+  sendClientAssessmentCompletedEmail,
+  sendClientMatchedEmail,
+  agentDashboardUrl,
+  reviewerDashboardUrl,
+  type EmailDeliveryResult,
+  type EmailDeliveryStatus,
+  type EmailTarget,
+  type EmailRole,
+} from "./email.js";
 
 export {
   createClientAssessment,
@@ -93,14 +104,6 @@ export {
   getAgentDashboard,
   type AgentDashboard,
 } from "./dashboard.js";
-
-export {
-  sendClientAssessmentCompleteEmail,
-} from "./brevo.js";
-
-export {
-  sendAndRecordClientCompleteEmail,
-} from "./emailEvents.js";
 
 export {
   getUserFromRequest,

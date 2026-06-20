@@ -10,3 +10,8 @@ export {
   CLIENT_COMPLETE_SUBJECT,
 } from "./clientAssessmentComplete.js";
 export type { ClientCompleteEmailParams } from "./clientAssessmentComplete.js";
+export {
+  clientMatchEmail,
+  CLIENT_MATCH_SUBJECT,
+} from "./clientMatch.js";
+export type { ClientMatchEmailParams } from "./clientMatch.js";

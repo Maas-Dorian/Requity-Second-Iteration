@@ -8,7 +8,7 @@ import {
   type ClientSource,
 } from "./matching.js";
 import { createNotification } from "./messages.js";
-import { sendAndRecordClientCompleteEmail } from "./emailEvents.js";
+import { sendClientAssessmentCompletedEmail, type EmailTarget } from "./email.js";
 import { completeAssessmentLead, upsertAssessmentLeadStart } from "./assessmentLeads.js";
 import {
   insertWithSchemaFallback,
@@ -458,6 +458,8 @@ export type SubmitClientAssessmentWithContactResult = SubmitClientAssessmentResu
   /** Null when public.assessments is missing (data saved to assessment_leads). */
   assessmentId: string | null;
   emailed: boolean;
+  /** Safe email outcome for the client/agent flow: sent | skipped | failed. */
+  emailStatus: "sent" | "skipped" | "failed";
   transactionIntent: "buying" | "selling" | "other" | null;
   transactionIntentLabel: string | null;
   transactionIntentOther: string | null;
@@ -704,24 +706,37 @@ export async function submitClientAssessmentWithContact(
     console.error("[clientAssessments] completion notification failed:", error);
   }
 
-  // Brevo email for QR / agent-link clients (if configured).
+  // Notify by email AFTER the data is durably saved. Recipient resolution:
+  //  - assigned agent (qr/agent-link) when their email is known, else
+  //  - the reviewer/admin fallback (REQUITY_REVIEW_EMAIL) for reviewer-queue
+  //    clients with no assigned agent.
+  // A missing/failed email never affects the saved assessment.
+  const completionRecipients: EmailTarget[] = [];
+  if (agentEmail) {
+    completionRecipients.push({ email: agentEmail, name: agentDisplayName ?? null, role: "agent" });
+  } else if (env.reviewNotificationEmail) {
+    completionRecipients.push({ email: env.reviewNotificationEmail, role: "reviewer" });
+  }
+
   let emailed = false;
-  if (dbSource === "qr" && agentEmail) {
-    try {
-      const { send } = await sendAndRecordClientCompleteEmail(
-        { email: agentEmail, name: agentDisplayName },
-        {
-          clientName: fullName,
-          agentName: agentDisplayName,
-          archetype: result.archetype,
-          transaction: transactionIntentLabel,
-          market: marketCity,
-        }
-      );
-      emailed = send.sent;
-    } catch (error) {
-      console.error("[clientAssessments] completion email failed:", error);
-    }
+  let emailStatus: "sent" | "skipped" | "failed" = "skipped";
+  try {
+    const eventKey = `assessment_completed:${assessmentId ?? clientId ?? params.leadId ?? params.contact.email ?? fullName}`;
+    const delivery = await sendClientAssessmentCompletedEmail({
+      eventKey,
+      recipients: completionRecipients,
+      clientName: fullName,
+      clientEmail: params.contact.email ?? null,
+      transactionIntentLabel,
+      marketCity,
+      clientArchetype: result.archetype,
+      assignedAgentName: agentDisplayName ?? null,
+    });
+    emailed = delivery.emailed;
+    emailStatus = delivery.emailStatus;
+  } catch (error) {
+    console.error("[clientAssessments] completion email failed:", error instanceof Error ? error.message : error);
+    emailStatus = "failed";
   }
 
   return {
@@ -732,6 +747,7 @@ export async function submitClientAssessmentWithContact(
     assignedAgentId: agentId,
     status,
     emailed,
+    emailStatus,
     transactionIntent,
     transactionIntentLabel,
     transactionIntentOther,

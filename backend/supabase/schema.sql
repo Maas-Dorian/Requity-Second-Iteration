@@ -146,8 +146,21 @@ create table if not exists email_events (
   brevo_message_id text,
   payload jsonb default '{}'::jsonb,
   status text default 'queued',
+  -- Dedupe + provider enrichment (migration 0004).
+  event_key text,
+  event_type text,
+  provider text,
+  provider_message_id text,
+  error_message text,
+  metadata jsonb default '{}'::jsonb,
   created_at timestamptz default now()
 );
+
+-- Unique idempotency key so the same logical email is never sent twice.
+-- NULLs allowed (legacy rows / opt-out), and NULLs are not considered equal.
+create unique index if not exists email_events_event_key_key
+  on email_events (event_key)
+  where event_key is not null;
 
 -- Incomplete / partial assessment lead capture.
 -- A lead is created as soon as a client enters their contact info and starts the

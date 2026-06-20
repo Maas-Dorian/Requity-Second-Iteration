@@ -1,16 +1,14 @@
 import { emailLayout, REQUITY_COLORS } from "./layout.js";
 
-export type ClientCompleteEmailParams = {
-  /** Name of the client who completed the assessment. */
+export type ClientMatchEmailParams = {
+  /** Name of the client that was matched. */
   clientName?: string | null;
-  /** Client email, shown in the details list when available. */
-  clientEmail?: string | null;
-  /** Optional agent first name for a warmer greeting. */
-  agentName?: string;
-  /** Assigned agent display name (shown in details when available). */
-  assignedAgentName?: string | null;
-  /** Optional computed client archetype. */
-  archetype?: string | null;
+  /** Optional client archetype. */
+  clientArchetype?: string | null;
+  /** Matched agent display name. */
+  agentName?: string | null;
+  /** Match score or fit label ("Strong fit", "82", etc.). */
+  matchLabel?: string | null;
   /** Optional transaction intent label (Buying / Selling / custom text). */
   transaction?: string | null;
   /** Optional city/market the client is looking in. */
@@ -19,7 +17,7 @@ export type ClientCompleteEmailParams = {
   dashboardUrl: string;
 };
 
-export const CLIENT_COMPLETE_SUBJECT = "New client assessment completed on REQUITY";
+export const CLIENT_MATCH_SUBJECT = "New REQUITY match available";
 
 function escapeHtml(value: string): string {
   return value
@@ -37,30 +35,33 @@ function detailRow(label: string, value: string): string {
 }
 
 /**
- * Email sent to the relevant agent/reviewer when a client completes the REQUITY
- * assessment. Includes the client details and a CTA into the dashboard.
+ * Email sent to an agent (and optionally a reviewer/admin) when REQUITY creates
+ * or identifies a match that is ready to review.
  */
-export function clientAssessmentCompleteEmail(params: ClientCompleteEmailParams): string {
+export function clientMatchEmail(params: ClientMatchEmailParams): string {
   const fallback = (v?: string | null) => (v && String(v).trim() ? escapeHtml(String(v).trim()) : "Not specified");
   const dashboardUrl = params.dashboardUrl;
+  const matchValue = params.matchLabel && String(params.matchLabel).trim()
+    ? escapeHtml(String(params.matchLabel).trim())
+    : "Ready to review";
 
   const body = `
-<h1 style="margin:0 0 12px;font-size:22px;color:${REQUITY_COLORS.navy};">New client assessment completed</h1>
-<p style="font-size:16px;line-height:1.6;margin:0 0 18px;">A client has completed their REQUITY assessment and is ready for review.</p>
+<h1 style="margin:0 0 12px;font-size:22px;color:${REQUITY_COLORS.navy};">New REQUITY match available</h1>
+<p style="font-size:16px;line-height:1.6;margin:0 0 18px;">A client has a new REQUITY match ready to review.</p>
 <table cellpadding="0" cellspacing="0" border="0" style="width:100%;border-top:1px solid ${REQUITY_COLORS.border};border-bottom:1px solid ${REQUITY_COLORS.border};margin:0 0 22px;">
 ${detailRow("Client", fallback(params.clientName))}
-${detailRow("Email", fallback(params.clientEmail))}
+${detailRow("Client Archetype", fallback(params.clientArchetype))}
+${detailRow("Matched Agent", fallback(params.agentName))}
 ${detailRow("Transaction", fallback(params.transaction))}
 ${detailRow("Market", fallback(params.market))}
-${detailRow("Client Archetype", fallback(params.archetype))}
-${detailRow("Assigned agent", fallback(params.assignedAgentName))}
+${detailRow("Match", matchValue)}
 </table>
-<p style="margin:0 0 22px;"><a href="${dashboardUrl}" style="display:inline-block;background:${REQUITY_COLORS.orange};color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 26px;border-radius:8px;">View in REQUITY</a></p>
+<p style="margin:0 0 22px;"><a href="${dashboardUrl}" style="display:inline-block;background:${REQUITY_COLORS.orange};color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 26px;border-radius:8px;">View match in REQUITY</a></p>
 <p style="font-size:13px;line-height:1.6;margin:0 0 18px;color:${REQUITY_COLORS.muted};">Or open this link: <a href="${dashboardUrl}" style="color:${REQUITY_COLORS.navy};">${dashboardUrl}</a></p>
 <p style="font-size:13px;color:${REQUITY_COLORS.muted};margin:0;">You're receiving this because you are connected to this REQUITY assessment.</p>`;
 
   return emailLayout({
     body,
-    preheader: `${params.clientName ? String(params.clientName).trim() : "A client"} completed their REQUITY assessment.`,
+    preheader: `${params.clientName ? String(params.clientName).trim() : "A client"} has a new REQUITY match ready to review.`,
   });
 }

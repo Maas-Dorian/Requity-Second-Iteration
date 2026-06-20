@@ -10,7 +10,8 @@ import {
   createNotification,
   REVIEWER_MATCH_NOTIFICATION_BODY,
 } from "./messages.js";
-import { sendAndRecordReviewerMatchEmail } from "./emailEvents.js";
+import { sendClientMatchedEmail, type EmailTarget } from "./email.js";
+import { env } from "./env.js";
 import { assignArchetype, isApprovedClientArchetype } from "./archetypes.js";
 
 /**
@@ -265,7 +266,8 @@ export type ApproveReviewerMatchResult = {
 async function finalizeAssignment(
   client: any,
   agent: any,
-  matchId: string
+  matchId: string,
+  matchLabel?: string | null
 ): Promise<{ notified: boolean; emailed: boolean }> {
   const supabase = getSupabaseAdmin();
 
@@ -289,16 +291,36 @@ async function finalizeAssignment(
     console.error("[reviewerMatches] notification failed:", error);
   }
 
-  let emailed = false;
+  // Email the matched agent, plus the reviewer/admin fallback when configured
+  // (and not a duplicate of the agent address). Dedupes by client+agent.
+  const recipients: EmailTarget[] = [];
   if (agent.email) {
+    recipients.push({ email: agent.email, name: agent.display_name, role: "agent" });
+  }
+  const reviewEmail = env.reviewNotificationEmail;
+  if (
+    reviewEmail &&
+    (!agent.email || reviewEmail.toLowerCase() !== String(agent.email).toLowerCase())
+  ) {
+    recipients.push({ email: reviewEmail, role: "reviewer" });
+  }
+
+  let emailed = false;
+  if (recipients.length) {
     try {
-      const { send } = await sendAndRecordReviewerMatchEmail(
-        { email: agent.email, name: agent.display_name },
-        { clientName: client.full_name, agentName: agent.display_name }
-      );
-      emailed = send.sent;
+      const delivery = await sendClientMatchedEmail({
+        eventKey: `client_matched:${client.id}:${agent.id}`,
+        recipients,
+        clientName: client.full_name ?? null,
+        clientArchetype: client.archetype ?? null,
+        agentName: agent.display_name ?? null,
+        matchLabel: matchLabel ?? null,
+        transactionIntentLabel: client.transaction_intent_label ?? null,
+        marketCity: client.market_city ?? null,
+      });
+      emailed = delivery.emailed;
     } catch (error) {
-      console.error("[reviewerMatches] email failed:", error);
+      console.error("[reviewerMatches] email failed:", error instanceof Error ? error.message : error);
     }
   }
 
@@ -354,7 +376,7 @@ export async function assignReviewerMatch(
     .single();
   if (matchError) throw new Error(`assignReviewerMatch recommendation failed: ${matchError.message}`);
 
-  const { notified, emailed } = await finalizeAssignment(client, agent, match.id);
+  const { notified, emailed } = await finalizeAssignment(client, agent, match.id, labelForScore(score));
   return { matchId: match.id, clientId: client.id, agentId: agent.id, notified, emailed };
 }
 
@@ -387,6 +409,11 @@ export async function approveReviewerMatch(
     .update({ status: "assigned", reviewed_at: now, reviewer_id: reviewerId ?? match.reviewer_id })
     .eq("id", matchId);
 
-  const { notified, emailed } = await finalizeAssignment(client, agent, matchId);
+  const { notified, emailed } = await finalizeAssignment(
+    client,
+    agent,
+    matchId,
+    (match as any).label ?? labelForScore((match as any).score ?? 0)
+  );
   return { matchId, clientId: client.id, agentId: agent.id, notified, emailed };
 }
