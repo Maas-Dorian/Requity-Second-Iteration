@@ -256,6 +256,127 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
   return items;
 }
 
+export type PairedClientItem = {
+  matchId: string | null;
+  clientId: string | null;
+  clientName: string | null;
+  clientEmail: string | null;
+  clientArchetype: string | null;
+  transactionIntent: string | null;
+  transactionIntentLabel: string | null;
+  buyingMarket: string | null;
+  sellingMarket: string | null;
+  market: string | null;
+  agentId: string | null;
+  agentName: string | null;
+  agentEmail: string | null;
+  agentArchetype: string | null;
+  score: number | null;
+  label: string | null;
+  status: string;
+  matchedAt: string | null;
+};
+
+function cleanText(value: unknown): string | null {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed : null;
+}
+
+/**
+ * Live "Paired Clients" for the reviewer page: clients that have been matched to
+ * an agent. Primary source is `match_recommendations` rows with an
+ * assigned/approved status (joined to `clients` + `agents`). Resilient: a
+ * missing/drifted `match_recommendations` table degrades to a `clients`-only
+ * pass (status = assigned with an assigned_agent_id). Never fabricates pairings;
+ * returns [] when there are none. Deduped by client (newest pairing wins).
+ */
+export async function listPairedClients(): Promise<PairedClientItem[]> {
+  const supabase = getSupabaseAdmin();
+  const byClient = new Map<string, PairedClientItem>();
+  const PAIRED_STATUSES = ["assigned", "approved"];
+
+  const pushItem = (item: PairedClientItem) => {
+    const key = item.clientId ?? item.matchId ?? `${item.clientName}:${item.agentId}`;
+    if (key && !byClient.has(key)) byClient.set(key, item);
+  };
+
+  // --- Primary: match_recommendations joined to clients + agents ----------
+  try {
+    const { data, error } = await supabase
+      .from("match_recommendations")
+      .select("*, clients(*), agents(*)")
+      .in("status", PAIRED_STATUSES)
+      .order("reviewed_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    for (const row of (data ?? []) as any[]) {
+      const client = row.clients ?? {};
+      const agent = row.agents ?? {};
+      pushItem({
+        matchId: row.id ?? null,
+        clientId: client.id ?? row.client_id ?? null,
+        clientName: cleanText(client.full_name),
+        clientEmail: cleanText(client.email),
+        clientArchetype: cleanText(client.archetype),
+        transactionIntent: cleanText(client.transaction_intent),
+        transactionIntentLabel: cleanText(client.transaction_intent_label),
+        buyingMarket: cleanText(client.buying_market_city),
+        sellingMarket: cleanText(client.selling_market_city),
+        market: cleanText(client.market_city),
+        agentId: agent.id ?? row.agent_id ?? null,
+        agentName: cleanText(agent.display_name),
+        agentEmail: cleanText(agent.email),
+        agentArchetype: cleanText(agent.archetype),
+        score: typeof row.score === "number" ? row.score : null,
+        label: cleanText(row.label),
+        status: cleanText(row.status) ?? "assigned",
+        matchedAt: row.reviewed_at ?? row.created_at ?? null,
+      });
+    }
+  } catch (error) {
+    console.error("[reviewerMatches] paired (match_recommendations) unavailable:", error);
+  }
+
+  // --- Resilience: assigned clients not already represented above ---------
+  try {
+    const { data, error } = await supabase
+      .from("clients")
+      .select("*, agents:assigned_agent_id(*)")
+      .eq("status", "assigned")
+      .not("assigned_agent_id", "is", null)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    for (const client of (data ?? []) as any[]) {
+      if (client.id && byClient.has(client.id)) continue;
+      const agent = client.agents ?? {};
+      pushItem({
+        matchId: null,
+        clientId: client.id ?? null,
+        clientName: cleanText(client.full_name),
+        clientEmail: cleanText(client.email),
+        clientArchetype: cleanText(client.archetype),
+        transactionIntent: cleanText(client.transaction_intent),
+        transactionIntentLabel: cleanText(client.transaction_intent_label),
+        buyingMarket: cleanText(client.buying_market_city),
+        sellingMarket: cleanText(client.selling_market_city),
+        market: cleanText(client.market_city),
+        agentId: agent.id ?? client.assigned_agent_id ?? null,
+        agentName: cleanText(agent.display_name),
+        agentEmail: cleanText(agent.email),
+        agentArchetype: cleanText(agent.archetype),
+        score: null,
+        label: null,
+        status: "assigned",
+        matchedAt: client.updated_at ?? client.created_at ?? null,
+      });
+    }
+  } catch (error) {
+    console.error("[reviewerMatches] paired (clients fallback) unavailable:", error);
+  }
+
+  return Array.from(byClient.values());
+}
+
 export type ApproveReviewerMatchResult = {
   matchId: string;
   clientId: string;

@@ -484,6 +484,32 @@
   }
 
   /**
+   * Reviewer: full queue payload. Returns { queue, upForReview, pairedClients }.
+   * Throws on failure so the caller can show a real error state.
+   */
+  async function fetchReviewerQueue() {
+    var data = (await apiGet("/reviewer/matches")) || {};
+    var queue = data.queue || data.upForReview || [];
+    return {
+      queue: queue,
+      upForReview: data.upForReview || queue,
+      pairedClients: data.pairedClients || [],
+    };
+  }
+
+  /**
+   * Reviewer: canonical archetype reference (16 client + 16 agent).
+   * Returns { clientArchetypes: [], agentArchetypes: [] }. Throws on failure.
+   */
+  async function fetchReviewerArchetypeReference() {
+    var data = (await apiGet("/reviewer/archetype-reference")) || {};
+    return {
+      clientArchetypes: data.clientArchetypes || [],
+      agentArchetypes: data.agentArchetypes || [],
+    };
+  }
+
+  /**
    * Reviewer: approve + assign a queued client to an agent. Throws on failure.
    * payload: { clientId, agentId, score?, reason? }
    */
@@ -734,6 +760,8 @@
     updateReviewerAssessmentLead: updateReviewerAssessmentLead,
     deleteReviewerAssessmentLead: deleteReviewerAssessmentLead,
     fetchReviewerMatches: fetchReviewerMatches,
+    fetchReviewerQueue: fetchReviewerQueue,
+    fetchReviewerArchetypeReference: fetchReviewerArchetypeReference,
     approveReviewerMatch: approveReviewerMatch,
     copyAssessmentLink: copyAssessmentLink,
   };

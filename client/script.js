@@ -3,6 +3,47 @@
 document.addEventListener('DOMContentLoaded', () => {
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+    // --- Single source of truth: every landing CTA opens the REAL assessment.
+    // We preserve the agent token and source params so attribution survives.
+    function buildAssessmentHref() {
+        const base = 'assessment.html';
+        try {
+            const current = new URLSearchParams(window.location.search);
+            const keep = new URLSearchParams();
+            ['agent', 'a', 'agentToken', 'agentId', 'source', 'token'].forEach((key) => {
+                const v = current.get(key);
+                if (v) keep.set(key, v);
+            });
+            const qs = keep.toString();
+            return qs ? (base + '?' + qs) : base;
+        } catch (e) {
+            return base;
+        }
+    }
+
+    const assessmentHref = buildAssessmentHref();
+
+    (function wireAssessmentCtas() {
+        const ctas = document.querySelectorAll('[data-assessment-cta]');
+        ctas.forEach((el) => {
+            if (el.tagName === 'A') {
+                el.setAttribute('href', assessmentHref);
+            } else {
+                el.addEventListener('click', () => { window.location.href = assessmentHref; });
+            }
+        });
+        if (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1') {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                console.log('client-landing:assessment-link', {
+                    href: assessmentHref,
+                    hasAgentToken: Boolean(params.get('agent') || params.get('a') || params.get('agentToken') || params.get('agentId')),
+                    source: params.get('source') || null
+                });
+            } catch (e) {}
+        }
+    })();
+
     // Carry the landing intake form forward so clients never enter info twice.
     // We stash the values in localStorage and the assessment page prefills them.
     const mockSubmitBtn = document.getElementById('mockSubmitBtn');
@@ -29,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const hasAny = Object.values(prefill).some((v) => v && String(v).trim() !== '');
                 if (hasAny) localStorage.setItem('requity_prefill', JSON.stringify(prefill));
             } catch (e) { /* ignore */ }
-            window.location.href = 'assessment.html';
+            window.location.href = assessmentHref;
         });
     }
 

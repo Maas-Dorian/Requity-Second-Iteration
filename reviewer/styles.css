@@ -353,8 +353,11 @@ h1, h2, h3, h4 {
 .log-action { color: var(--text-primary); }
 
 /* Reference */
-.ref-item { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem; line-height: 1.4; }
+.ref-item { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.65rem; line-height: 1.4; }
 .ref-item strong { color: var(--text-primary); }
+.ref-traits { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.35rem; }
+.ref-trait { font-size: 0.72rem; color: var(--text-secondary); background: var(--blue-light, #eef2ff); border: 1px solid var(--blue-border); border-radius: 999px; padding: 0.1rem 0.5rem; }
+.ref-compatible { font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.3rem; font-style: italic; }
 
 /* Bottom Bar */
 .bottom-bar {

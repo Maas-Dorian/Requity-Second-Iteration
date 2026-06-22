@@ -1670,3 +1670,65 @@ export const AGENT_ARCHETYPE_DETAILS: Record<string, AgentArchetypeDetail> = Obj
     ];
   })
 );
+
+// ---------------------------------------------------------------------------
+// Archetype reference (reviewer page) — canonical, approved data only.
+// ---------------------------------------------------------------------------
+
+export interface ArchetypeReferenceItem {
+  name: string;
+  summary: string;
+  traits: string[];
+  compatible: string[];
+}
+
+export interface ArchetypeReference {
+  clientArchetypes: ArchetypeReferenceItem[];
+  agentArchetypes: ArchetypeReferenceItem[];
+}
+
+// Reverse map: for each client archetype, which agent archetypes pair with it.
+const CLIENT_COMPATIBLE_AGENTS: Record<string, string[]> = (() => {
+  const map: Record<string, string[]> = {};
+  for (const [agent, clientsList] of Object.entries(agentCompatibility)) {
+    for (const client of clientsList) {
+      (map[client] ??= []).push(agent);
+    }
+  }
+  return map;
+})();
+
+/**
+ * Build the reviewer archetype reference from the canonical approved data only.
+ * Always returns the 16 approved client and 16 approved agent archetypes (in
+ * canonical order), each with a real summary, key trait bullets, and compatible
+ * types. Never emits old/invalid archetypes or raw dimension keys.
+ */
+export function getArchetypeReference(): ArchetypeReference {
+  const clientArchetypes: ArchetypeReferenceItem[] = (CLIENT_ARCHETYPES as readonly string[]).map(
+    (name) => {
+      const def = CLIENT_ARCHETYPE_DETAILS[name];
+      const traits = (def?.buyerProfile?.motivations ?? []).slice(0, 3);
+      return {
+        name,
+        summary: def?.summary ?? "Summary not available",
+        traits,
+        compatible: CLIENT_COMPATIBLE_AGENTS[name] ?? [],
+      };
+    }
+  );
+
+  const agentArchetypes: ArchetypeReferenceItem[] = (AGENT_ARCHETYPES as readonly string[]).map(
+    (name) => {
+      const def = AGENT_ARCHETYPE_DETAILS[name];
+      return {
+        name,
+        summary: def?.summary ?? "Summary not available",
+        traits: (def?.strengths ?? []).slice(0, 3),
+        compatible: getCompatibleClientTypes(name),
+      };
+    }
+  );
+
+  return { clientArchetypes, agentArchetypes };
+}

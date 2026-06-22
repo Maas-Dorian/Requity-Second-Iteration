@@ -103,7 +103,6 @@
                                 <option value="started">Started</option>
                                 <option value="in_progress">In progress</option>
                                 <option value="followed_up">Followed up</option>
-                                <option value="completed">Completed</option>
                             </select>
                             <select id="leads-filter-source" class="leads-select" aria-label="Filter by source">
                                 <option value="">All sources</option>
@@ -116,6 +115,15 @@
                     </div>
                     <p class="helper-text mb-3">Clients who started an assessment but haven’t finished. Follow up to help them complete it.</p>
                     <div id="leads-list" class="leads-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </section>
+
+                <!-- 6c. Paired Clients -->
+                <section id="paired-section" class="section">
+                    <h2 class="section-title">Paired Clients</h2>
+                    <p class="helper-text mb-3">Clients who have been matched and assigned to a real estate agent.</p>
+                    <div id="paired-list" class="leads-list">
                         <!-- Populated by JS -->
                     </div>
                 </section>
@@ -177,22 +185,20 @@
                     </div>
                 </section>
 
-                <!-- 12. Archetype Reference -->
+                <!-- 12. Archetype Reference (live, canonical approved data) -->
                 <section class="section">
                     <div class="card reference-card">
                         <h2 class="section-title">Archetype reference</h2>
-                        
+
                         <h3 class="detail-label mt-2 mb-1 text-blue">Client Archetypes</h3>
-                        <div class="ref-item"><strong>The Trailblazer:</strong> bold, design-loving initiator who thrives on action and quick decisions</div>
-                        <div class="ref-item"><strong>The Strategist:</strong> results-oriented decision-maker who values efficiency and clear processes</div>
-                        <div class="ref-item"><strong>The Harmonizer:</strong> style-focused team player who seeks consensus and reassurance</div>
-                        <div class="ref-item"><strong>The Supporter:</strong> harmony-seeking, practical collaborator who values consensus and gentle guidance</div>
+                        <div id="ref-client-list">
+                            <div class="ref-item">Loading client archetypes…</div>
+                        </div>
 
                         <h3 class="detail-label mt-3 mb-1 text-blue">Real Estate Agent Archetypes</h3>
-                        <div class="ref-item"><strong>The Trendsetter:</strong> energetic and forward-looking, brings momentum and confidence</div>
-                        <div class="ref-item"><strong>The Analyst:</strong> leads with clarity and insight, grounded in solid reasoning</div>
-                        <div class="ref-item"><strong>The Deal Maker:</strong> assertive and results-focused, thrives in negotiation</div>
-                        <div class="ref-item"><strong>The Collaborator:</strong> leads through partnership and trust toward shared decisions</div>
+                        <div id="ref-agent-list">
+                            <div class="ref-item">Loading agent archetypes…</div>
+                        </div>
                     </div>
                 </section>
 
@@ -415,6 +421,15 @@
         });
 
         function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+        // A lead is "incomplete" only if started-but-not-submitted. Completed,
+        // abandoned, and otherwise-finished leads must never appear here — they
+        // live in Up for Review or Paired Clients.
+        function leadHasCompletedAssessment(l) { return Boolean(l && (l.completed_at || l.status === 'completed')); }
+        function leadIsIncomplete(l) {
+            if (leadHasCompletedAssessment(l)) return false;
+            var s = (l && l.status) || '';
+            return s === 'started' || s === 'in_progress' || s === 'followed_up';
+        }
         function fmtDate(s) { if (!s) return '—'; try { var d = new Date(s); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return s; } }
         function sourceLabel(s) { return s === 'qr' ? 'QR' : (s === 'agent_link' ? 'Agent Link' : 'Reviewer'); }
         function statusLabel(s) { return ({ started: 'Started', in_progress: 'In Progress', abandoned: 'Abandoned', followed_up: 'Followed Up', completed: 'Completed' })[s] || s; }
@@ -505,13 +520,20 @@
         function loadInner() {
             if (!window.RequityAPI) return;
             Promise.resolve(window.RequityAPI.fetchReviewerAssessmentLeads(filters())).then(function (leads) {
-                var rows = leads || [];
+                // Completed/paired submissions are excluded so this section only
+                // ever holds genuinely unfinished assessments.
+                var rows = (leads || []).filter(leadIsIncomplete);
                 render(rows);
                 dbg('reviewer:queue-loaded', {
                     count: rows.length,
                     statuses: rows.map(function (l) { return l.status; }),
                     archetypes: rows.map(function (l) { return l.archetype || null; })
                 });
+                // Feed the shared classification log (reviewer/script.js owns it).
+                try {
+                    if (window.__reviewerCounts) window.__reviewerCounts.incompleteCount = rows.length;
+                    if (window.__reviewerLogClassification) window.__reviewerLogClassification();
+                } catch (e) {}
             }).catch(function () {
                 listEl.innerHTML = '<div class="leads-empty">We could not load incomplete assessments. Please refresh or try again later.</div>';
             });
@@ -529,6 +551,76 @@
         statusEl.addEventListener('change', load);
         sourceEl.addEventListener('change', load);
         searchEl.addEventListener('input', function () { if (searchTimer) clearTimeout(searchTimer); searchTimer = setTimeout(load, 300); });
+
+        load();
+    })();
+    </script>
+
+    <!-- Archetype reference: live canonical approved data via RequityAPI only. -->
+    <script>
+    (function () {
+        var clientEl = document.getElementById('ref-client-list');
+        var agentEl = document.getElementById('ref-agent-list');
+        if (!clientEl || !agentEl) return;
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+        function itemHtml(a) {
+            var traits = (a.traits && a.traits.length)
+                ? ('<div class="ref-traits">' + a.traits.map(function (t) { return '<span class="ref-trait">' + esc(t) + '</span>'; }).join('') + '</div>')
+                : '';
+            var compat = (a.compatible && a.compatible.length)
+                ? ('<div class="ref-compatible">Compatible: ' + esc(a.compatible.join(', ')) + '</div>')
+                : '';
+            return '<div class="ref-item">' +
+                '<strong>' + esc(a.name) + ':</strong> ' + esc(a.summary || 'Summary not available') +
+                traits + compat +
+            '</div>';
+        }
+
+        function renderList(el, items) {
+            if (!items || !items.length) { el.innerHTML = '<div class="ref-item">Reference not available.</div>'; return; }
+            el.innerHTML = items.map(itemHtml).join('');
+        }
+
+        function dbg(name, payload) {
+            if (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1') {
+                try { console.log(name, payload); } catch (e) {}
+            }
+        }
+
+        function loadInner() {
+            if (!window.RequityAPI || !window.RequityAPI.fetchReviewerArchetypeReference) {
+                clientEl.innerHTML = '<div class="ref-item">Reference not available.</div>';
+                agentEl.innerHTML = '<div class="ref-item">Reference not available.</div>';
+                return;
+            }
+            Promise.resolve(window.RequityAPI.fetchReviewerArchetypeReference()).then(function (ref) {
+                var clientArchetypes = (ref && ref.clientArchetypes) || [];
+                var agentArchetypes = (ref && ref.agentArchetypes) || [];
+                renderList(clientEl, clientArchetypes);
+                renderList(agentEl, agentArchetypes);
+                var hasSummaries = clientArchetypes.concat(agentArchetypes).every(function (a) {
+                    return a && a.summary && a.summary !== 'Summary not available';
+                });
+                dbg('reviewer:archetype-reference', {
+                    clientCount: clientArchetypes.length,
+                    agentCount: agentArchetypes.length,
+                    hasSummaries: hasSummaries
+                });
+            }).catch(function () {
+                clientEl.innerHTML = '<div class="ref-item">We could not load the archetype reference. Please refresh.</div>';
+                agentEl.innerHTML = '';
+            });
+        }
+
+        function load() {
+            var gate = window.__reviewerGate || Promise.resolve({ ok: false });
+            Promise.resolve(gate).then(function (g) {
+                if (!g || g.ok === false) return; // blocked: never load data
+                loadInner();
+            });
+        }
 
         load();
     })();

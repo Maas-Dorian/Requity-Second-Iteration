@@ -353,6 +353,29 @@ async function resolveLeadForCompletion(
   return null;
 }
 
+// --- Classification helpers ----------------------------------------------
+
+/** A lead's assessment is finished (submitted) — it must never be treated as incomplete. */
+export function leadHasCompletedAssessment(lead: {
+  status?: string | null;
+  completed_at?: string | null;
+}): boolean {
+  return Boolean(lead?.completed_at) || lead?.status === "completed";
+}
+
+/**
+ * A lead belongs in "Incomplete Assessments" only when the assessment was
+ * started but never submitted. Completed and abandoned leads are excluded.
+ */
+export function leadIsIncomplete(lead: {
+  status?: string | null;
+  completed_at?: string | null;
+}): boolean {
+  if (leadHasCompletedAssessment(lead)) return false;
+  const status = lead?.status ?? "";
+  return status === "started" || status === "in_progress" || status === "followed_up";
+}
+
 // --- Reviewer / agent reads ----------------------------------------------
 
 export type ListReviewerLeadsFilters = {

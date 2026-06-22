@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Live state (never seeded with sample data) ------------------------
     let clients = [];
+    let pairedClients = [];
 
     let state = {
         loaded: false,
@@ -31,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const elQueueList = document.getElementById('queue-list');
     const elProfileCard = document.getElementById('profile-card');
     const elFitsList = document.getElementById('fits-list');
+    const elPairedList = document.getElementById('paired-list');
 
     const elCountPending = document.getElementById('count-pending');
     const elCountFits = document.getElementById('count-fits');
@@ -68,6 +70,26 @@ document.addEventListener('DOMContentLoaded', () => {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
         });
     }
+
+    // Debug logging (frontend) — only when explicitly enabled. No tokens or
+    // private payloads are ever logged.
+    function reviewerDebug(name, payload) {
+        if (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1') {
+            try { console.log(name, payload); } catch (e) {}
+        }
+    }
+
+    // Shared classification counts (incomplete count is set by the Incomplete
+    // Assessments loader in index.html). Logged together once known.
+    window.__reviewerCounts = window.__reviewerCounts || { incompleteCount: 0, upForReviewCount: 0, pairedCount: 0 };
+    function logQueueClassification() {
+        reviewerDebug('reviewer:queue-classification', {
+            incompleteCount: window.__reviewerCounts.incompleteCount,
+            upForReviewCount: window.__reviewerCounts.upForReviewCount,
+            pairedCount: window.__reviewerCounts.pairedCount
+        });
+    }
+    window.__reviewerLogClassification = logQueueClassification;
 
     // Human-readable transaction intent (buying/selling/other) for a client row.
     function transactionText(c) {
@@ -391,7 +413,66 @@ document.addEventListener('DOMContentLoaded', () => {
         recomputeCounts();
         renderQueue();
         renderActiveClient();
+        renderPaired();
         updateSummary();
+    }
+
+    // Live "Paired Clients" — real matched/assigned pairings only. Clean empty
+    // state when there are none. Never fabricated.
+    function fmtPairedDate(s) {
+        if (!s) return '—';
+        try {
+            var d = new Date(s);
+            return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch (e) { return s; }
+    }
+
+    function pairedMarketHtml(p) {
+        var buy = cityOrNull(p.buyingMarket);
+        var sell = cityOrNull(p.sellingMarket);
+        if (buy || sell) {
+            var out = '';
+            if (buy) out += '<span>Buying market <strong>' + esc(buy) + '</strong></span>';
+            if (sell) out += '<span>Selling market <strong>' + esc(sell) + '</strong></span>';
+            return out;
+        }
+        var general = cityOrNull(p.market);
+        return '<span>Market <strong>' + esc(general || 'Not specified') + '</strong></span>';
+    }
+
+    function renderPaired() {
+        if (!elPairedList) return;
+        if (!pairedClients.length) {
+            elPairedList.innerHTML = '<div class="leads-empty">No pairings yet.</div>';
+            return;
+        }
+        elPairedList.innerHTML = '';
+        pairedClients.forEach(function (p) {
+            var fit = (typeof p.score === 'number' && p.score > 0)
+                ? (p.label ? (p.label + ' · ' + p.score + '%') : (p.score + '%'))
+                : (p.label || null);
+            var card = document.createElement('div');
+            card.className = 'lead-card';
+            card.innerHTML =
+                '<div class="lead-top">' +
+                    '<div><div class="lead-name">' + esc(p.clientName || 'Unknown client') + '</div>' +
+                    '<div class="lead-contact">' + esc(p.clientEmail || 'no email') +
+                        (p.clientArchetype ? (' &middot; ' + esc(p.clientArchetype)) : '') + '</div></div>' +
+                    '<div class="lead-badges">' +
+                        (fit ? ('<span class="badge badge-source">' + esc(fit) + '</span>') : '') +
+                        '<span class="badge badge-status-completed">' + esc(p.status || 'assigned') + '</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="lead-meta">' +
+                    '<span>Transaction <strong>' + esc(transactionText(p.transactionIntentLabel ? { transaction_intent_label: p.transactionIntentLabel } : { transaction_intent: p.transactionIntent })) + '</strong></span>' +
+                    pairedMarketHtml(p) +
+                    '<span>Paired agent <strong>' + esc(p.agentName || 'Unknown agent') + '</strong></span>' +
+                    (p.agentEmail ? ('<span>Agent email <strong>' + esc(p.agentEmail) + '</strong></span>') : '') +
+                    (p.agentArchetype ? ('<span>Agent archetype <strong>' + esc(p.agentArchetype) + '</strong></span>') : '') +
+                    '<span>Matched <strong>' + fmtPairedDate(p.matchedAt) + '</strong></span>' +
+                '</div>';
+            elPairedList.appendChild(card);
+        });
     }
 
     function selectActiveAgent(client) {
@@ -586,18 +667,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Load: live reviewer queue (gated on reviewer/admin auth) ----------
     function loadQueue() {
-        if (!window.RequityAPI || !window.RequityAPI.fetchReviewerMatches) {
+        const api = window.RequityAPI;
+        const fetchQueue = api && (api.fetchReviewerQueue || api.fetchReviewerMatches);
+        if (!fetchQueue) {
             state.loadError = true;
             state.loaded = true;
             clients = [];
+            pairedClients = [];
             renderAll();
             return;
         }
         renderLoading();
-        Promise.resolve(window.RequityAPI.fetchReviewerMatches()).then(function (queue) {
+        // Prefer the richer payload ({ queue, pairedClients }); fall back to the
+        // legacy array shape if only fetchReviewerMatches exists.
+        Promise.resolve(
+            api.fetchReviewerQueue ? api.fetchReviewerQueue() : api.fetchReviewerMatches()
+        ).then(function (payload) {
+            const queue = Array.isArray(payload) ? payload : (payload && payload.queue) || [];
+            const paired = (payload && !Array.isArray(payload) && payload.pairedClients) || [];
             state.loadError = false;
             state.loaded = true;
-            clients = (queue || []).map(mapQueueItem).filter(function (c) { return !!c.id; });
+            clients = queue.map(mapQueueItem).filter(function (c) { return !!c.id; });
+            pairedClients = paired;
+            window.__reviewerCounts.upForReviewCount = clients.length;
+            window.__reviewerCounts.pairedCount = pairedClients.length;
+            logQueueClassification();
             const first = clients[0] || null;
             state.activeClientId = first ? first.id : null;
             selectActiveAgent(first);
@@ -606,6 +700,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.loadError = true;
             state.loaded = true;
             clients = [];
+            pairedClients = [];
             state.activeClientId = null;
             selectActiveAgent(null);
             renderAll();
