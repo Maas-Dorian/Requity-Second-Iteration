@@ -70,11 +70,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         hasUser: true,
         profileUpserted: Boolean(profile && profile.id),
         agentUpserted: Boolean(agent && agent.id),
+        role: profile?.role ?? null,
       });
 
+      // Safe response: ok + the minimal profile/agent the client needs to route.
+      // No access/refresh tokens, no service role key, no full auth payload. The
+      // public_assessment_token (used for shareable QR/links) is intentionally
+      // surfaced as publicToken for the dashboard's link/QR feature.
       sendJson(res, 200, {
-        profile,
-        agent,
+        ok: true,
+        profile: profile
+          ? { id: profile.id, email: profile.email, role: profile.role }
+          : null,
+        agent: agent
+          ? {
+              id: agent.id,
+              email: agent.email,
+              displayName: agent.display_name,
+              archetype: agent.archetype ?? null,
+            }
+          : null,
         publicToken: token,
         dashboardUrl: `${base}/agent/dashboard.html`,
         assessmentLink: `${base}/client/assessment.html?agent=${token}&source=agent_link`,

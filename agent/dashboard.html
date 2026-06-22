@@ -1814,15 +1814,17 @@
         return;
       }
       // Safe guard debug log (no tokens/PII). Only when requity_debug === '1'.
+      // A valid session is NEVER redirected to login — only a definitive
+      // no_session (401) is. needs_setup/error show an in-place message.
+      var guardRedirectingToLogin = !session.ok && session.reason === 'no_session';
       if (API.__debug) {
-        var guardRedirectingToLogin =
-          !session.ok && session.reason !== 'error' &&
-          !(session.reason === 'role_mismatch' && session.me &&
-            (session.me.role === 'reviewer' || session.me.role === 'admin'));
+        var meStatusCode = session.ok ? 200
+          : session.reason === 'no_session' ? 401
+          : session.reason === 'error' ? 500
+          : session.reason; // 'needs_setup' | 'role_mismatch'
         API.__debug('agent/dashboard.html:guard', 'auth:dashboard-guard', {
-          hasSupabaseSession: API.hasSession ? API.hasSession() : null,
-          hasLocalSession: API.hasSession ? API.hasSession() : null,
-          meStatus: session.ok ? 'ok' : (session.reason || 'unknown'),
+          hasSession: API.hasSession ? API.hasSession() : null,
+          meStatus: meStatusCode,
           hasProfile: !!(session.me && session.me.profile),
           hasAgent: !!(session.me && session.me.agent),
           redirectingToLogin: guardRedirectingToLogin
@@ -1837,13 +1839,20 @@
           showAuthError("We couldn't verify your account. Please try again.");
           return;
         }
+        // Valid session but the profile/agent row couldn't be provisioned. This
+        // is a setup problem, not an auth failure — show a clear error and let
+        // the agent retry. Never bounce a signed-in user to the login page.
+        if (session.reason === 'needs_setup') {
+          showAuthError("We couldn't finish setting up your agent profile. Please retry.");
+          return;
+        }
         // Reviewer-only/admin with no agent context → reviewer portal.
         if (session.reason === 'role_mismatch' && session.me &&
             (session.me.role === 'reviewer' || session.me.role === 'admin')) {
           window.location.href = '../reviewer/index.html';
           return;
         }
-        // No valid session → sign in.
+        // No valid session (401) → sign in.
         window.location.href = 'login.html';
         return;
       }

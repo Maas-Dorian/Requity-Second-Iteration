@@ -548,10 +548,30 @@
     var session = storeSessionFromAuth(data.access_token ? data : (data.session || {}));
     var result = { user: data.user || (data.session && data.session.user) || null, session: session };
     if (session && session.access_token) {
-      try { result.bootstrap = await bootstrapAgentProfile(profile); } catch (e) { result.bootstrapError = e.message; }
+      // Persist the profile + agent row BEFORE we ever route. Retry a couple of
+      // times so a transient blip can't leave the account half-created (the
+      // exact state that used to bounce new agents back to the sign-in page).
+      for (var attempt = 0; attempt < 3; attempt++) {
+        try {
+          result.bootstrap = await bootstrapAgentProfile(profile);
+          if (result.bootstrap && result.bootstrap.ok && result.bootstrap.profile) break;
+        } catch (e) {
+          result.bootstrapError = e.message;
+          // A ToS rejection is terminal (caller must re-accept); stop retrying.
+          if (e && e.code === "TERMS_REQUIRED") break;
+        }
+        await new Promise(function (resolve) { setTimeout(resolve, 200); });
+      }
     } else {
       result.needsEmailConfirmation = true;
     }
+    // #region agent log
+    reqDebug("api.js:signUpAgent", "auth:signup-result", {
+      hasUser: !!result.user,
+      hasSession: !!(session && session.access_token),
+      nextStep: result.needsEmailConfirmation ? "confirm_email" : "dashboard",
+    });
+    // #endregion
     return result;
   }
 
@@ -579,6 +599,17 @@
       throw err;
     }
     var session = storeSessionFromAuth(data);
+    // Note: profile/agent self-heal happens in requireAgentSession() (agent-only,
+    // role-aware) which the caller invokes right after sign-in. We deliberately
+    // do NOT blanket-bootstrap here so reviewer/admin accounts never get an
+    // unnecessary agents row.
+    // #region agent log
+    reqDebug("api.js:signIn", "auth:signin-result", {
+      hasUser: !!(data && data.user),
+      hasSession: !!(session && session.access_token),
+      nextStep: "dashboard",
+    });
+    // #endregion
     return { user: data.user || null, session: session };
   }
 
@@ -663,7 +694,60 @@
       body.termsAccepted = true;
       body.termsVersion = meta.termsVersion || TERMS_VERSION;
     }
-    return apiPost("/auth/bootstrap-agent", body);
+    var result = await apiPost("/auth/bootstrap-agent", body);
+    // #region agent log
+    reqDebug("api.js:bootstrapAgentProfile", "auth:bootstrap-agent-result", {
+      ok: !!(result && result.ok),
+      hasProfile: !!(result && result.profile),
+      hasAgent: !!(result && result.agent),
+      role: result && result.profile ? result.profile.role || null : null,
+    });
+    // #endregion
+    return result;
+  }
+
+  // Wait until /api/auth/me is readable as a real account, retrying briefly so a
+  // freshly-minted session/profile (still propagating) is never mistaken for a
+  // signed-out user. Returns the `me` payload, or null if it never resolves.
+  // attempts*delayMs ~= 3s by default (per the auth retry requirement).
+  async function waitForAuthMe(options) {
+    var opts = options || {};
+    var attempts = opts.attempts || 15;
+    var delayMs = opts.delayMs || 200;
+    for (var i = 0; i < attempts; i++) {
+      try {
+        var me = await fetchMe();
+        if (me && (me.role || me.profile || me.agent || me.user)) return me;
+      } catch (e) {
+        // A definitive 401 means there is genuinely no session — stop early.
+        if (e && e.status === 401) return null;
+        // Transient/server error: keep trying within the window.
+      }
+      await new Promise(function (resolve) { setTimeout(resolve, delayMs); });
+    }
+    return null;
+  }
+
+  // Return a session whose access token is actually usable, retrying briefly to
+  // absorb the gap between storing a session and it becoming readable. Returns
+  // { access_token } or null. Never throws.
+  async function getReadableSessionWithRetry(options) {
+    var opts = options || {};
+    var attempts = opts.attempts || 15;
+    var delayMs = opts.delayMs || 200;
+    for (var i = 0; i < attempts; i++) {
+      try {
+        var token = await getAccessToken();
+        if (token) {
+          var s = getStoredSession() || {};
+          return { access_token: token, refresh_token: s.refresh_token || null, user: s.user || null };
+        }
+      } catch (e) { /* keep polling briefly */ }
+      // No stored session at all → nothing to wait for.
+      if (!hasStoredSession()) return null;
+      await new Promise(function (resolve) { setTimeout(resolve, delayMs); });
+    }
+    return null;
   }
 
   /**
@@ -675,17 +759,48 @@
    */
   async function requireAgentSession() {
     if (!hasStoredSession()) return { ok: false, reason: "no_session" };
-    var me;
-    try { me = await fetchMe(); }
-    catch (e) {
-      if (e && e.status === 401) { clearStoredSession(); return { ok: false, reason: "no_session" }; }
-      return { ok: false, reason: "error", error: e };
+
+    // Read /auth/me with brief retries so a server/network blip never logs out a
+    // genuinely signed-in agent. A definitive 401 is the ONLY signed-out signal.
+    var me = null;
+    var lastError = null;
+    for (var i = 0; i < 5; i++) {
+      try { me = await fetchMe(); lastError = null; break; }
+      catch (e) {
+        lastError = e;
+        if (e && e.status === 401) { clearStoredSession(); return { ok: false, reason: "no_session" }; }
+        await new Promise(function (resolve) { setTimeout(resolve, 200); });
+      }
     }
+    if (lastError) return { ok: false, reason: "error", error: lastError };
     if (!me) return { ok: false, reason: "no_session" };
-    if (me.needsBootstrap) {
-      try { await bootstrapAgentProfile(null); me = await fetchMe(); } catch (e) { /* ignore */ }
+
+    // Self-heal: create/upgrade the profile + agent row when the account isn't
+    // fully provisioned yet (missing profile, missing agent row, or a role that
+    // hasn't been promoted to agent). This is what stops the new-agent bounce.
+    var needsHeal =
+      me.needsBootstrap ||
+      !me.profile ||
+      ((me.role === "agent" || me.role === "admin") && !(me.agent && me.agent.id)) ||
+      !me.role ||
+      me.role === "client";
+    if (needsHeal) {
+      try {
+        var boot = await bootstrapAgentProfile(null);
+        me = (await waitForAuthMe({ attempts: 5, delayMs: 200 })) || me;
+        // Profile/agent still couldn't be provisioned despite a valid session →
+        // this is a setup problem, NOT an auth failure. Never bounce to login.
+        if (!boot || !boot.ok) {
+          if (!me || !me.profile) return { ok: false, reason: "needs_setup", me: me };
+        }
+      } catch (e) {
+        // The session is valid; we just couldn't provision. Surface as setup.
+        if (!me || !me.profile) return { ok: false, reason: "needs_setup", me: me, error: e };
+      }
     }
+
     if (me && (me.role === "agent" || me.role === "admin")) return { ok: true, me: me };
+    // Valid session, real profile, but a non-agent role (reviewer, etc).
     return { ok: false, reason: "role_mismatch", me: me };
   }
 
@@ -733,6 +848,8 @@
     setStoredSession: setStoredSession,
     clearStoredSession: clearStoredSession,
     getAccessToken: getAccessToken,
+    waitForAuthMe: waitForAuthMe,
+    getReadableSessionWithRetry: getReadableSessionWithRetry,
     TERMS_VERSION: TERMS_VERSION,
     signUpAgent: signUpAgent,
     signIn: signIn,

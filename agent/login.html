@@ -226,13 +226,13 @@
       // dashboard's own auth gate recognizes it immediately) and then land the
       // agent on the dashboard — never back on this login page.
       async function redirectToDashboardAfterAuth() {
-        for (var i = 0; i < 10; i++) {
-          try {
-            var current = await API.getCurrentUser();
-            if (current && (current.user || current.agent || current.profile || current.role)) break;
-          } catch (e) { /* keep polling briefly */ }
-          await new Promise(function (resolve) { setTimeout(resolve, 150); });
-        }
+        // Wait (up to ~3s) for the freshly stored session + /auth/me to be
+        // readable, so the dashboard's own guard recognizes it immediately and
+        // never bounces back here.
+        try {
+          if (API.waitForAuthMe) await API.waitForAuthMe({ attempts: 15, delayMs: 200 });
+          else await API.getCurrentUser();
+        } catch (e) { /* proceed; dashboard guard will retry too */ }
         window.location.replace("dashboard.html");
       }
 
@@ -296,8 +296,8 @@
             return;
           }
           if (session.reason === "role_mismatch") { showReviewerSwitch(); return; }
-          if (session.reason === "error") {
-            showMsg("We signed you in, but the server could not verify your profile. Check Supabase server env vars and database schema.", "error");
+          if (session.reason === "error" || session.reason === "needs_setup") {
+            showMsg("We signed you in, but couldn't finish setting up your agent profile. Please try again in a moment.", "error");
           } else {
             showMsg("We couldn't verify your account. Please try signing in again.", "error");
           }
@@ -355,8 +355,8 @@
             return;
           }
           if (session.reason === "role_mismatch") { showReviewerSwitch(); return; }
-          if (session.reason === "error") {
-            showMsg("Your account was created, but the server could not verify your profile. Check Supabase server env vars and database schema.", "error");
+          if (session.reason === "error" || session.reason === "needs_setup") {
+            showMsg("Your account was created, but we couldn't finish setting up your agent profile. Please try again in a moment.", "error");
           } else {
             showMsg("We couldn't verify your new account. Please try signing in.", "error");
           }

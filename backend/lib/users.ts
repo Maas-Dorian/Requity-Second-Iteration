@@ -100,10 +100,13 @@ async function ensureAgentProfile(input: AgentInput): Promise<ProfileRecord> {
   const existing = await getProfileByUserId(input.userId);
 
   if (existing) {
-    // Keep the existing role; refresh email/full_name if newly provided.
+    // Refresh email/full_name if newly provided. Upgrade the role to "agent"
+    // when it is missing or still the default "client" (agent signup/self-heal),
+    // but NEVER downgrade a reviewer/admin — those are intentional roles.
     const patch: Record<string, unknown> = {};
     if (input.email && input.email !== existing.email) patch.email = input.email;
     if (input.fullName && input.fullName !== existing.full_name) patch.full_name = input.fullName;
+    if (!existing.role || existing.role === "client") patch.role = "agent";
     if (Object.keys(patch).length) {
       const { data, error } = await supabase
         .from("profiles")
