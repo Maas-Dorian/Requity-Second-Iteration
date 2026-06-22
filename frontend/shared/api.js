@@ -410,6 +410,15 @@
   }
 
   /**
+   * Update one client's agent-controlled pipeline status. Throws on failure so
+   * the caller can revert the dropdown. Returns { clientId, status }.
+   * status must be one of: potential | active | under_contract | closed.
+   */
+  async function updateClientStatus(clientId, status) {
+    return apiPost("/dashboard/client-status", { clientId: clientId, status: status });
+  }
+
+  /**
    * Agent QR code for the signed-in agent's public assessment link.
    * Returns { qrCodeDataUrl, assessmentLink, qrLink }. Throws on failure so the
    * caller can show a real error/empty state. The data URL is a PNG, usable for
@@ -917,6 +926,7 @@
     submitAgentAssessment: submitAgentAssessment,
     __debug: reqDebug,
     fetchAgentDashboard: fetchAgentDashboard,
+    updateClientStatus: updateClientStatus,
     fetchAgentQr: fetchAgentQr,
     fetchClientAssessments: fetchClientAssessments,
     fetchMessages: fetchMessages,

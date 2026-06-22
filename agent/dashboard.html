@@ -951,6 +951,91 @@
     .client-report details[open] summary::after { content: " ▴"; }
     .client-update-list { display: flex; flex-direction: column; gap: 0.65rem; }
 
+    /* Agent-controlled status dropdown on each client card. */
+    .client-status-select {
+      appearance: none;
+      -webkit-appearance: none;
+      border: 1px solid var(--blue-border);
+      background: #fff;
+      color: var(--deep-blue);
+      font-size: 0.8rem;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 0.4rem 1.9rem 0.4rem 0.85rem;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2307366E' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.7rem center;
+    }
+    .client-status-select:focus { outline: 2px solid var(--primary-blue); outline-offset: 1px; }
+    .client-status-select:disabled { opacity: 0.6; cursor: progress; }
+    .client-status-select.status-saved { border-color: #137333; }
+    .client-status-select.status-error { border-color: #B3261E; }
+    .visually-hidden {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+
+    /* Compact-by-default card: full report lives inside this accordion. */
+    .client-report-details { margin-top: 0.5rem; border-top: 1px solid rgba(211,224,242,0.8); padding-top: 0.5rem; }
+    .client-report-details > summary {
+      cursor: pointer;
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--primary-blue);
+      font-weight: 800;
+      font-size: 0.85rem;
+      padding: 0.45rem 0;
+    }
+    .client-report-details > summary::-webkit-details-marker { display: none; }
+    .client-report-details > summary::after { content: "▾"; color: var(--primary-blue); font-size: 0.7rem; }
+    .client-report-details[open] > summary::after { content: "▴"; }
+
+    /* Color-coded report detail blocks (kept professional + on-palette). */
+    .detail-card {
+      border: 1px solid var(--blue-border);
+      border-left-width: 3px;
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 0.85rem;
+      margin: 0.5rem 0;
+      background: var(--light-surface);
+    }
+    .detail-card .detail-card-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 0.4rem;
+    }
+    .detail-card .report-list { margin-bottom: 0; }
+    .detail-card .report-avoid,
+    .detail-card .report-text { margin-bottom: 0; }
+    /* Positive / recommended guidance — green, never red. */
+    .detail-card-positive { background: rgba(19,115,51,0.06); border-color: rgba(19,115,51,0.25); border-left-color: #137333; }
+    .detail-card-positive .detail-card-label { color: #137333; }
+    /* Avoid / cautions — red but soft and professional. */
+    .detail-card-warning { background: rgba(179,38,30,0.05); border-color: rgba(179,38,30,0.25); border-left-color: #B3261E; }
+    .detail-card-warning .detail-card-label { color: #B3261E; }
+    .detail-card-warning .report-avoid,
+    .detail-card-warning .report-list li { color: #8C1D18; }
+    /* Neutral info — light blue/gray. */
+    .detail-card-neutral { background: var(--soft-blue); border-color: var(--blue-border); border-left-color: var(--primary-blue); }
+    .detail-card-neutral .detail-card-label { color: var(--primary-blue); }
+    /* Appreciation / expectations — soft orange accent. */
+    .detail-card-accent { background: rgba(255,117,0,0.06); border-color: rgba(255,117,0,0.25); border-left-color: var(--accent-orange); }
+    .detail-card-accent .detail-card-label { color: var(--accent-orange); }
+    .detail-card-section-title {
+      color: var(--deep-blue);
+      font-size: 0.95rem;
+      font-weight: 800;
+      margin: 1rem 0 0.25rem;
+    }
+    .closed-client-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1.25rem; }
+    @media (max-width: 900px) { .closed-client-grid { grid-template-columns: 1fr; } }
+
     .update-row {
       display: flex;
       gap: 0.6rem;
@@ -1220,7 +1305,7 @@
           <a href="#" class="nav-item active" data-view="dashboard-view">Dashboard</a>
           <a href="#" class="nav-item" data-view="clients-view">Client Assessments</a>
           <a href="#" class="nav-item" data-view="matches-view">Matches</a>
-          <a href="#" class="nav-item" data-view="closings-view">Closings</a>
+          <a href="#" class="nav-item" data-view="closings-view">Closed</a>
           <a href="#" class="nav-item" data-view="messages-view">Messages</a>
           <a href="#" class="nav-item" data-view="settings-view">Settings</a>
         </nav>
@@ -1386,12 +1471,12 @@
       <section class="view-section" id="closings-view">
         <div class="section-title-row">
           <div>
-            <h2>Closings</h2>
-            <p>Deals marked closing or closed.</p>
+            <h2>Closed</h2>
+            <p>Clients you've marked as Closed. Change a client's status to move it here or back.</p>
           </div>
         </div>
-        <div class="deal-list" id="closings-list">
-          <p class="card-desc" id="closings-empty">No closings yet.</p>
+        <div class="closed-client-grid" id="closings-list">
+          <p class="card-desc" id="closings-empty">No closed clients yet.</p>
         </div>
       </section>
 
@@ -1968,23 +2053,36 @@
           '</ul>';
       }
 
-      // Build one "approaches + avoid (+ optional sub-lists)" report section.
+      // One color-coded detail block: positive | warning | neutral | accent.
+      // Avoid → warning (red); recommended → positive (green); neutral info →
+      // neutral (blue/gray); appreciation/expectations → accent (soft orange).
+      function detailBlock(variant, label, innerHtml) {
+        if (!innerHtml) return '';
+        return '<div class="detail-card detail-card-' + variant + '">' +
+          (label ? '<span class="detail-card-label">' + esc(label) + '</span>' : '') +
+          innerHtml +
+        '</div>';
+      }
+
+      // Build one "approaches + avoid (+ optional sub-lists)" report section with
+      // color-coded blocks: recommended approaches are green, avoid is red, and
+      // the extra communication/stress lists are neutral.
       function reportApproachSection(title, approachLabel, approaches, avoidLabel, avoid, extras) {
         let body = '';
         if (Array.isArray(approaches) && approaches.length) {
-          body += '<span class="report-subhead">' + esc(approachLabel) + '</span>' + reportListHtml(approaches);
+          body += detailBlock('positive', approachLabel, reportListHtml(approaches));
         }
         if (avoid && String(avoid).trim()) {
-          body += '<span class="report-subhead">' + esc(avoidLabel) + '</span>' +
-            '<p class="report-avoid">' + esc(String(avoid)) + '</p>';
+          body += detailBlock('warning', avoidLabel || 'Approaches to Avoid',
+            '<p class="report-avoid">' + esc(String(avoid)) + '</p>');
         }
         (extras || []).forEach((ex) => {
           if (Array.isArray(ex.items) && ex.items.length) {
-            body += '<span class="report-subhead">' + esc(ex.label) + '</span>' + reportListHtml(ex.items);
+            body += detailBlock('neutral', ex.label, reportListHtml(ex.items));
           }
         });
         if (!body) return '';
-        return '<div class="report-section"><h4>' + esc(title) + '</h4>' + body + '</div>';
+        return '<div class="report-section"><div class="detail-card-section-title">' + esc(title) + '</div>' + body + '</div>';
       }
 
       // Full Relational-Roadmap-style detail for one client assessment.
@@ -1996,13 +2094,14 @@
 
         const contact =
           '<div class="report-section">' +
-            '<h4>Contact Information</h4>' +
-            '<div class="client-meta-grid">' +
-              '<div><span>Name</span><strong>' + esc(clientFieldText(c.full_name)) + '</strong></div>' +
-              '<div><span>Email</span><strong>' + esc(clientFieldText(c.email)) + '</strong></div>' +
-              '<div><span>Phone</span><strong>' + esc(clientFieldText(c.phone)) + '</strong></div>' +
-              '<div><span>Birthday</span><strong>' + esc(clientFieldText(c.date_of_birth)) + '</strong></div>' +
-            '</div>' +
+            '<div class="detail-card-section-title">Contact Information</div>' +
+            detailBlock('neutral', '',
+              '<div class="client-meta-grid">' +
+                '<div><span>Name</span><strong>' + esc(clientFieldText(c.full_name)) + '</strong></div>' +
+                '<div><span>Email</span><strong>' + esc(clientFieldText(c.email)) + '</strong></div>' +
+                '<div><span>Phone</span><strong>' + esc(clientFieldText(c.phone)) + '</strong></div>' +
+                '<div><span>Birthday</span><strong>' + esc(clientFieldText(c.date_of_birth)) + '</strong></div>' +
+              '</div>') +
           '</div>';
 
         if (localStorage.requity_debug === '1') {
@@ -2026,13 +2125,15 @@
             '</div></div>';
         }
 
-        // What This Client Is After
+        // What This Client Is After (positive / recommended framing).
         const afterBullets = (r.whatThisClientIsAfter && r.whatThisClientIsAfter.length)
           ? reportListHtml(r.whatThisClientIsAfter, 4)
           : (r.summary ? '<p class="report-text">' + esc(r.summary) + '</p>' : '<p class="report-text">Not available</p>');
         const context = '<p class="report-text">Transaction: ' + esc(clientTransactionText(c)) +
           clientMarketLine(c) + '</p>';
-        const after = '<div class="report-section"><h4>What This Client Is After</h4>' + afterBullets + context + '</div>';
+        const after = '<div class="report-section">' +
+          '<div class="detail-card-section-title">What This Client Is After</div>' +
+          detailBlock('positive', '', afterBullets + context) + '</div>';
 
         // As a Buyer / As a Seller
         const buyerSection = reportApproachSection(
@@ -2068,58 +2169,156 @@
 
         // Appreciation Style (only when supplied — never fabricated)
         const appreciation = (r.appreciationStyle)
-          ? '<div class="report-section"><h4>Client\'s Appreciation Style</h4><p class="report-text">' + esc(r.appreciationStyle) + '</p></div>'
+          ? '<div class="report-section"><div class="detail-card-section-title">Client\'s Appreciation Style</div>' +
+              detailBlock('accent', '', '<p class="report-text">' + esc(r.appreciationStyle) + '</p>') + '</div>'
           : '';
         // Expectations / Questions
         const expectations =
-          '<div class="report-section"><h4>Client\'s Expectations & Questions</h4><p class="report-text">' +
-          esc(r.expectationsOrQuestions || 'No additional expectations provided') + '</p></div>';
+          '<div class="report-section"><div class="detail-card-section-title">Client\'s Expectations &amp; Questions</div>' +
+            detailBlock('accent', '', '<p class="report-text">' +
+              esc(r.expectationsOrQuestions || 'No additional expectations provided') + '</p>') + '</div>';
 
         const fullReport =
           after +
-          '<details open><summary>Full Relational Roadmap</summary>' +
-            '<div class="report-grid">' + buyerSection + sellerSection + '</div>' +
-            simultaneousSection +
-            commSection +
-            appreciation +
-            expectations +
-          '</details>';
+          '<div class="report-grid">' + buyerSection + sellerSection + '</div>' +
+          simultaneousSection +
+          commSection +
+          appreciation +
+          expectations;
 
         return '<div class="client-report">' + contact + fullReport + '</div>';
       }
 
-      function renderClients(clients) {
-        const grid = document.querySelector('#clients-view .client-detail-grid');
-        if (!grid) return;
-        if (!Array.isArray(clients) || !clients.length) {
-          grid.innerHTML = '<p class="card-desc" id="clients-empty">No client assessments yet. Share your assessment link to start collecting clients.</p>';
-          return;
-        }
-        grid.innerHTML = clients.map((c) => {
-          const st = STATUS_MAP[c.status] || STATUS_MAP.draft;
-          const isReviewer = c.source === 'requity_reviewer';
-          const badge = isReviewer ? '<span class="requity-match-badge">REQUITY Client Match</span>' : '';
-          const sourceText = isReviewer ? 'Received from REQUITY reviewer' : 'QR code client — stays in dashboard';
-          return (
-            '<article class="client-detail-card">' +
-              '<div class="client-card-top">' +
-                '<div><h3>' + esc(c.full_name) + '</h3><p>Client archetype: <strong>' + esc(c.archetype || 'Pending') + '</strong></p></div>' +
-                '<div class="client-status-stack">' + badge +
-                  '<span class="status-badge ' + st.cls + '">' + st.label + '</span>' +
-                '</div>' +
-              '</div>' +
-              '<div class="client-meta-grid">' +
-                '<div><span>Transaction</span><strong>' + esc(clientTransactionText(c)) + '</strong></div>' +
-                '<div><span>Market</span><strong>' + esc(clientMarketText(c)) + '</strong></div>' +
-                '<div><span>Orientation</span><strong>' + esc(c.orientation || 'Pending') + '</strong></div>' +
-                '<div><span>Style</span><strong>' + esc(c.style || 'Pending') + '</strong></div>' +
-                '<div><span>Under stress</span><strong>' + esc(c.stress_response || 'Pending') + '</strong></div>' +
-                '<div><span>Source</span><strong>' + sourceText + '</strong></div>' +
-              '</div>' +
+      // Agent-controlled pipeline statuses (mirror of backend PIPELINE_STATUSES).
+      const PIPELINE_LABELS = {
+        potential: 'Potential',
+        active: 'Active',
+        under_contract: 'Under Contract',
+        closed: 'Closed'
+      };
+      const PIPELINE_VALID = Object.keys(PIPELINE_LABELS);
+
+      // Latest client list (with live pipelineStatus) so a status change can move
+      // a card between sections without re-fetching the dashboard.
+      let __clientsCache = [];
+
+      function dbgClient(tag, payload) {
+        if (localStorage.requity_debug === '1') { try { console.log(tag, payload); } catch (e) {} }
+      }
+
+      function clientPipelineStatus(c) {
+        const s = (c && c.pipelineStatus ? String(c.pipelineStatus) : '').toLowerCase();
+        if (PIPELINE_VALID.indexOf(s) !== -1) return s;
+        if (s === 'hidden') return 'hidden';
+        return 'potential';
+      }
+
+      function statusSelectHtml(c, current) {
+        const options = PIPELINE_VALID.map((value) =>
+          '<option value="' + value + '"' + (value === current ? ' selected' : '') + '>' +
+            PIPELINE_LABELS[value] + '</option>'
+        ).join('');
+        return '<label class="client-status-control">' +
+          '<span class="visually-hidden">Client status</span>' +
+          '<select class="client-status-select" data-client-id="' + esc(String(c.id || '')) +
+            '" data-current="' + current + '">' + options + '</select>' +
+        '</label>';
+      }
+
+      // One compact client card used by both the Client Assessments and Closed
+      // sections. Key fields are visible; the full report is collapsed inside a
+      // "View details" accordion.
+      function buildClientCard(c) {
+        const current = clientPipelineStatus(c);
+        const isReviewer = c.source === 'requity_reviewer';
+        const badge = isReviewer ? '<span class="requity-match-badge">REQUITY Client Match</span>' : '';
+        const sourceText = isReviewer ? 'Received from REQUITY reviewer' : 'QR code client — stays in dashboard';
+        const closedAt = (current === 'closed' && c.close_date)
+          ? '<div><span>Closed date</span><strong>' + esc(new Date(c.close_date).toLocaleDateString()) + '</strong></div>'
+          : '';
+        return (
+          '<article class="client-detail-card" data-client-id="' + esc(String(c.id || '')) + '" data-pipeline="' + current + '">' +
+            '<div class="client-card-top">' +
+              '<div><h3>' + esc(c.full_name) + '</h3><p>Client archetype: <strong>' + esc(c.archetype || 'Pending') + '</strong></p></div>' +
+              '<div class="client-status-stack">' + badge + statusSelectHtml(c, current) + '</div>' +
+            '</div>' +
+            '<div class="client-meta-grid">' +
+              '<div><span>Transaction</span><strong>' + esc(clientTransactionText(c)) + '</strong></div>' +
+              '<div><span>Market</span><strong>' + esc(clientMarketText(c)) + '</strong></div>' +
+              '<div><span>Source</span><strong>' + sourceText + '</strong></div>' +
+              closedAt +
+            '</div>' +
+            '<details class="client-report-details">' +
+              '<summary>View details</summary>' +
               buildClientReportHtml(c) +
-            '</article>'
-          );
-        }).join('');
+            '</details>' +
+          '</article>'
+        );
+      }
+
+      // Classify clients by pipeline status and render the Client Assessments
+      // (potential/active/under_contract) and Closed (closed) sections. Abandoned/
+      // deleted/archived rows ("hidden") never appear in either section.
+      function renderClientSections(clients) {
+        const grid = document.querySelector('#clients-view .client-detail-grid');
+        const closedWrap = document.getElementById('closings-list');
+        const list = Array.isArray(clients) ? clients : [];
+        const active = [];
+        const closed = [];
+        list.forEach((c) => {
+          const s = clientPipelineStatus(c);
+          if (s === 'hidden') return;
+          if (s === 'closed') closed.push(c);
+          else active.push(c);
+        });
+
+        if (grid) {
+          grid.innerHTML = active.length
+            ? active.map(buildClientCard).join('')
+            : '<p class="card-desc" id="clients-empty">No client assessments yet. Share your assessment link to start collecting clients.</p>';
+        }
+        if (closedWrap) {
+          closedWrap.innerHTML = closed.length
+            ? closed.map(buildClientCard).join('')
+            : '<p class="card-desc" id="closings-empty">No closed clients yet.</p>';
+        }
+
+        dbgClient('dashboard:client-section-classification', {
+          activeCount: active.length,
+          closedCount: closed.length
+        });
+      }
+
+      function renderClients(clients) {
+        __clientsCache = Array.isArray(clients) ? clients.slice() : [];
+        renderClientSections(__clientsCache);
+      }
+
+      // Persist a status change, then move the card between sections in place.
+      async function handleStatusChange(select) {
+        if (!select || !window.RequityAPI || !API.updateClientStatus) return;
+        const clientId = select.getAttribute('data-client-id');
+        const previousStatus = select.getAttribute('data-current') || 'potential';
+        const nextStatus = select.value;
+        if (!clientId || nextStatus === previousStatus) return;
+        select.disabled = true;
+        select.classList.remove('status-saved', 'status-error');
+        dbgClient('dashboard:client-status-change', {
+          id: clientId, previousStatus: previousStatus, nextStatus: nextStatus
+        });
+        try {
+          await API.updateClientStatus(clientId, nextStatus);
+          const item = __clientsCache.find((x) => String(x.id) === String(clientId));
+          if (item) item.pipelineStatus = nextStatus;
+          // Re-render both sections so the card moves without a page refresh.
+          renderClientSections(__clientsCache);
+        } catch (e) {
+          // Revert the dropdown and surface the failure without faking success.
+          select.value = previousStatus;
+          select.classList.add('status-error');
+          select.disabled = false;
+          console.warn('[dashboard] client status update failed:', e && e.message);
+        }
       }
 
       function renderMessages(messages) {
@@ -2282,7 +2481,8 @@
         if (linkInput && dash.assessmentLink) linkInput.value = dash.assessmentLink;
         renderClients(dash.clientAssessmentDetail);
         renderMatches(dash.matches);
-        renderClosings(dash.closings);
+        // The Closed section is rendered by renderClients() from the pipeline
+        // status of each client, so a card can move between sections live.
         renderMessages(dash.messages);
         renderRecent(dash.recentClients);
         renderOverviewMessages(dash.messages);
@@ -2296,6 +2496,15 @@
         if (dash.agent && typeof window.__requityRenderAgentArchetype === 'function') {
           window.__requityRenderAgentArchetype(dash.agent);
         }
+        // One delegated listener handles status changes in both the Client
+        // Assessments and Closed grids (cards are re-rendered, so delegation is
+        // required to keep working after a card moves between sections).
+        document.addEventListener('change', function (ev) {
+          const select = ev.target;
+          if (select && select.classList && select.classList.contains('client-status-select')) {
+            handleStatusChange(select);
+          }
+        });
         // Subtle market display in Settings (kept in the existing card style).
         const marketField = document.getElementById('settings-market');
         if (marketField) {

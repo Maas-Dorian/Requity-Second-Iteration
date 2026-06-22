@@ -3,9 +3,123 @@ import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import { env } from "./env.js";
 import { getAgentNotifications, type NotificationRecord } from "./messages.js";
 import { getAgentAssessmentActivity, type AgentAssessmentActivity } from "./analytics.js";
-import { isMissingTableError } from "./supabaseWrite.js";
+import { isMissingTableError, updateWithSchemaFallback } from "./supabaseWrite.js";
 import { attachClientReport } from "./clientReport.js";
 import { logger } from "./logger.js";
+
+// ---------------------------------------------------------------------------
+// Client pipeline status (agent-controlled dashboard dropdown)
+// ---------------------------------------------------------------------------
+
+/** The four agent-controlled pipeline statuses shown on the dashboard. */
+export const PIPELINE_STATUSES = ["potential", "active", "under_contract", "closed"] as const;
+export type PipelineStatus = (typeof PIPELINE_STATUSES)[number];
+
+/** Statuses that must be hidden from the normal dashboard sections entirely. */
+const HIDDEN_LIFECYCLE = new Set(["abandoned", "deleted", "archived"]);
+
+export function isPipelineStatus(value: unknown): value is PipelineStatus {
+  return typeof value === "string" && (PIPELINE_STATUSES as readonly string[]).includes(value);
+}
+
+/**
+ * Resolve a client's effective pipeline status for the dashboard.
+ *
+ * Priority:
+ *   1. The agent's explicit choice in `pipeline_status` (authoritative).
+ *   2. Otherwise DERIVE from the legacy lifecycle/deal columns so existing rows
+ *      classify sensibly with no backfill:
+ *        - deal_status closed              → closed
+ *        - deal_status closing             → under_contract
+ *        - status assigned/matched         → active
+ *        - status under_contract           → under_contract
+ *        - status closed                   → closed
+ *        - status abandoned/deleted/...    → hidden
+ *        - everything else (completed/...) → potential
+ *
+ * Returns one of the four statuses, or "hidden" when the row must not appear.
+ */
+export function derivePipelineStatus(
+  client: { pipeline_status?: unknown; status?: unknown; deal_status?: unknown } | null | undefined
+): PipelineStatus | "hidden" {
+  const explicit = (client?.pipeline_status ?? "").toString().trim().toLowerCase();
+  if (isPipelineStatus(explicit)) return explicit;
+  if (HIDDEN_LIFECYCLE.has(explicit)) return "hidden";
+
+  const deal = (client?.deal_status ?? "").toString().trim().toLowerCase();
+  if (deal === "closed") return "closed";
+  if (deal === "closing") return "under_contract";
+
+  const lifecycle = (client?.status ?? "").toString().trim().toLowerCase();
+  if (HIDDEN_LIFECYCLE.has(lifecycle)) return "hidden";
+  if (lifecycle === "assigned" || lifecycle === "matched") return "active";
+  if (lifecycle === "under_contract") return "under_contract";
+  if (lifecycle === "closed") return "closed";
+  return "potential";
+}
+
+/** Structured error carrying an HTTP status the API layer honors. */
+function statusError(status: number, message: string, code?: string): Error {
+  return Object.assign(new Error(message), { status, code });
+}
+
+/**
+ * Update one client's agent-controlled pipeline status. Verifies the requesting
+ * agent owns (is assigned to) the client unless they are an admin. Keeps the
+ * legacy deal_status/close_date coherent so the status-based closings query and
+ * the new pipeline classification never disagree:
+ *   - closed       → deal_status 'closed', close_date today (if empty)
+ *   - re-opened    → deal_status 'active', close_date cleared
+ * Tolerates schema drift (a missing pipeline_status/deal_status column is
+ * dropped from the write rather than failing the whole update).
+ */
+export async function updateClientPipelineStatus(params: {
+  clientId: string;
+  agentId: string | null;
+  isAdmin: boolean;
+  status: PipelineStatus;
+}): Promise<{ clientId: string; status: PipelineStatus }> {
+  const { clientId, agentId, isAdmin, status } = params;
+  if (!isPipelineStatus(status)) {
+    throw statusError(400, `Invalid status. Expected one of: ${PIPELINE_STATUSES.join(", ")}.`, "INVALID_STATUS");
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  // Ownership check: the client must exist and be assigned to this agent.
+  const { data: client, error } = await supabase
+    .from("clients")
+    .select("id, assigned_agent_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (error) {
+    if (isMissingTableError(error)) {
+      throw statusError(404, "Client record not found.", "CLIENT_NOT_FOUND");
+    }
+    throw statusError(500, `Could not load client: ${error.message}`, "CLIENT_LOOKUP_FAILED");
+  }
+  if (!client) {
+    throw statusError(404, "Client record not found.", "CLIENT_NOT_FOUND");
+  }
+  const assignedAgentId = (client as { assigned_agent_id?: string | null }).assigned_agent_id ?? null;
+  if (!isAdmin && (!agentId || assignedAgentId !== agentId)) {
+    throw statusError(403, "You don't have access to this client.", "CLIENT_FORBIDDEN");
+  }
+
+  // Keep the legacy deal columns coherent with the pipeline status.
+  const patch: Record<string, unknown> = { pipeline_status: status };
+  if (status === "closed") {
+    patch.deal_status = "closed";
+    patch.close_date = new Date().toISOString().slice(0, 10);
+  } else {
+    patch.deal_status = "active";
+    patch.close_date = null;
+  }
+
+  await updateWithSchemaFallback("clients", patch, { column: "id", value: clientId });
+
+  return { clientId, status };
+}
 
 /**
  * Return the agent's public assessment token, generating + persisting one when
@@ -335,8 +449,13 @@ export async function getAgentDashboard(
     recentClients,
     messages,
     // Each client carries a `.report` with the full Relational-Roadmap detail
-    // derived from the canonical archetype data (no extra DB columns required).
-    clientAssessmentDetail: list.map((c) => attachClientReport(c)),
+    // derived from the canonical archetype data (no extra DB columns required),
+    // plus the agent-controlled `pipelineStatus` used to classify the card into
+    // the Client Assessments vs Closed section (or hide abandoned/deleted rows).
+    clientAssessmentDetail: list.map((c) => ({
+      ...attachClientReport(c),
+      pipelineStatus: derivePipelineStatus(c),
+    })),
     matches,
     closings,
     settings: {

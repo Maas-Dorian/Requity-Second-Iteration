@@ -99,6 +99,9 @@ create table if not exists clients (
   -- Status-based closings for the agent dashboard.
   deal_status text default 'active',
   close_date date,
+  -- Agent-controlled pipeline status: potential|active|under_contract|closed.
+  -- NULL = derive from lifecycle/deal_status (see derivePipelineStatus).
+  pipeline_status text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -198,6 +201,8 @@ create table if not exists assessment_leads (
   market_city text,
   buying_market_city text,
   selling_market_city text,
+  -- Agent-controlled pipeline status (mirrors clients.pipeline_status).
+  pipeline_status text,
   notes text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
