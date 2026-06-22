@@ -197,6 +197,13 @@
       var signinForm = document.getElementById("signin-form");
       var signupForm = document.getElementById("signup-form");
 
+      // Single in-flight guard shared by BOTH forms. Stops double submits and the
+      // Enter-key resubmit from firing a second Supabase auth-email request.
+      var isSubmitting = false;
+      function dbgAuth(message, data) {
+        if (API && API.__debug) { try { API.__debug("agent/login.html", message, data || {}); } catch (e) {} }
+      }
+
       function showMsg(text, kind) {
         msg.textContent = text;
         msg.className = "auth-msg show " + (kind || "info");
@@ -233,6 +240,7 @@
           if (API.waitForAuthMe) await API.waitForAuthMe({ attempts: 15, delayMs: 200 });
           else await API.getCurrentUser();
         } catch (e) { /* proceed; dashboard guard will retry too */ }
+        dbgAuth("auth:dashboard-redirect", { target: "dashboard.html" });
         window.location.replace("dashboard.html");
       }
 
@@ -275,24 +283,24 @@
 
       signinForm.addEventListener("submit", async function (e) {
         e.preventDefault();
+        // Block duplicate submits (rapid clicks / Enter key) so sign-in only
+        // ever fires once per attempt.
+        if (isSubmitting) { dbgAuth("auth:submit-blocked-duplicate", { mode: "signin" }); return; }
+        isSubmitting = true;
         clearMsg();
+        dbgAuth("auth:submit-start", { mode: "signin" });
         var btn = document.getElementById("signin-btn");
+        var reEnable = function () { isSubmitting = false; btn.disabled = false; btn.textContent = "Sign in"; };
         btn.disabled = true; btn.textContent = "Signing in...";
         try {
-          var signInResult = await API.signIn(document.getElementById("si-email").value.trim(), document.getElementById("si-password").value);
-          if (API.__debug) {
-            API.__debug("agent/login.html:signin", "auth:signin-success", {
-              hasSession: !!(signInResult && signInResult.session && signInResult.session.access_token),
-              hasUser: !!(signInResult && signInResult.user),
-              redirectingToDashboard: true
-            });
-          }
+          // Exactly one signInWithPassword call. No signup/resend/reset fallback.
+          await API.signIn(document.getElementById("si-email").value.trim(), document.getElementById("si-password").value);
           // requireAgentSession distinguishes a 500 (server can't verify) from a
           // 401 (no valid session), so we never clear a good session on a 500.
           var session = await API.requireAgentSession();
           if (session.ok) {
             var routed = await routeAfterAuth(session.me);
-            if (!routed) { btn.disabled = false; btn.textContent = "Sign in"; }
+            if (!routed) reEnable();
             return;
           }
           if (session.reason === "role_mismatch") { showReviewerSwitch(); return; }
@@ -301,15 +309,19 @@
           } else {
             showMsg("We couldn't verify your account. Please try signing in again.", "error");
           }
-          btn.disabled = false; btn.textContent = "Sign in";
+          reEnable();
         } catch (err) {
+          // Rate-limit and all other errors: show the message, do NOT auto-retry.
           showMsg(err.message || "Sign in failed.", "error");
-          btn.disabled = false; btn.textContent = "Sign in";
+          reEnable();
         }
       });
 
       signupForm.addEventListener("submit", async function (e) {
         e.preventDefault();
+        // Block duplicate submits (rapid clicks / Enter key) so signup — and any
+        // Supabase confirmation email — only ever fires once per attempt.
+        if (isSubmitting) { dbgAuth("auth:submit-blocked-duplicate", { mode: "signup" }); return; }
         clearMsg();
         // Terms of Service are mandatory for account creation. Block the request
         // (no Supabase signup, no profile/agent rows) until the box is checked.
@@ -317,7 +329,10 @@
           showMsg("You must agree to the Terms of Service before creating an account.", "error");
           return;
         }
+        isSubmitting = true;
+        dbgAuth("auth:submit-start", { mode: "signup" });
         var btn = document.getElementById("signup-btn");
+        var reEnable = function () { isSubmitting = false; btn.disabled = false; btn.textContent = "Create agent account"; };
         btn.disabled = true; btn.textContent = "Creating account...";
         var profile = {
           fullName: document.getElementById("su-name").value.trim(),
@@ -326,24 +341,21 @@
           termsVersion: API.TERMS_VERSION,
         };
         try {
+          // Exactly one Supabase signup call. No automatic resend on any outcome.
           var result = await API.signUpAgent(
             document.getElementById("su-email").value.trim(),
             document.getElementById("su-password").value,
             profile
           );
-          if (API.__debug) {
-            API.__debug("agent/login.html:signup", "auth:signup-success", {
-              hasSession: !!(result && result.session && result.session.access_token),
-              hasUser: !!(result && result.user),
-              redirectingToDashboard: !(result && result.needsEmailConfirmation)
-            });
-          }
-          // Only show the confirmation message when Supabase actually returned no
-          // session (email confirmation is required). Otherwise the agent is
-          // signed in and we route straight to the dashboard.
+          // No session returned → Supabase "Confirm email" is ON (or no session
+          // was minted). Show a clear message; never resend, retry, or redirect.
           if (result && result.needsEmailConfirmation) {
-            showMsg("Account created. Check your email to confirm, then sign in.", "success");
-            btn.disabled = false; btn.textContent = "Create agent account";
+            if (result.confirmationExpected) {
+              showMsg("Account created. Check your email to confirm your account, then sign in.", "success");
+            } else {
+              showMsg("Signup created but no session was returned. Disable email confirmation in Supabase Auth settings or confirm the account by email.", "error");
+            }
+            reEnable();
             setTab("signin");
             return;
           }
@@ -351,7 +363,7 @@
           var session = await API.requireAgentSession();
           if (session.ok) {
             var routed = await routeAfterAuth(session.me);
-            if (!routed) { btn.disabled = false; btn.textContent = "Create agent account"; }
+            if (!routed) reEnable();
             return;
           }
           if (session.reason === "role_mismatch") { showReviewerSwitch(); return; }
@@ -360,10 +372,11 @@
           } else {
             showMsg("We couldn't verify your new account. Please try signing in.", "error");
           }
-          btn.disabled = false; btn.textContent = "Create agent account";
+          reEnable();
         } catch (err) {
+          // Rate-limit and all other errors: show the message, do NOT auto-retry.
           showMsg(err.message || "Sign up failed.", "error");
-          btn.disabled = false; btn.textContent = "Create agent account";
+          reEnable();
         }
       });
 

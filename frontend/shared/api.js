@@ -27,7 +27,44 @@
       supabaseAnonKey: cfg.supabaseAnonKey || "",
       apiBaseUrl: cfg.apiBaseUrl || "",
       frontendUrl: cfg.frontendUrl || global.location.origin,
+      authEmailConfirmationExpected: cfg.authEmailConfirmationExpected === true,
     };
+  }
+
+  // Whether the deployment expects Supabase email confirmation to be ON.
+  function authEmailConfirmationExpected() {
+    return (global.REQUITY_CONFIG || {}).authEmailConfirmationExpected === true;
+  }
+
+  // Detect a Supabase Auth EMAIL rate limit (HTTP 429 or known messages/codes),
+  // so the UI can show a calm "wait a few minutes" note instead of retrying.
+  function isAuthRateLimit(status, dataObj) {
+    if (status === 429) return true;
+    var d = dataObj || {};
+    var code = String(d.error_code || d.code || d.error || "").toLowerCase();
+    if (code.indexOf("rate") !== -1 && code.indexOf("limit") !== -1) return true;
+    if (code === "over_email_send_rate_limit") return true;
+    var msg = String(d.msg || d.error_description || d.error || d.message || "").toLowerCase();
+    return (
+      msg.indexOf("rate limit") !== -1 ||
+      msg.indexOf("over email send rate limit") !== -1 ||
+      msg.indexOf("email rate limit exceeded") !== -1 ||
+      msg.indexOf("you can only request this after") !== -1 // Supabase security throttle
+    );
+  }
+
+  // Build a clean, user-safe rate-limit error (never auto-retried by callers).
+  function makeRateLimitError(flow) {
+    var e = new Error(
+      "Too many auth emails were requested. Please wait a few minutes before trying again."
+    );
+    e.code = "RATE_LIMITED";
+    e.rateLimited = true;
+    e.status = 429;
+    // #region agent log — observed client-side (auth emails go browser→Supabase).
+    try { console.warn("AUTH_RATE_LIMIT_DETECTED", { flow: flow || "auth" }); } catch (x) {}
+    // #endregion
+    return e;
   }
 
   // Throws a clear setup error when the secure API base URL is not configured.
@@ -542,8 +579,13 @@
         },
       }),
     });
-    var data = await res.json();
-    if (!res.ok) throw new Error(data.msg || data.error_description || data.error || "Sign up failed.");
+    var data = {};
+    try { data = await res.json(); } catch (e) { /* ignore */ }
+    if (!res.ok) {
+      // Auth email rate limit → calm, terminal error (caller must NOT retry).
+      if (isAuthRateLimit(res.status, data)) throw makeRateLimitError("signup");
+      throw new Error(data.msg || data.error_description || data.error || "Sign up failed.");
+    }
     // When email confirmation is disabled, signup returns a session immediately.
     var session = storeSessionFromAuth(data.access_token ? data : (data.session || {}));
     var result = { user: data.user || (data.session && data.session.user) || null, session: session };
@@ -563,12 +605,16 @@
         await new Promise(function (resolve) { setTimeout(resolve, 200); });
       }
     } else {
+      // No session returned (Supabase "Confirm email" is ON, or signup did not
+      // mint a session). We NEVER resend or retry — the UI shows a clear message.
       result.needsEmailConfirmation = true;
+      result.confirmationExpected = authEmailConfirmationExpected();
     }
     // #region agent log
     reqDebug("api.js:signUpAgent", "auth:signup-result", {
       hasUser: !!result.user,
       hasSession: !!(session && session.access_token),
+      rateLimited: false,
       nextStep: result.needsEmailConfirmation ? "confirm_email" : "dashboard",
     });
     // #endregion
@@ -586,6 +632,8 @@
     var data = {};
     try { data = await res.json(); } catch (e) { /* ignore */ }
     if (!res.ok) {
+      // Rate limit first — never let the UI hammer sign-in and make it worse.
+      if (isAuthRateLimit(res.status, data)) throw makeRateLimitError("signin");
       var raw = (data.msg || data.error_description || data.error || "").toString();
       var err;
       if (/confirm/i.test(raw)) {
@@ -607,6 +655,7 @@
     reqDebug("api.js:signIn", "auth:signin-result", {
       hasUser: !!(data && data.user),
       hasSession: !!(session && session.access_token),
+      rateLimited: false,
       nextStep: "dashboard",
     });
     // #endregion
@@ -628,6 +677,7 @@
     if (!res.ok) {
       var data = {};
       try { data = await res.json(); } catch (e) { /* ignore */ }
+      if (isAuthRateLimit(res.status, data)) throw makeRateLimitError("recover");
       throw new Error(data.msg || data.error_description || data.error || "Could not send the reset email.");
     }
     return true;
@@ -850,6 +900,7 @@
     getAccessToken: getAccessToken,
     waitForAuthMe: waitForAuthMe,
     getReadableSessionWithRetry: getReadableSessionWithRetry,
+    authEmailConfirmationExpected: authEmailConfirmationExpected,
     TERMS_VERSION: TERMS_VERSION,
     signUpAgent: signUpAgent,
     signIn: signIn,

@@ -34,6 +34,12 @@ const config = {
   supabaseAnonKey:
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "",
   frontendUrl: process.env.VERCEL_FRONTEND_URL || "https://requity-second-iteration.vercel.app",
+  // Whether Supabase Auth email confirmation is expected to be ON. Public,
+  // non-secret hint used ONLY to shape the signup UX (it does not change auth).
+  // Default false (testing-friendly): signup is expected to return a session.
+  // Set AUTH_EMAIL_CONFIRMATION_EXPECTED=true if you keep "Confirm email" ON.
+  authEmailConfirmationExpected:
+    String(process.env.AUTH_EMAIL_CONFIRMATION_EXPECTED || "").toLowerCase() === "true",
 };
 
 fs.mkdirSync(path.dirname(configPath), { recursive: true });
@@ -49,6 +55,7 @@ console.log("[config] apiBaseUrl:", config.apiBaseUrl);
 console.log("[config] supabaseUrl configured:", Boolean(config.supabaseUrl));
 console.log("[config] supabaseAnonKey configured:", Boolean(config.supabaseAnonKey));
 console.log("[config] frontendUrl:", config.frontendUrl);
+console.log("[config] authEmailConfirmationExpected:", config.authEmailConfirmationExpected);
 
 if (!config.supabaseAnonKey) {
   console.warn("[config] WARNING: NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.");
