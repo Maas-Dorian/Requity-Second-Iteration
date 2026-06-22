@@ -232,16 +232,27 @@
       // Wait until the freshly stored session is actually readable (so the
       // dashboard's own auth gate recognizes it immediately) and then land the
       // agent on the dashboard — never back on this login page.
-      async function redirectToDashboardAfterAuth() {
+      async function redirectAfterAuth(target) {
+        var dest = target || "dashboard.html";
         // Wait (up to ~3s) for the freshly stored session + /auth/me to be
-        // readable, so the dashboard's own guard recognizes it immediately and
-        // never bounces back here.
+        // readable, so the destination page's own guard recognizes it
+        // immediately and never bounces back here.
         try {
           if (API.waitForAuthMe) await API.waitForAuthMe({ attempts: 15, delayMs: 200 });
           else await API.getCurrentUser();
-        } catch (e) { /* proceed; dashboard guard will retry too */ }
-        dbgAuth("auth:dashboard-redirect", { target: "dashboard.html" });
-        window.location.replace("dashboard.html");
+        } catch (e) { /* proceed; the destination guard will retry too */ }
+        dbgAuth("auth:dashboard-redirect", { target: dest });
+        window.location.replace(dest);
+      }
+
+      // First-time agents (no saved archetype) go straight to the assessment;
+      // returning agents who already completed it go to the dashboard.
+      function destinationForAgent(me) {
+        var agent = me && me.agent;
+        var hasCompletedAgentAssessment = Boolean(
+          agent && (agent.archetype || agent.archetype_completed_at || agent.archetypeCompletedAt)
+        );
+        return hasCompletedAgentAssessment ? "dashboard.html" : "assessment.html";
       }
 
       // Routes to the right place once we have a verified /auth/me payload.
@@ -252,9 +263,9 @@
           return false;
         }
         var role = me.role;
-        // Agents and admins use the agent flow. Always land on the dashboard —
-        // the dashboard handles the onboarding/Discover state when the agent has
-        // no archetype yet. We never route to the login page after a good auth.
+        // Agents and admins use the agent flow. A brand-new agent with no saved
+        // archetype is sent to the assessment first; a returning agent goes to
+        // the dashboard. We never route to the login page after a good auth.
         if (role === "agent" || role === "admin") {
           var hasAgentRow = me.agent && me.agent.id;
           // Ensure the agent row exists before routing into the agent flow.
@@ -271,7 +282,7 @@
             showMsg("We couldn't set up your agent profile. Please try again.", "error");
             return false;
           }
-          await redirectToDashboardAfterAuth();
+          await redirectAfterAuth(destinationForAgent(me));
           return true;
         }
         // Reviewer-only accounts get the reviewer portal panel.

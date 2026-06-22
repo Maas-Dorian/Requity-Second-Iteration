@@ -77,7 +77,6 @@
                             <span class="progress-label">Before we begin</span>
                             <h3>What city or market do you primarily work in?</h3>
                         </div>
-                        <div class="assessment-mini-badge">New REQUITY</div>
                     </div>
                     <div class="contact-field" style="margin-top:8px;">
                         <span>City or market *</span>
@@ -96,7 +95,6 @@
                             <span class="progress-label" id="agent-question-count">Question 1 of 18</span>
                             <h3 id="agent-question-text">Your approach to client relationships is:</h3>
                         </div>
-                        <div class="assessment-mini-badge">New REQUITY</div>
                     </div>
                     <div class="progress-track agent-progress-track">
                         <div class="progress-fill" id="agent-progress-fill"></div>
@@ -200,23 +198,29 @@
               }
               return;
             }
-            // The assessment page ALWAYS loads for a signed-in agent/admin —
-            // whether it's their first time or an intentional retake. We do NOT
-            // bounce to the dashboard just because an archetype already exists.
-            // Onboarding redirects live in the dashboard/auth gate, never here,
-            // so the Discover button and the ?retake=1 link can never loop back.
+            // First-time agents take the assessment. Agents who already have a
+            // saved archetype only load it for an intentional retake (?retake=1
+            // or ?force=1); otherwise they're sent to the dashboard so the
+            // completed assessment can never auto-open again.
             var qp = new URLSearchParams(window.location.search);
             var isRetake = qp.get("retake") === "1" || qp.get("force") === "1";
             var agentRow = s.me && s.me.agent;
             var archetype = (agentRow && agentRow.archetype) || null;
+            var hasCompletedAgentAssessment = Boolean(
+              archetype || (agentRow && (agentRow.archetype_completed_at || agentRow.archetypeCompletedAt))
+            );
             try {
               API.__debug && API.__debug("agent/assessment.html:gate", "assessment:gate", {
                 archetype: archetype,
                 hasArchetype: Boolean(archetype),
                 isRetake: isRetake,
-                allowedToLoad: true
+                allowedToLoad: !(hasCompletedAgentAssessment && !isRetake)
               });
             } catch (e) {}
+            if (hasCompletedAgentAssessment && !isRetake) {
+              window.location.replace("dashboard.html");
+              return;
+            }
           })
           .catch(function () { window.location.href = "login.html"; });
       })();
