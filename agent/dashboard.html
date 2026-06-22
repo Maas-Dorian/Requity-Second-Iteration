@@ -817,6 +817,31 @@
       gap: 1.25rem;
     }
 
+    /* Matches / Closings deal cards. Reuse the existing card visual language. */
+    .deal-list { display: flex; flex-direction: column; gap: 0.85rem; }
+    .deal-card {
+      border: 1px solid var(--blue-border);
+      background: var(--white, #fff);
+      border-radius: var(--radius-md, 12px);
+      padding: 1rem 1.15rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .deal-card .deal-main { min-width: 180px; }
+    .deal-card .deal-name { font-weight: 700; color: var(--deep-blue, #07366E); }
+    .deal-card .deal-sub { font-size: 0.85rem; color: var(--secondary-text); margin-top: 0.15rem; }
+    .deal-card .deal-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+    .deal-chip {
+      display: inline-flex; align-items: center; white-space: nowrap;
+      border: 1px solid var(--blue-border); background: rgba(255,255,255,0.82);
+      border-radius: 999px; padding: 0.3rem 0.65rem; color: var(--primary-blue);
+      font-size: 0.78rem; font-weight: 600;
+    }
+    .deal-chip.fit { background: rgba(255,117,0,0.1); border-color: rgba(255,117,0,0.3); color: #b35200; }
+
     .client-detail-card,
     .settings-card,
     .messages-shell {
@@ -1194,6 +1219,8 @@
         <nav class="sidebar-nav">
           <a href="#" class="nav-item active" data-view="dashboard-view">Dashboard</a>
           <a href="#" class="nav-item" data-view="clients-view">Client Assessments</a>
+          <a href="#" class="nav-item" data-view="matches-view">Matches</a>
+          <a href="#" class="nav-item" data-view="closings-view">Closings</a>
           <a href="#" class="nav-item" data-view="messages-view">Messages</a>
           <a href="#" class="nav-item" data-view="settings-view">Settings</a>
         </nav>
@@ -1341,6 +1368,30 @@
 
         <div class="client-detail-grid">
           <p class="card-desc" id="clients-empty">No client assessments yet. Share your assessment link to start collecting clients.</p>
+        </div>
+      </section>
+
+      <section class="view-section" id="matches-view">
+        <div class="section-title-row">
+          <div>
+            <h2>Matches</h2>
+            <p>Clients matched to you, with their archetype, transaction, market(s), and fit.</p>
+          </div>
+        </div>
+        <div class="deal-list" id="matches-list">
+          <p class="card-desc" id="matches-empty">No matches yet. Matched clients will appear here.</p>
+        </div>
+      </section>
+
+      <section class="view-section" id="closings-view">
+        <div class="section-title-row">
+          <div>
+            <h2>Closings</h2>
+            <p>Deals marked closing or closed.</p>
+          </div>
+        </div>
+        <div class="deal-list" id="closings-list">
+          <p class="card-desc" id="closings-empty">No closings yet.</p>
         </div>
       </section>
 
@@ -1772,6 +1823,8 @@
           hasSupabaseSession: API.hasSession ? API.hasSession() : null,
           hasLocalSession: API.hasSession ? API.hasSession() : null,
           meStatus: session.ok ? 'ok' : (session.reason || 'unknown'),
+          hasProfile: !!(session.me && session.me.profile),
+          hasAgent: !!(session.me && session.me.agent),
           redirectingToLogin: guardRedirectingToLogin
         });
       }
@@ -1869,12 +1922,29 @@
         const intent = c.transaction_intent;
         if (intent === 'buying') return 'Buying';
         if (intent === 'selling') return 'Selling';
+        if (intent === 'both') return 'Buying and Selling';
         if (intent === 'other') return c.transaction_intent_other || 'Other';
         return 'Not specified';
       }
+      function clientCityOrNull(c, key) {
+        const v = c && c[key];
+        return (v && String(v).trim()) ? String(v).trim() : null;
+      }
       function clientMarketText(c) {
-        const m = c && c.market_city;
-        return (m && String(m).trim()) ? String(m).trim() : 'Not specified';
+        const m = clientCityOrNull(c, 'market_city') ||
+          clientCityOrNull(c, 'buying_market_city') || clientCityOrNull(c, 'selling_market_city');
+        return m || 'Not specified';
+      }
+      function clientMarketLine(c) {
+        const buy = clientCityOrNull(c, 'buying_market_city');
+        const sell = clientCityOrNull(c, 'selling_market_city');
+        if (buy || sell) {
+          let out = '';
+          if (buy) out += ' &nbsp;·&nbsp; Buying market: ' + esc(buy);
+          if (sell) out += ' &nbsp;·&nbsp; Selling market: ' + esc(sell);
+          return out;
+        }
+        return ' &nbsp;·&nbsp; Market: ' + esc(clientMarketText(c));
       }
 
       function clientFieldText(v, fallback) {
@@ -1952,7 +2022,7 @@
           ? reportListHtml(r.whatThisClientIsAfter, 4)
           : (r.summary ? '<p class="report-text">' + esc(r.summary) + '</p>' : '<p class="report-text">Not available</p>');
         const context = '<p class="report-text">Transaction: ' + esc(clientTransactionText(c)) +
-          ' &nbsp;·&nbsp; Market: ' + esc(clientMarketText(c)) + '</p>';
+          clientMarketLine(c) + '</p>';
         const after = '<div class="report-section"><h4>What This Client Is After</h4>' + afterBullets + context + '</div>';
 
         // As a Buyer / As a Seller
@@ -2079,6 +2149,58 @@
         }).join('');
       }
 
+      function dealChip(label, value) {
+        if (!value) return '';
+        return '<span class="deal-chip">' + esc(label) + ': ' + esc(String(value)) + '</span>';
+      }
+
+      function renderMatches(matches) {
+        const wrap = document.getElementById('matches-list');
+        if (!wrap) return;
+        if (!Array.isArray(matches) || !matches.length) {
+          wrap.innerHTML = '<p class="card-desc" id="matches-empty">No matches yet. Matched clients will appear here.</p>';
+          return;
+        }
+        wrap.innerHTML = matches.map((m) => {
+          const st = STATUS_MAP[m.status] || STATUS_MAP.draft;
+          const when = m.date ? new Date(m.date).toLocaleDateString() : '';
+          const fit = (m.fit !== null && m.fit !== undefined)
+            ? '<span class="deal-chip fit">Fit: ' + esc(String(m.fit)) + '%</span>' : '';
+          const meta =
+            (m.archetype ? '<span class="deal-chip">' + esc(m.archetype) + '</span>' : '') +
+            dealChip('Transaction', m.transaction) +
+            dealChip('Buying', m.buyingMarket) +
+            dealChip('Selling', m.sellingMarket) +
+            (!m.buyingMarket && !m.sellingMarket ? dealChip('Market', m.market || 'Not specified') : '') +
+            fit +
+            '<span class="status-badge ' + st.cls + '">' + st.label + '</span>';
+          return '<div class="deal-card">' +
+            '<div class="deal-main"><div class="deal-name">' + esc(m.name || 'Unknown client') + '</div>' +
+            (when ? '<div class="deal-sub">' + esc(when) + '</div>' : '') + '</div>' +
+            '<div class="deal-meta">' + meta + '</div></div>';
+        }).join('');
+      }
+
+      function renderClosings(closings) {
+        const wrap = document.getElementById('closings-list');
+        if (!wrap) return;
+        if (!Array.isArray(closings) || !closings.length) {
+          wrap.innerHTML = '<p class="card-desc" id="closings-empty">No closings yet.</p>';
+          return;
+        }
+        wrap.innerHTML = closings.map((c) => {
+          const when = c.closeDate ? new Date(c.closeDate).toLocaleDateString() : '';
+          const meta =
+            dealChip('Transaction', c.transaction) +
+            dealChip('Market', c.market || 'Not specified') +
+            '<span class="deal-chip">' + esc((c.status || 'closing')) + '</span>' +
+            (when ? dealChip('Close date', when) : '');
+          return '<div class="deal-card">' +
+            '<div class="deal-main"><div class="deal-name">' + esc(c.name || 'Unknown client') + '</div></div>' +
+            '<div class="deal-meta">' + meta + '</div></div>';
+        }).join('');
+      }
+
       function renderOverviewMessages(messages) {
         const list = document.getElementById('overview-message-list');
         if (!list) return;
@@ -2150,6 +2272,8 @@
         const linkInput = document.getElementById('assessmentLink');
         if (linkInput && dash.assessmentLink) linkInput.value = dash.assessmentLink;
         renderClients(dash.clientAssessmentDetail);
+        renderMatches(dash.matches);
+        renderClosings(dash.closings);
         renderMessages(dash.messages);
         renderRecent(dash.recentClients);
         renderOverviewMessages(dash.messages);

@@ -24,13 +24,14 @@ const consumerAssessmentQuestions = [
   },
   {
     id: 3,
-    question: "When you picture your dream home, what's most important?",
+    question: "When thinking about a property, what matters most to you?",
+    note: "This applies whether you’re buying or selling.",
     options: [
-      { value: "design_aesthetics", text: "Design/aesthetics", description: "Beautiful, stylish design matters most" },
-      { value: "practical_features", text: "Practical features/functionality", description: "Function over form" },
-      { value: "space_layout", text: "Space/layout", description: "How the space flows and works" },
-      { value: "affordability", text: "Affordability", description: "Getting the best value for money" },
-      { value: "location", text: "Location", description: "The right neighborhood and area" }
+      { value: "design_aesthetics", text: "I care most about design and aesthetics.", description: "Beautiful, stylish design matters most to me" },
+      { value: "practical_features", text: "I focus on practical features and functionality.", description: "I value function over form" },
+      { value: "space_layout", text: "I think about space and layout.", description: "How the space flows and works matters to me" },
+      { value: "affordability", text: "I focus on affordability and value.", description: "I want the best value for the money" },
+      { value: "location", text: "I prioritize location.", description: "The right neighborhood and area come first" }
     ]
   },
   {
@@ -63,112 +64,113 @@ const consumerAssessmentQuestions = [
   },
   {
     id: 6,
-    question: "In your ideal experience, you would:",
+    question: "In your ideal experience, what would you do?",
     options: [
-      { value: "lead_process", text: "Lead the process and make quick decisions", description: "I want to drive the timeline" },
-      { value: "collaborate_team", text: "Collaborate closely with your agent and others", description: "Teamwork makes it better" },
-      { value: "guided_expert", text: "Be guided by an expert you trust", description: "I want expert real estate guidance" },
-      { value: "thorough_research", text: "Do thorough research before each step", description: "Knowledge is power" }
+      { value: "lead_process", text: "I lead the process and make quick decisions.", description: "I want to drive the timeline" },
+      { value: "collaborate_team", text: "I collaborate closely with my agent and others.", description: "Teamwork makes it better" },
+      { value: "guided_expert", text: "I’m guided by an expert I trust.", description: "I want expert real estate guidance" },
+      { value: "thorough_research", text: "I do thorough research before each step.", description: "Knowledge is power" }
     ]
   },
   {
     id: 7,
-    question: "When viewing properties, you focus on:",
+    question: "When you think about a property, what do you focus on most?",
+    note: "If you’re selling, answer based on what you believe buyers notice most about your property.",
     options: [
-      { value: "visual_appeal", text: "Visual appeal and design elements", description: "Beauty and style catch my eye" },
-      { value: "practical_aspects", text: "Practical aspects and functionality", description: "How well does it work for my needs" },
-      { value: "investment_value", text: "Investment potential and value", description: "Will this be a good financial decision" },
-      { value: "emotional_connection", text: "How the space makes you feel", description: "Does it feel like home" }
+      { value: "visual_appeal", text: "I focus on visual appeal and design elements.", description: "Beauty and style catch my eye" },
+      { value: "practical_aspects", text: "I focus on practical aspects and functionality.", description: "I notice how well it works" },
+      { value: "investment_value", text: "I focus on investment potential and value.", description: "I think about the financial decision" },
+      { value: "emotional_connection", text: "I focus on how the space makes me feel.", description: "I notice whether it feels like home" }
     ]
   },
   {
     id: 8,
-    question: "Your communication preference is:",
+    question: "What is your communication preference?",
     options: [
-      { value: "frequent_updates", text: "Frequent updates and quick responses", description: "Keep me in the loop constantly" },
-      { value: "scheduled_checkins", text: "Scheduled check-ins at key milestones", description: "Regular but structured communication" },
-      { value: "as_needed", text: "Communication only when needed", description: "Don't over-communicate with me" },
-      { value: "detailed_explanations", text: "Detailed explanations of each step", description: "Help me understand everything" }
+      { value: "frequent_updates", text: "I like frequent updates and quick responses.", description: "Keep me in the loop constantly" },
+      { value: "scheduled_checkins", text: "I prefer scheduled check-ins at key milestones.", description: "Regular, structured communication works for me" },
+      { value: "as_needed", text: "I prefer communication only when needed.", description: "I don’t want to be over-communicated with" },
+      { value: "detailed_explanations", text: "I like detailed explanations of each step.", description: "Help me understand everything" }
     ]
   },
   {
     id: 9,
-    question: "When facing a difficult decision, you:",
+    question: "When facing a difficult decision, what do you do?",
     options: [
-      { value: "trust_instincts", text: "Trust your instincts and decide", description: "My gut usually knows" },
-      { value: "seek_advice", text: "Seek advice from trusted people", description: "Others help me see clearly" },
-      { value: "research_thoroughly", text: "Research thoroughly before deciding", description: "I need all the facts" },
-      { value: "avoid_postpone", text: "Sometimes avoid or postpone the decision", description: "Tough choices are stressful" }
+      { value: "trust_instincts", text: "I trust my instincts and decide.", description: "My gut usually knows" },
+      { value: "seek_advice", text: "I seek advice from trusted people.", description: "Others help me see clearly" },
+      { value: "research_thoroughly", text: "I research thoroughly before deciding.", description: "I need all the facts" },
+      { value: "avoid_postpone", text: "I sometimes avoid or postpone the decision.", description: "Tough choices are stressful" }
     ]
   },
   {
     id: 10,
-    question: "Your biggest concern in a transaction is:",
+    question: "What is your biggest concern in a transaction?",
     options: [
-      { value: "making_mistake", text: "Making the wrong choice", description: "What if I regret this decision" },
-      { value: "process_delays", text: "Delays in the process", description: "I want things to move smoothly" },
-      { value: "financial_aspects", text: "The financial aspects", description: "Money matters are stressful" },
-      { value: "relationship_conflicts", text: "Conflicts with others involved", description: "I want everyone to get along" }
+      { value: "making_mistake", text: "I worry about making the wrong choice.", description: "What if I regret this decision" },
+      { value: "process_delays", text: "I worry about delays in the process.", description: "I want things to move smoothly" },
+      { value: "financial_aspects", text: "I worry about the financial aspects.", description: "Money matters are stressful for me" },
+      { value: "relationship_conflicts", text: "I worry about conflicts with others involved.", description: "I want everyone to get along" }
     ]
   },
   {
     id: 11,
-    question: "You feel most confident when:",
+    question: "When do you feel most confident?",
     options: [
-      { value: "in_control", text: "You're in control of the situation", description: "I lead, things go well" },
-      { value: "team_support", text: "You have a strong team supporting you", description: "Together we're stronger" },
-      { value: "well_informed", text: "You're well-informed about all options", description: "Knowledge gives me confidence" },
-      { value: "trusted_guidance", text: "You have trusted guidance", description: "Expert advice reassures me" }
+      { value: "in_control", text: "I feel confident when I’m in control of the situation.", description: "When I lead, things go well" },
+      { value: "team_support", text: "I feel confident when I have a strong team supporting me.", description: "Together we’re stronger" },
+      { value: "well_informed", text: "I feel confident when I’m well-informed about all options.", description: "Knowledge gives me confidence" },
+      { value: "trusted_guidance", text: "I feel confident when I have trusted guidance.", description: "Expert advice reassures me" }
     ]
   },
   {
     id: 12,
-    question: "In negotiations, you prefer to:",
+    question: "In negotiations, what do you prefer to do?",
     options: [
-      { value: "direct_assertive", text: "Be direct and assertive", description: "Say what I want clearly" },
-      { value: "collaborative_winwin", text: "Find collaborative win-win solutions", description: "Everyone should benefit" },
-      { value: "agent_handle", text: "Let your agent handle most of it", description: "That's what real estate agents are for" },
-      { value: "careful_strategic", text: "Be careful and strategic", description: "Think through every move" }
+      { value: "direct_assertive", text: "I prefer to be direct and assertive.", description: "I say what I want clearly" },
+      { value: "collaborative_winwin", text: "I prefer to find collaborative win-win solutions.", description: "Everyone should benefit" },
+      { value: "agent_handle", text: "I prefer to let my agent handle most of it.", description: "That’s what real estate agents are for" },
+      { value: "careful_strategic", text: "I prefer to be careful and strategic.", description: "I think through every move" }
     ]
   },
   {
     id: 13,
-    question: "When things don't go as planned, you:",
+    question: "When things don’t go as planned, what do you do?",
     options: [
-      { value: "take_charge", text: "Take charge and find solutions", description: "I'll fix this myself" },
-      { value: "work_together", text: "Work with others to adjust the plan", description: "Let's solve this together" },
-      { value: "need_reassurance", text: "Need reassurance that it will work out", description: "Tell me it's going to be okay" },
-      { value: "step_back", text: "Step back and reassess", description: "I need to process this change" }
+      { value: "take_charge", text: "I take charge and find solutions.", description: "I’ll fix this myself" },
+      { value: "work_together", text: "I work with others to adjust the plan.", description: "Let’s solve this together" },
+      { value: "need_reassurance", text: "I need reassurance that it will work out.", description: "Tell me it’s going to be okay" },
+      { value: "step_back", text: "I step back and reassess.", description: "I need to process this change" }
     ]
   },
   {
     id: 14,
-    question: "Your timeline preference is:",
+    question: "What is your timeline preference?",
     options: [
-      { value: "asap", text: "As soon as possible", description: "Speed is important to me" },
-      { value: "steady_pace", text: "A steady, predictable pace", description: "Consistent progress works best" },
-      { value: "flexible_timing", text: "Flexible timing based on circumstances", description: "Let's adapt as we go" },
-      { value: "no_rush", text: "No rush - take the time needed", description: "Good things take time" }
+      { value: "asap", text: "I want to move as soon as possible.", description: "Speed is important to me" },
+      { value: "steady_pace", text: "I prefer a steady, predictable pace.", description: "Consistent progress works best" },
+      { value: "flexible_timing", text: "I prefer flexible timing based on circumstances.", description: "I like to adapt as we go" },
+      { value: "no_rush", text: "I’m in no rush and want to take the time needed.", description: "Good things take time" }
     ]
   },
   {
     id: 15,
-    question: "You learn best through:",
+    question: "How do you learn best?",
     options: [
-      { value: "doing_experiencing", text: "Doing and experiencing", description: "Hands-on learning works for me" },
-      { value: "visual_materials", text: "Visual materials and examples", description: "Show me what you mean" },
-      { value: "detailed_explanations", text: "Detailed explanations and data", description: "Give me the full picture" },
-      { value: "personal_stories", text: "Personal stories and examples", description: "Real experiences help me understand" }
+      { value: "doing_experiencing", text: "I learn best by doing and experiencing.", description: "Hands-on learning works for me" },
+      { value: "visual_materials", text: "I learn best through visual materials and examples.", description: "Show me what you mean" },
+      { value: "detailed_explanations", text: "I learn best through detailed explanations and data.", description: "Give me the full picture" },
+      { value: "personal_stories", text: "I learn best through personal stories and examples.", description: "Real experiences help me understand" }
     ]
   },
   {
     id: 16,
-    question: "At the end of the process, success means:",
+    question: "At the end of the process, what does success mean to you?",
     options: [
-      { value: "achieved_goals", text: "You achieved your goals efficiently", description: "I got what I wanted quickly" },
-      { value: "positive_experience", text: "Everyone had a positive experience", description: "The journey was as important as the destination" },
-      { value: "right_choice", text: "You made the right choice", description: "This decision will serve me well" },
-      { value: "stress_free", text: "The process was stress-free", description: "I felt supported throughout" }
+      { value: "achieved_goals", text: "I achieved my goals efficiently.", description: "I got what I wanted quickly" },
+      { value: "positive_experience", text: "Everyone had a positive experience.", description: "The journey mattered as much as the outcome" },
+      { value: "right_choice", text: "I made the right choice.", description: "This decision will serve me well" },
+      { value: "stress_free", text: "The process was stress-free.", description: "I felt supported throughout" }
     ]
   }
 ];
@@ -197,20 +199,50 @@ document.addEventListener('DOMContentLoaded', () => {
     const otherIntentWrap = document.getElementById('otherIntentWrap');
     const otherIntentInput = document.getElementById('otherIntent');
     const marketCityInput = document.getElementById('marketCity');
+    const marketSection = document.getElementById('marketSection');
+    const buyingMarketWrap = document.getElementById('buyingMarketWrap');
+    const sellingMarketWrap = document.getElementById('sellingMarketWrap');
+    const otherMarketWrap = document.getElementById('otherMarketWrap');
+    const buyingMarketInput = document.getElementById('buyingMarketCity');
+    const sellingMarketInput = document.getElementById('sellingMarketCity');
 
     // --- Transaction intent helpers ---------------------------------------
-    // selectedGoal holds the transaction intent value: 'buying' | 'selling' | 'other'.
+    // selectedGoal holds the transaction intent: 'buying' | 'selling' | 'both' | 'other'.
     function isOtherIntent() { return selectedGoal === 'other'; }
+    function needsBuyingMarket() { return selectedGoal === 'buying' || selectedGoal === 'both'; }
+    function needsSellingMarket() { return selectedGoal === 'selling' || selectedGoal === 'both'; }
     function otherIntentText() { return otherIntentInput ? otherIntentInput.value.trim() : ''; }
-    // City/market the client wants to buy/sell in. Metadata only — it is never
-    // included in the answers used for archetype scoring.
-    function marketCityText() { return marketCityInput ? marketCityInput.value.trim() : ''; }
-    function marketCityValid() { const v = marketCityText(); return v.length >= 2 && v.length <= 120; }
+    // City/market values. Metadata only — never included in archetype scoring.
+    function cityText(el) { return el ? el.value.trim() : ''; }
+    function cityValid(v) { return v.length >= 2 && v.length <= 120; }
+    function buyingMarketText() { return cityText(buyingMarketInput); }
+    function sellingMarketText() { return cityText(sellingMarketInput); }
+    function otherMarketText() { return cityText(marketCityInput); }
+    // Combined market_city summary, derived per the selected intent.
+    function marketCityText() {
+        if (selectedGoal === 'buying') return buyingMarketText();
+        if (selectedGoal === 'selling') return sellingMarketText();
+        if (selectedGoal === 'both') {
+            const b = buyingMarketText(); const s = sellingMarketText();
+            if (b && s) return b + ' / ' + s;
+            return b || s;
+        }
+        if (selectedGoal === 'other') return otherMarketText();
+        return '';
+    }
     function transactionIntentLabel() {
         if (selectedGoal === 'buying') return 'Buying';
         if (selectedGoal === 'selling') return 'Selling';
+        if (selectedGoal === 'both') return 'Buying and Selling';
         if (selectedGoal === 'other') return otherIntentText();
         return '';
+    }
+    // Reveal the right market fields for the chosen intent.
+    function updateMarketFields() {
+        if (marketSection) marketSection.classList.toggle('hidden', !selectedGoal);
+        if (buyingMarketWrap) buyingMarketWrap.classList.toggle('hidden', !needsBuyingMarket());
+        if (sellingMarketWrap) sellingMarketWrap.classList.toggle('hidden', !needsSellingMarket());
+        if (otherMarketWrap) otherMarketWrap.classList.toggle('hidden', !isOtherIntent());
     }
     
     // Assessment Elements
@@ -246,14 +278,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasGoal = selectedGoal !== null;
         // When "Other" is chosen, a non-empty custom description is required.
         const otherOk = !isOtherIntent() || otherIntentText() !== '';
-        // City/market is required (2–120 characters).
-        const marketOk = marketCityValid();
+        // Conditional market requirements per intent. For "Other" the market is
+        // optional, but if provided it must be a valid length.
+        let marketOk = true;
+        if (needsBuyingMarket()) marketOk = marketOk && cityValid(buyingMarketText());
+        if (needsSellingMarket()) marketOk = marketOk && cityValid(sellingMarketText());
+        if (isOtherIntent()) {
+            const m = otherMarketText();
+            if (m) marketOk = marketOk && cityValid(m);
+        }
         startAssessmentBtn.disabled = !(hasText && hasGoal && otherOk && marketOk);
     }
 
     inputs.forEach(inp => inp.addEventListener('input', checkContactValid));
     if (otherIntentInput) otherIntentInput.addEventListener('input', checkContactValid);
-    if (marketCityInput) marketCityInput.addEventListener('input', checkContactValid);
+    [marketCityInput, buyingMarketInput, sellingMarketInput].forEach(el => {
+        if (el) el.addEventListener('input', checkContactValid);
+    });
 
     goalOptions.forEach(card => {
         card.addEventListener('click', () => {
@@ -271,9 +312,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (otherIntentInput) otherIntentInput.value = '';
                 }
             }
+            // Clear market fields that no longer apply so stale values are not sent.
+            if (!needsBuyingMarket() && buyingMarketInput) buyingMarketInput.value = '';
+            if (!needsSellingMarket() && sellingMarketInput) sellingMarketInput.value = '';
+            if (!isOtherIntent() && marketCityInput) marketCityInput.value = '';
+            updateMarketFields();
             checkContactValid();
         });
     });
+
+    // --- Prefill carry-forward (avoid entering info twice) ----------------
+    // The landing page may capture name/email/phone/intent/market first. We carry
+    // those values forward here so the client never re-enters them, then clear the
+    // one-time prefill so a later visit starts clean.
+    function applyPrefill() {
+        let data = null;
+        try { data = JSON.parse(localStorage.getItem('requity_prefill') || 'null'); }
+        catch (e) { data = null; }
+        if (!data || typeof data !== 'object') return;
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el && val != null && String(val).trim() !== '') el.value = String(val).trim();
+        };
+        setVal('fname', data.fname);
+        setVal('lname', data.lname);
+        setVal('email', data.email);
+        setVal('phone', data.phone);
+        setVal('birthday', data.birthday);
+        const intent = (data.intent || '').toLowerCase();
+        if (['buying', 'selling', 'both', 'other'].includes(intent)) {
+            const card = document.querySelector('#goalOptions .option-card[data-goal="' + intent + '"]');
+            if (card) card.click();
+            const market = (data.marketCity || '').trim();
+            if (market) {
+                if (intent === 'buying' || intent === 'both') setVal('buyingMarketCity', market);
+                else if (intent === 'selling') setVal('sellingMarketCity', market);
+                else if (intent === 'other') setVal('marketCity', market);
+            }
+            if (intent === 'other' && data.intentOther) setVal('otherIntent', data.intentOther);
+        }
+        try { localStorage.removeItem('requity_prefill'); } catch (e) { /* ignore */ }
+        checkContactValid();
+    }
+    applyPrefill();
 
     startAssessmentBtn.addEventListener('click', () => {
         currentStepIndex = 0;
@@ -298,6 +379,8 @@ document.addEventListener('DOMContentLoaded', () => {
             transactionIntentLabel: transactionIntentLabel() || null,
             transactionIntentOther: isOtherIntent() ? (otherIntentText() || null) : null,
             marketCity: marketCityText() || null,
+            buyingMarketCity: needsBuyingMarket() ? (buyingMarketText() || null) : null,
+            sellingMarketCity: needsSellingMarket() ? (sellingMarketText() || null) : null,
         };
         // Reuse a recent lead id for this email if we have one cached.
         try {
@@ -355,6 +438,22 @@ document.addEventListener('DOMContentLoaded', () => {
         qProgress.style.width = `${progressPercent}%`;
         
         questionText.innerText = qData.question;
+
+        // Optional clarifying note / disclaimer under the question (e.g. Q3, Q7).
+        let noteEl = document.getElementById('questionNote');
+        if (qData.note) {
+            if (!noteEl) {
+                noteEl = document.createElement('p');
+                noteEl.id = 'questionNote';
+                noteEl.className = 'subtitle';
+                noteEl.style.marginTop = '0.5rem';
+                questionText.insertAdjacentElement('afterend', noteEl);
+            }
+            noteEl.textContent = qData.note;
+            noteEl.style.display = 'block';
+        } else if (noteEl) {
+            noteEl.style.display = 'none';
+        }
         
         // Render Options
         questionOptionsContainer.innerHTML = '';
@@ -500,6 +599,8 @@ document.addEventListener('DOMContentLoaded', () => {
             transactionIntentLabel: transactionIntentLabel(),
             transactionIntentOther: isOtherIntent() ? otherIntentText() : null,
             marketCity: marketCityText(),
+            buyingMarketCity: needsBuyingMarket() ? buyingMarketText() : null,
+            sellingMarketCity: needsSellingMarket() ? sellingMarketText() : null,
             answers: answers,
             source: src.source,
             agentId: src.agentId,

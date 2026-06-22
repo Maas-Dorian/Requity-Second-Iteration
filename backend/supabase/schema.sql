@@ -92,7 +92,13 @@ create table if not exists clients (
   transaction_intent_label text,
   transaction_intent_other text,
   market_city text,
+  -- Separate buying/selling markets (market_city is the combined summary).
+  buying_market_city text,
+  selling_market_city text,
   status assessment_status default 'draft',
+  -- Status-based closings for the agent dashboard.
+  deal_status text default 'active',
+  close_date date,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -110,6 +116,8 @@ create table if not exists assessments (
   transaction_intent_label text,
   transaction_intent_other text,
   market_city text,
+  buying_market_city text,
+  selling_market_city text,
   completed_at timestamptz,
   created_at timestamptz default now()
 );
@@ -188,6 +196,8 @@ create table if not exists assessment_leads (
   transaction_intent_label text,
   transaction_intent_other text,
   market_city text,
+  buying_market_city text,
+  selling_market_city text,
   notes text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()

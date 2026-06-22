@@ -98,19 +98,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         ? (body.result as ClientArchetypeResult)
         : null;
 
-    // Transaction intent (buying / selling / other). Optional for backward
-    // compatibility, but when present it must be valid; "other" requires a
-    // non-empty custom description. Stored separately from archetype answers so
-    // it never affects scoring.
-    const TRANSACTION_INTENTS = ["buying", "selling", "other"] as const;
+    // Transaction intent (buying / selling / both / other). Optional for
+    // backward compatibility, but when present it must be valid. Stored
+    // separately from archetype answers so it never affects scoring.
+    const TRANSACTION_INTENTS = ["buying", "selling", "both", "other"] as const;
     const intentRaw = optionalString(body, "transactionIntent");
-    let transactionIntent: "buying" | "selling" | "other" | null = null;
+    let transactionIntent: "buying" | "selling" | "both" | "other" | null = null;
     if (intentRaw) {
       if (!TRANSACTION_INTENTS.includes(intentRaw as (typeof TRANSACTION_INTENTS)[number])) {
         logValidationFailure(ROUTE, "invalid_transaction_intent", { transactionIntent: intentRaw });
-        throw new HttpError(400, "Invalid transactionIntent. Expected one of: buying, selling, other.");
+        throw new HttpError(
+          400,
+          "Invalid transactionIntent. Expected one of: buying, selling, both, other."
+        );
       }
-      transactionIntent = intentRaw as "buying" | "selling" | "other";
+      transactionIntent = intentRaw as "buying" | "selling" | "both" | "other";
     }
     const transactionIntentOther =
       transactionIntent === "other"
@@ -125,16 +127,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         ? "Buying"
         : transactionIntent === "selling"
           ? "Selling"
-          : transactionIntent === "other"
-            ? transactionIntentOther
-            : null;
+          : transactionIntent === "both"
+            ? "Buying and Selling"
+            : transactionIntent === "other"
+              ? transactionIntentOther
+              : null;
 
-    // City/market the client wants to buy/sell in. Required, trimmed, 2–120
-    // chars. Metadata only — it never affects archetype scoring.
-    const marketCity = (optionalString(body, "marketCity") ?? "").trim();
-    if (marketCity.length < 2 || marketCity.length > 120) {
-      logValidationFailure(ROUTE, "invalid_market_city", { length: marketCity.length });
-      throw new HttpError(400, "Please enter the city or market you’re looking in (2–120 characters).");
+    // Validate a city/market string (2–120 chars). Metadata only — never scored.
+    const cityField = (key: string): string =>
+      (optionalString(body, key) ?? "").trim();
+    const isValidCity = (v: string): boolean => v.length >= 2 && v.length <= 120;
+    const cityError = (): never => {
+      logValidationFailure(ROUTE, "invalid_market_city", {});
+      throw new HttpError(
+        400,
+        "Please enter the city or market (2–120 characters)."
+      );
+    };
+
+    const buyingMarketCityRaw = cityField("buyingMarketCity");
+    const sellingMarketCityRaw = cityField("sellingMarketCity");
+    let marketCity = cityField("marketCity");
+    let buyingMarketCity: string | null = null;
+    let sellingMarketCity: string | null = null;
+
+    if (transactionIntent === "buying") {
+      if (!isValidCity(buyingMarketCityRaw)) cityError();
+      buyingMarketCity = buyingMarketCityRaw;
+      marketCity = buyingMarketCityRaw;
+    } else if (transactionIntent === "selling") {
+      if (!isValidCity(sellingMarketCityRaw)) cityError();
+      sellingMarketCity = sellingMarketCityRaw;
+      marketCity = sellingMarketCityRaw;
+    } else if (transactionIntent === "both") {
+      if (!isValidCity(buyingMarketCityRaw) || !isValidCity(sellingMarketCityRaw)) cityError();
+      buyingMarketCity = buyingMarketCityRaw;
+      sellingMarketCity = sellingMarketCityRaw;
+      marketCity = `${buyingMarketCityRaw} / ${sellingMarketCityRaw}`;
+    } else if (transactionIntent === "other") {
+      // Market optional for "other": validate only if provided.
+      if (marketCity && !isValidCity(marketCity)) cityError();
+    } else {
+      // Legacy/no intent: keep the original single-field requirement.
+      if (!isValidCity(marketCity)) cityError();
     }
 
     try {
@@ -150,7 +185,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         transactionIntent,
         transactionIntentLabel,
         transactionIntentOther,
-        marketCity,
+        marketCity: marketCity || null,
+        buyingMarketCity,
+        sellingMarketCity,
       });
       sendJson(res, 200, result);
     } catch (error) {

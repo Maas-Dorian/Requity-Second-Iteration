@@ -447,11 +447,17 @@ export type SubmitClientAssessmentWithContactParams = {
   /** Optional incomplete-lead id to convert to completed. */
   leadId?: string | null;
   /** Transaction intent — stored separately so it never affects scoring. */
-  transactionIntent?: "buying" | "selling" | "other" | null;
+  transactionIntent?: "buying" | "selling" | "both" | "other" | null;
   transactionIntentLabel?: string | null;
   transactionIntentOther?: string | null;
-  /** City/market the client wants to buy/sell in — metadata, not scored. */
+  /**
+   * City/market the client wants to buy/sell in — metadata, not scored.
+   * marketCity is the combined summary; buyingMarketCity/sellingMarketCity hold
+   * the individual values when buying and/or selling.
+   */
   marketCity?: string | null;
+  buyingMarketCity?: string | null;
+  sellingMarketCity?: string | null;
 };
 
 export type SubmitClientAssessmentWithContactResult = SubmitClientAssessmentResult & {
@@ -460,11 +466,38 @@ export type SubmitClientAssessmentWithContactResult = SubmitClientAssessmentResu
   emailed: boolean;
   /** Safe email outcome for the client/agent flow: sent | skipped | failed. */
   emailStatus: "sent" | "skipped" | "failed";
-  transactionIntent: "buying" | "selling" | "other" | null;
+  transactionIntent: "buying" | "selling" | "both" | "other" | null;
   transactionIntentLabel: string | null;
   transactionIntentOther: string | null;
   marketCity: string | null;
+  buyingMarketCity: string | null;
+  sellingMarketCity: string | null;
 };
+
+/**
+ * Combined `market_city` summary derived from the buying/selling markets.
+ *  - buying  → buying market
+ *  - selling → selling market
+ *  - both    → "buying / selling"
+ *  - other   → whichever market was provided
+ * Returns null when nothing usable was provided.
+ */
+export function deriveMarketCitySummary(
+  intent: string | null,
+  buyingMarketCity: string | null,
+  sellingMarketCity: string | null
+): string | null {
+  const buy = (buyingMarketCity ?? "").trim() || null;
+  const sell = (sellingMarketCity ?? "").trim() || null;
+  if (intent === "buying") return buy;
+  if (intent === "selling") return sell;
+  if (intent === "both") {
+    if (buy && sell) return `${buy} / ${sell}`;
+    return buy || sell;
+  }
+  // other / unknown: use whatever is present.
+  return buy || sell;
+}
 
 /**
  * Full client submission used by the secure API route.
@@ -509,7 +542,14 @@ export async function submitClientAssessmentWithContact(
   const transactionIntent = params.transactionIntent ?? null;
   const transactionIntentLabel = params.transactionIntentLabel ?? null;
   const transactionIntentOther = params.transactionIntentOther ?? null;
-  const marketCity = (params.marketCity ?? "").trim() || null;
+  const buyingMarketCity = (params.buyingMarketCity ?? "").trim() || null;
+  const sellingMarketCity = (params.sellingMarketCity ?? "").trim() || null;
+  // Combined market_city summary. Prefer an explicitly provided value; otherwise
+  // derive it from the buying/selling markets per the transaction intent so the
+  // legacy single-field surfaces (and older reads) always show something useful.
+  const marketCity =
+    (params.marketCity ?? "").trim() ||
+    deriveMarketCitySummary(transactionIntent, buyingMarketCity, sellingMarketCity);
 
   // ---- OPTIONAL: public.clients (legacy enrichment) ----------------------
   // The full archetype + dimensions live on the `assessments` row and the
@@ -537,6 +577,8 @@ export async function submitClientAssessmentWithContact(
         transaction_intent_label: transactionIntentLabel,
         transaction_intent_other: transactionIntentOther,
         market_city: marketCity,
+        buying_market_city: buyingMarketCity,
+        selling_market_city: sellingMarketCity,
         status,
       },
       { required: ["full_name", "source"] }
@@ -560,6 +602,8 @@ export async function submitClientAssessmentWithContact(
     transactionIntentLabel,
     transactionIntentOther,
     marketCity,
+    buyingMarketCity,
+    sellingMarketCity,
   };
   const assessmentPayload = {
     client_id: clientId,
@@ -570,6 +614,8 @@ export async function submitClientAssessmentWithContact(
     transaction_intent_label: transactionIntentLabel,
     transaction_intent_other: transactionIntentOther,
     market_city: marketCity,
+    buying_market_city: buyingMarketCity,
+    selling_market_city: sellingMarketCity,
     status: "completed" as const,
     completed_at: completedAt,
   };
@@ -620,6 +666,8 @@ export async function submitClientAssessmentWithContact(
       transactionIntentLabel,
       transactionIntentOther,
       marketCity,
+      buyingMarketCity,
+      sellingMarketCity,
     });
     if (!lead && !assessmentId) {
       const started = await upsertAssessmentLeadStart({
@@ -642,6 +690,8 @@ export async function submitClientAssessmentWithContact(
         transactionIntentLabel,
         transactionIntentOther,
         marketCity,
+        buyingMarketCity,
+        sellingMarketCity,
       });
     }
     leadSaved = !!lead;
@@ -768,6 +818,8 @@ export async function submitClientAssessmentWithContact(
     transactionIntentLabel,
     transactionIntentOther,
     marketCity,
+    buyingMarketCity,
+    sellingMarketCity,
   };
 }
 

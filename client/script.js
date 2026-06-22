@@ -3,6 +3,36 @@
 document.addEventListener('DOMContentLoaded', () => {
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+    // Carry the landing intake form forward so clients never enter info twice.
+    // We stash the values in localStorage and the assessment page prefills them.
+    const mockSubmitBtn = document.getElementById('mockSubmitBtn');
+    if (mockSubmitBtn) {
+        mockSubmitBtn.addEventListener('click', () => {
+            const val = (id) => {
+                const el = document.getElementById(id);
+                return el ? el.value.trim() : '';
+            };
+            const city = val('lp-city');
+            const state = val('lp-state');
+            const market = [city, state].filter(Boolean).join(', ');
+            const intentEl = document.querySelector('input[name="intent"]:checked');
+            const prefill = {
+                fname: val('lp-fname'),
+                lname: val('lp-lname'),
+                email: val('lp-email'),
+                phone: val('lp-phone'),
+                marketCity: market,
+                intent: intentEl ? intentEl.value : null,
+            };
+            try {
+                // Only store when the user actually provided something.
+                const hasAny = Object.values(prefill).some((v) => v && String(v).trim() !== '');
+                if (hasAny) localStorage.setItem('requity_prefill', JSON.stringify(prefill));
+            } catch (e) { /* ignore */ }
+            window.location.href = 'assessment.html';
+        });
+    }
+
     const fadeElements = document.querySelectorAll('.fade-item');
     const fadeObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {

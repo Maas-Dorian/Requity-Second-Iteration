@@ -65,6 +65,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const base = (optionalString(body, "frontendUrl") ?? env.frontendUrl).replace(/\/$/, "");
       const token = agent.public_assessment_token;
 
+      // Safe server log (no tokens/keys/PII) — confirms the self-heal worked.
+      console.log("AUTH_BOOTSTRAP_AGENT", {
+        hasUser: true,
+        profileUpserted: Boolean(profile && profile.id),
+        agentUpserted: Boolean(agent && agent.id),
+      });
+
       sendJson(res, 200, {
         profile,
         agent,

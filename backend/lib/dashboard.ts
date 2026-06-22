@@ -84,6 +84,28 @@ export type AgentDashboard = {
   }>;
   messages: NotificationRecord[];
   clientAssessmentDetail: any[];
+  /** Matched clients for this agent (live data; empty when none). */
+  matches: Array<{
+    id: string;
+    name: string;
+    archetype: string | null;
+    transaction: string | null;
+    buyingMarket: string | null;
+    sellingMarket: string | null;
+    market: string | null;
+    fit: number | null;
+    status: string;
+    date: string | null;
+  }>;
+  /** Closing/closed deals for this agent (live data; empty when none). */
+  closings: Array<{
+    id: string;
+    name: string;
+    transaction: string | null;
+    market: string | null;
+    status: string;
+    closeDate: string | null;
+  }>;
   settings: {
     accountEmail: string | null;
     supabaseConnected: boolean;
@@ -227,6 +249,73 @@ export async function getAgentDashboard(
     updatedAt: c.updated_at ?? c.created_at,
   }));
 
+  // Match fit scores (optional enrichment). A drifted DB without
+  // match_recommendations must NOT break the dashboard.
+  const fitByClient = new Map<string, number>();
+  try {
+    const clientIds = list.map((c) => c.id).filter(Boolean);
+    if (clientIds.length) {
+      const { data: recs, error: recError } = await supabase
+        .from("match_recommendations")
+        .select("client_id, score")
+        .eq("agent_id", agentId)
+        .in("client_id", clientIds);
+      if (!recError) {
+        for (const r of recs ?? []) {
+          const cid = (r as { client_id?: string }).client_id;
+          const score = (r as { score?: number }).score;
+          if (cid && typeof score === "number") {
+            // Keep the highest score per client.
+            fitByClient.set(cid, Math.max(fitByClient.get(cid) ?? 0, score));
+          }
+        }
+      }
+    }
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      console.error("[dashboard] match scores load failed:", error);
+    }
+  }
+
+  const cleanCity = (v: unknown): string | null => {
+    const s = (v ?? "").toString().trim();
+    return s.length ? s : null;
+  };
+  const txnLabel = (c: any): string | null =>
+    cleanCity(c.transaction_intent_label) ??
+    (c.transaction_intent ? String(c.transaction_intent) : null);
+
+  // Matches: clients matched/assigned to this agent (all clients in `list` are
+  // assigned to this agent). Live data only — never fabricated.
+  const matches = list.map((c) => ({
+    id: c.id,
+    name: c.full_name,
+    archetype: c.archetype ?? null,
+    transaction: txnLabel(c),
+    buyingMarket: cleanCity(c.buying_market_city),
+    sellingMarket: cleanCity(c.selling_market_city),
+    market: cleanCity(c.market_city),
+    fit: fitByClient.has(c.id) ? fitByClient.get(c.id)! : null,
+    status: c.status,
+    date: c.updated_at ?? c.created_at ?? null,
+  }));
+
+  // Closings: status-based. `deal_status` / `close_date` may be absent on a
+  // not-yet-migrated DB (select * simply omits them) → no closings, clean state.
+  const closings = list
+    .filter((c) => {
+      const ds = (c.deal_status ?? "").toString().toLowerCase();
+      return ds === "closing" || ds === "closed" || !!c.close_date;
+    })
+    .map((c) => ({
+      id: c.id,
+      name: c.full_name,
+      transaction: txnLabel(c),
+      market: cleanCity(c.market_city),
+      status: (c.deal_status ?? "closing").toString(),
+      closeDate: c.close_date ?? null,
+    }));
+
   return {
     agent: agent
       ? {
@@ -248,6 +337,8 @@ export async function getAgentDashboard(
     // Each client carries a `.report` with the full Relational-Roadmap detail
     // derived from the canonical archetype data (no extra DB columns required).
     clientAssessmentDetail: list.map((c) => attachClientReport(c)),
+    matches,
+    closings,
     settings: {
       accountEmail: agent?.email ?? null,
       supabaseConnected: true,

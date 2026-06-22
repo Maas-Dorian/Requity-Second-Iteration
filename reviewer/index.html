@@ -423,12 +423,26 @@
             var intent = l && l.transaction_intent;
             if (intent === 'buying') return 'Buying';
             if (intent === 'selling') return 'Selling';
+            if (intent === 'both') return 'Buying and Selling';
             if (intent === 'other') return (l && l.transaction_intent_other) || 'Other';
             return 'Not specified';
         }
+        function cityOrNull(v) { return (v && String(v).trim()) ? String(v).trim() : null; }
         function marketText(l) {
-            var m = l && l.market_city;
-            return (m && String(m).trim()) ? String(m).trim() : 'Not specified';
+            var m = cityOrNull(l && l.market_city) ||
+                cityOrNull(l && l.buying_market_city) || cityOrNull(l && l.selling_market_city);
+            return m || 'Not specified';
+        }
+        function marketDetailHtml(l) {
+            var buy = cityOrNull(l && l.buying_market_city);
+            var sell = cityOrNull(l && l.selling_market_city);
+            if (buy || sell) {
+                var out = '';
+                if (buy) out += '<span>Buying market <strong>' + esc(buy) + '</strong></span>';
+                if (sell) out += '<span>Selling market <strong>' + esc(sell) + '</strong></span>';
+                return out;
+            }
+            return '<span>Market <strong>' + esc(marketText(l)) + '</strong></span>';
         }
 
         function render(leads) {
@@ -448,7 +462,7 @@
                     '</div>' +
                     '<div class="lead-meta">' +
                         '<span>Transaction <strong>' + esc(transactionText(l)) + '</strong></span>' +
-                        '<span>Market <strong>' + esc(marketText(l)) + '</strong></span>' +
+                        marketDetailHtml(l) +
                         '<span>Started <strong>' + fmtDate(l.started_at) + '</strong></span>' +
                         '<span>Last activity <strong>' + fmtDate(l.last_activity_at) + '</strong></span>' +
                         '<span>Answered <strong>' + (l.answered_count || 0) + '</strong></span>' +

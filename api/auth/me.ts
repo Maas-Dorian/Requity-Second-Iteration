@@ -107,9 +107,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     // 6) Profile lookup. Missing ROW → needsBootstrap (200). Query ERROR → 500.
+    // Select * (not specific columns) so a drifted live DB missing an optional
+    // column (e.g. full_name) can NEVER 500 the auth check and bounce a genuinely
+    // signed-in agent back to the login page.
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role")
+      .select("*")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -128,11 +131,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // 7) Agent lookup (agent/admin only). Missing ROW → agent:null. ERROR → 500.
     let agent: Record<string, unknown> | null = null;
     if (role === "agent" || role === "admin") {
+      // Select * so a missing optional agent column (schema drift) can't 500 the
+      // auth check; we read each field defensively below.
       const { data: agentRow, error: agentError } = await supabase
         .from("agents")
-        .select(
-          "id, profile_id, email, display_name, archetype, archetype_completed_at, public_assessment_token"
-        )
+        .select("*")
         .eq("profile_id", user.id)
         .maybeSingle();
 

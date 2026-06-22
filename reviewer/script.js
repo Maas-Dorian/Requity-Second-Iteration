@@ -76,15 +76,21 @@ document.addEventListener('DOMContentLoaded', () => {
         var intent = c.transaction_intent;
         if (intent === 'buying') return 'Buying';
         if (intent === 'selling') return 'Selling';
+        if (intent === 'both') return 'Buying and Selling';
         if (intent === 'other') return c.transaction_intent_other || 'Other';
         return 'Not specified';
     }
 
-    // Human-readable city/market for a client row.
+    function cityOrNull(v) {
+        return (v && String(v).trim()) ? String(v).trim() : null;
+    }
+
+    // Human-readable city/market for a client row (combined summary).
     function marketText(c) {
         if (!c) return 'Not specified';
-        var m = c.market_city;
-        return (m && String(m).trim()) ? String(m).trim() : 'Not specified';
+        var m = cityOrNull(c.market_city) ||
+            cityOrNull(c.buying_market_city) || cityOrNull(c.selling_market_city);
+        return m || 'Not specified';
     }
 
     // Map a live /api/reviewer/matches item ({ client, rankings }) into the
@@ -117,6 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
             stressResponse: c.stress_response || '—',
             transaction: transactionText(c),
             market: marketText(c),
+            buyingMarket: cityOrNull(c.buying_market_city),
+            sellingMarket: cityOrNull(c.selling_market_city),
             report: c.report || null,
             status: 'Pending Review',
             highestMatch: fits.length ? fits[0].name : null,
@@ -196,8 +204,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const afterBullets = (r.whatThisClientIsAfter && r.whatThisClientIsAfter.length)
             ? reportListHtml(r.whatThisClientIsAfter, 4)
             : (r.summary ? '<p class="report-text">' + esc(r.summary) + '</p>' : '<p class="report-text">Not available</p>');
-        const context = '<p class="report-text">Transaction: ' + esc(client.transaction) +
-            ' &nbsp;·&nbsp; Market: ' + esc(client.market) + '</p>';
+        let marketLine;
+        if (client.buyingMarket || client.sellingMarket) {
+            marketLine = '';
+            if (client.buyingMarket) marketLine += ' &nbsp;·&nbsp; Buying market: ' + esc(client.buyingMarket);
+            if (client.sellingMarket) marketLine += ' &nbsp;·&nbsp; Selling market: ' + esc(client.sellingMarket);
+        } else {
+            marketLine = ' &nbsp;·&nbsp; Market: ' + esc(client.market);
+        }
+        const context = '<p class="report-text">Transaction: ' + esc(client.transaction) + marketLine + '</p>';
         const after = '<div class="report-section"><h4>What This Client Is After</h4>' + afterBullets + context + '</div>';
 
         const buyerSection = reportApproachSection(
