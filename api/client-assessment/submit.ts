@@ -56,6 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // `assessmentToken` is accepted as an alias for `token`.
     const token = optionalString(body, "assessmentToken") ?? optionalString(body, "token") ?? null;
     const agentId = optionalString(body, "agentId") ?? null;
+    const agentSlug = optionalString(body, "agentSlug") ?? null;
     const agentToken = optionalString(body, "agentToken") ?? null;
 
     // Submission rule:
@@ -65,11 +66,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     //  - client (direct) -> NO token/agent required; routed to the reviewer queue.
     // A token/agent is ONLY mandatory for the reviewer + qr/agent_link paths.
     if (source === "qr" || source === "agent_link") {
-      if (!agentToken && !agentId) {
+      if (!agentToken && !agentId && !agentSlug) {
         logValidationFailure(ROUTE, "missing_agent_reference", { source });
         throw new HttpError(
           400,
-          "An agentToken or agentId is required for qr/agent_link submissions."
+          "An agentSlug, agentToken, or agentId is required for qr/agent_link submissions."
         );
       }
     } else if (source === "reviewer") {
@@ -179,6 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         contact,
         answers,
         agentId,
+        agentSlug,
         agentToken,
         archetypeResult,
         leadId: optionalString(body, "leadId") ?? null,

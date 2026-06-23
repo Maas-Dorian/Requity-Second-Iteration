@@ -45,12 +45,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const body = getJsonBody(req);
     const source = requireEnum(body, "source", ["qr", "agent_link", "reviewer", "client"] as const);
     const agentId = optionalString(body, "agentId") ?? null;
+    const agentSlug = optionalString(body, "agentSlug") ?? null;
     const agentToken = optionalString(body, "agentToken") ?? null;
 
     // qr / agent_link must reference an agent so the lead attaches correctly.
-    if ((source === "qr" || source === "agent_link") && !agentId && !agentToken) {
+    if ((source === "qr" || source === "agent_link") && !agentId && !agentSlug && !agentToken) {
       logValidationFailure(ROUTE, "missing_agent_reference", { source });
-      throw new HttpError(400, "An agentToken or agentId is required for qr/agent_link leads.");
+      throw new HttpError(
+        400,
+        "An agentSlug, agentToken, or agentId is required for qr/agent_link leads."
+      );
     }
 
     // The leads table only allows qr/agent_link/reviewer; a direct public
@@ -68,6 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         email,
         phone,
         agentId,
+        agentSlug,
         agentToken,
         reviewerId: optionalString(body, "reviewerId") ?? null,
         contactConsent: body["contactConsent"] !== false,

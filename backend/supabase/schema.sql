@@ -72,6 +72,10 @@ create table if not exists agents (
   assessment_responses jsonb default '{}'::jsonb,
   assessment_summary jsonb default '{}'::jsonb,
   public_assessment_token text unique default encode(gen_random_bytes(16), 'hex'),
+  -- Branded, human-readable public link slug derived from display_name. Always
+  -- ends with "-requityapp-relational-assessment". Resolved server-side to the
+  -- agent; the raw token link still works for backward compatibility.
+  public_slug text unique,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

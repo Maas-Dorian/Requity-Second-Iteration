@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/:slug([^/]*-requityapp-relational-assessment)",
+      "destination": "/client/assessment.html"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import { getAgentNotifications, type NotificationRecord } from "./messages.js";
 import { getAgentAssessmentActivity, type AgentAssessmentActivity } from "./analytics.js";
 import { isMissingTableError, updateWithSchemaFallback } from "./supabaseWrite.js";
 import { attachClientReport } from "./clientReport.js";
+import { ensureAgentSlug } from "./agentSlug.js";
 import { logger } from "./logger.js";
 
 // ---------------------------------------------------------------------------
@@ -167,6 +168,8 @@ export type AgentDashboard = {
     archetypeCompletedAt: string | null;
     /** City/market the agent works in, or null when not provided/migrated. */
     marketCity: string | null;
+    /** Branded public link slug, or null when not generated/migrated. */
+    publicSlug: string | null;
   } | null;
   assessmentLink: string;
   qrLink: string;
@@ -228,31 +231,49 @@ export type AgentDashboard = {
 };
 
 /**
- * Build an agent's public assessment links from their token.
+ * Build an agent's public assessment links.
  *  - assessmentLink: shareable link (source `agent_link`)
  *  - qrLink: link encoded in the QR code (source `qr`)
- * Both attach scanning/visiting clients directly to the agent — never the
- * reviewer queue. Returns empty strings when the agent has no token.
+ *
+ * Preference order (Part 5 — slug first, token fallback):
+ *   1. When a branded `slug` exists, use the clean URL on the public origin:
+ *        https://www.requityapp.com/<slug>            (agent_link)
+ *        https://www.requityapp.com/<slug>?source=qr  (qr)
+ *      This never exposes the raw token in the visible URL.
+ *   2. Otherwise fall back to the legacy token link so links always work:
+ *        <frontend>/client/assessment.html?agent=<token>&source=agent_link|qr
+ * Both attach visiting/scanning clients directly to the agent (never the
+ * reviewer queue). Returns empty strings only when neither slug nor token exist.
  */
-export function buildAgentAssessmentLinks(
-  token: string | null | undefined,
-  frontendUrl?: string
-): { assessmentLink: string; qrLink: string } {
-  const base = (frontendUrl || env.frontendUrl).replace(/\/$/, "");
-  const t = token ?? "";
+export function buildAgentAssessmentLinks(opts: {
+  token?: string | null;
+  slug?: string | null;
+  frontendUrl?: string;
+}): { assessmentLink: string; qrLink: string } {
+  if (opts.slug) {
+    const publicBase = env.publicSiteUrl.replace(/\/$/, "");
+    return {
+      assessmentLink: `${publicBase}/${opts.slug}`,
+      qrLink: `${publicBase}/${opts.slug}?source=qr`,
+    };
+  }
+  const base = (opts.frontendUrl || env.frontendUrl).replace(/\/$/, "");
+  const t = opts.token ?? "";
   return {
     assessmentLink: t ? `${base}/client/assessment.html?agent=${t}&source=agent_link` : "",
     qrLink: t ? `${base}/client/assessment.html?agent=${t}&source=qr` : "",
   };
 }
 
-/** Look up an agent's public assessment links by agent id. */
+/** Look up an agent's public assessment links by agent id (slug-first, token fallback). */
 export async function getAgentAssessmentLinks(
   agentId: string,
   options: { frontendUrl?: string } = {}
 ): Promise<{ assessmentLink: string; qrLink: string }> {
   const token = await ensureAgentPublicToken(agentId);
-  return buildAgentAssessmentLinks(token, options.frontendUrl);
+  // Backfill a branded slug if missing (resilient: returns null on schema drift).
+  const slug = await ensureAgentSlug(agentId);
+  return buildAgentAssessmentLinks({ token, slug, frontendUrl: options.frontendUrl });
 }
 
 export async function getAgentDashboard(
@@ -317,10 +338,15 @@ export async function getAgentDashboard(
     }
   }
 
-  const { assessmentLink, qrLink } = buildAgentAssessmentLinks(
-    publicToken,
-    options.frontendUrl
-  );
+  // Backfill the branded public slug on dashboard load (Part 9). Resilient:
+  // returns null on schema drift, in which case we fall back to the token link.
+  const publicSlug = agent ? await ensureAgentSlug(agentId, agent.display_name) : null;
+
+  const { assessmentLink, qrLink } = buildAgentAssessmentLinks({
+    token: publicToken,
+    slug: publicSlug,
+    frontendUrl: options.frontendUrl,
+  });
 
   const list = clientsList;
   const activity = { linkOpened: 0, started: 0, completed: 0 };
@@ -439,6 +465,7 @@ export async function getAgentDashboard(
           archetype: agent.archetype ?? null,
           archetypeCompletedAt: agent.archetype_completed_at ?? null,
           marketCity,
+          publicSlug,
         }
       : null,
     assessmentLink,

@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import { createNotification } from "./messages.js";
+import { getAgentIdBySlug } from "./agentSlug.js";
 
 /**
  * Incomplete / partial assessment lead capture.
@@ -63,9 +64,15 @@ const ENABLE_LEAD_START_NOTIFICATION = false;
 
 async function resolveAgentId(input: {
   agentId?: string | null;
+  agentSlug?: string | null;
   agentToken?: string | null;
 }): Promise<string | null> {
+  // Resolution priority (Part 5): explicit id → branded slug → legacy token.
   if (input.agentId) return input.agentId;
+  if (input.agentSlug) {
+    const bySlug = await getAgentIdBySlug(input.agentSlug);
+    if (bySlug) return bySlug;
+  }
   if (!input.agentToken) return null;
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
@@ -84,6 +91,7 @@ export type UpsertAssessmentLeadStartInput = {
   email?: string | null;
   phone?: string | null;
   agentId?: string | null;
+  agentSlug?: string | null;
   agentToken?: string | null;
   reviewerId?: string | null;
   clientAssessmentId?: string | null;

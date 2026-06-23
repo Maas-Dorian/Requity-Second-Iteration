@@ -257,4 +257,17 @@ export const env = {
       "http://localhost:3000"
     );
   },
+  /**
+   * Public, branded site origin used for clean agent slug links
+   * (e.g. https://www.requityapp.com/<slug>). Resolution order:
+   *   PUBLIC_SITE_URL  →  VERCEL_FRONTEND_URL/etc  →  localhost default.
+   * The clean-link rewrite must be served from this origin (see vercel.json).
+   */
+  get publicSiteUrl(): string {
+    return (
+      read("PUBLIC_SITE_URL", "NEXT_PUBLIC_SITE_URL") ??
+      read("VERCEL_FRONTEND_URL", "NEXT_PUBLIC_FRONTEND_URL", "VITE_FRONTEND_URL") ??
+      "http://localhost:3000"
+    );
+  },
 };

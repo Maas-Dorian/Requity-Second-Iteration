@@ -368,6 +368,28 @@
   }
 
   /**
+   * Resolve a branded agent slug (or legacy token) to safe public agent info for
+   * attribution on the client assessment page. Never throws — returns
+   * { ok:false } when the link is invalid/expired so the page can show a clean
+   * message. ref: { slug?, token? }
+   */
+  async function fetchAgentPublicLink(ref) {
+    ref = ref || {};
+    var qs = ref.slug
+      ? "?slug=" + encodeURIComponent(ref.slug)
+      : ref.token
+        ? "?agent=" + encodeURIComponent(ref.token)
+        : "";
+    if (!qs) return { ok: false };
+    try {
+      return await apiGet("/agent/public-link" + qs);
+    } catch (err) {
+      console.warn("[RequityAPI] fetchAgentPublicLink failed:", err && err.message);
+      return { ok: false };
+    }
+  }
+
+  /**
    * Submit a client assessment via the secure API. Throws on failure so the
    * caller can show a real error state.
    * payload: { token?, contact:{fullName,email,phone,dateOfBirth}, answers:{}, source, agentId, agentToken, leadId? }
@@ -922,6 +944,7 @@
     requireReviewerSession: requireReviewerSession,
     calculateClientArchetype: calculateClientArchetype,
     createClientAssessmentLink: createClientAssessmentLink,
+    fetchAgentPublicLink: fetchAgentPublicLink,
     submitClientAssessment: submitClientAssessment,
     submitAgentAssessment: submitAgentAssessment,
     __debug: reqDebug,

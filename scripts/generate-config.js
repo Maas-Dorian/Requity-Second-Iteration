@@ -34,6 +34,13 @@ const config = {
   supabaseAnonKey:
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "",
   frontendUrl: process.env.VERCEL_FRONTEND_URL || "https://requity-second-iteration.vercel.app",
+  // Public, branded origin for clean agent slug links (e.g. www.requityapp.com).
+  // Falls back to PUBLIC_SITE_URL -> VERCEL_FRONTEND_URL -> the vercel domain.
+  publicSiteUrl:
+    process.env.PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.VERCEL_FRONTEND_URL ||
+    "https://requity-second-iteration.vercel.app",
   // Whether Supabase Auth email confirmation is expected to be ON. Public,
   // non-secret hint used ONLY to shape the signup UX (it does not change auth).
   // Default false (testing-friendly): signup is expected to return a session.
@@ -55,6 +62,7 @@ console.log("[config] apiBaseUrl:", config.apiBaseUrl);
 console.log("[config] supabaseUrl configured:", Boolean(config.supabaseUrl));
 console.log("[config] supabaseAnonKey configured:", Boolean(config.supabaseAnonKey));
 console.log("[config] frontendUrl:", config.frontendUrl);
+console.log("[config] publicSiteUrl:", config.publicSiteUrl);
 console.log("[config] authEmailConfirmationExpected:", config.authEmailConfirmationExpected);
 
 if (!config.supabaseAnonKey) {

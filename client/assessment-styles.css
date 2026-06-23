@@ -49,6 +49,28 @@ body {
 .full-width { width: 100%; }
 .hidden { display: none !important; }
 
+/* Agent attribution banner ("You're completing this for <Name>"). */
+.agent-attribution {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto 16px;
+    padding: 12px 18px;
+    border: 1px solid var(--blue-border);
+    border-radius: var(--radius-md);
+    background: var(--white);
+    color: var(--deep-text);
+    font-weight: 600;
+    text-align: center;
+    box-shadow: var(--shadow-premium);
+}
+.agent-attribution strong { color: var(--primary-blue); }
+.agent-attribution.is-invalid {
+    border-color: var(--soft-pink);
+    background: var(--warm-bg-glow);
+    color: var(--secondary-text);
+    font-weight: 500;
+}
+
 .mt-s { margin-top: 0.5rem; }
 .mt-m { margin-top: 1.5rem; }
 .mt-l { margin-top: 2.5rem; }

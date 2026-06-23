@@ -184,6 +184,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDemoRunning = false;
     let leadId = null; // incomplete-assessment lead id (for follow-up capture)
     let leadProgressTimer = null;
+    // True when a branded slug URL was used but did not resolve to a real agent.
+    // In that case we fall the submission back to the reviewer queue so it is
+    // never orphaned, and show a clean "invalid or expired link" message.
+    let slugInvalid = false;
 
     // --- DOM Elements ---
     const views = {
@@ -356,6 +360,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     applyPrefill();
 
+    // --- Agent attribution ("You're completing this for <Name>") -----------
+    // Resolve the branded slug (preferred) or legacy token to a friendly agent
+    // name. Never shows a raw id/token/slug. On an unresolved slug, marks the
+    // link invalid (submission falls back to the reviewer queue) and shows a
+    // clean message. Best-effort: any failure leaves the banner hidden.
+    function initAgentAttribution() {
+        if (!window.RequityAPI || typeof window.RequityAPI.fetchAgentPublicLink !== 'function') return;
+        const banner = document.getElementById('agentAttribution');
+        const params = new URLSearchParams(window.location.search);
+        const slug = getAgentSlugFromPath();
+        const token = params.get('agent') || params.get('a') || params.get('agentToken') || null;
+        const ref = slug ? { slug: slug } : (token ? { token: token } : null);
+        if (!ref) return;
+        Promise.resolve(window.RequityAPI.fetchAgentPublicLink(ref))
+            .then((res) => {
+                if (res && res.ok && res.agent && res.agent.displayName) {
+                    if (banner) {
+                        banner.classList.remove('hidden', 'is-invalid');
+                        banner.innerHTML = 'You’re completing this for <strong></strong>';
+                        banner.querySelector('strong').textContent = res.agent.displayName;
+                    }
+                } else if (slug) {
+                    // Branded link that did not resolve → invalid / expired.
+                    slugInvalid = true;
+                    if (banner) {
+                        banner.classList.remove('hidden');
+                        banner.classList.add('is-invalid');
+                        banner.textContent =
+                            'This assessment link is invalid or expired. You can still complete the assessment and our team will match you with the right agent.';
+                    }
+                }
+            })
+            .catch(() => { /* attribution is best-effort */ });
+    }
+    initAgentAttribution();
+
     startAssessmentBtn.addEventListener('click', () => {
         currentStepIndex = 0;
         startLeadCapture();
@@ -374,6 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
             email: email,
             phone: (document.getElementById('phone') || {}).value || null,
             agentId: src.agentId,
+            agentSlug: src.agentSlug,
             agentToken: src.agentToken,
             transactionIntent: selectedGoal || null,
             transactionIntentLabel: transactionIntentLabel() || null,
@@ -555,15 +596,41 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Submit via the secure API (requires real config; no demo fallback) ---
+    // Extract a branded agent slug from a clean URL path, e.g.
+    //   /tussa-domingo-requityapp-relational-assessment
+    // Returns null for normal paths like /client/assessment.html.
+    function getAgentSlugFromPath() {
+        const seg = (window.location.pathname || '').split('/').filter(Boolean).pop() || '';
+        return /-requityapp-relational-assessment$/i.test(seg) ? seg : null;
+    }
+
     function getClientSource() {
         const params = new URLSearchParams(window.location.search);
         const token = params.get('token') || null;
         const agentToken = params.get('agent') || params.get('a') || params.get('agentToken') || null;
         const agentId = params.get('agentId') || null;
+        const agentSlug = getAgentSlugFromPath();
         const explicit = (params.get('source') || '').toLowerCase();
         // Reviewer-created link: carries a pre-created assessment token.
         if (explicit === 'reviewer' || explicit === 'requity_reviewer') {
-            return { source: 'reviewer', token: token, agentToken: null, agentId: null };
+            return { source: 'reviewer', token: token, agentToken: null, agentId: null, agentSlug: null };
+        }
+        // Branded clean slug link (preferred). Defaults to source `agent_link`;
+        // a `?source=qr` on the clean URL preserves QR attribution. The agent is
+        // resolved server-side from the slug — no raw token in the URL.
+        if (agentSlug) {
+            // If the slug did not resolve to a real agent, fall back to the
+            // reviewer queue so the submission is never orphaned.
+            if (slugInvalid) {
+                return { source: 'client', token: null, agentToken: null, agentId: null, agentSlug: null };
+            }
+            return {
+                source: explicit === 'qr' ? 'qr' : 'agent_link',
+                token: null,
+                agentToken: null,
+                agentId: null,
+                agentSlug: agentSlug,
+            };
         }
         // Agent QR / shareable link: attach the submission to that agent.
         if (agentToken || agentId || explicit === 'qr' || explicit === 'agent_link') {
@@ -572,12 +639,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 token: token,
                 agentToken: agentToken,
                 agentId: agentId,
+                agentSlug: null,
             };
         }
         // Direct public client assessment: no agent, no token. Routes to the
         // REQUITY reviewer queue server-side. Must NOT default to 'reviewer'
         // (that path requires a pre-created assessment token).
-        return { source: 'client', token: null, agentToken: null, agentId: null };
+        return { source: 'client', token: null, agentToken: null, agentId: null, agentSlug: null };
     }
 
     function submitAssessment() {
@@ -604,6 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
             answers: answers,
             source: src.source,
             agentId: src.agentId,
+            agentSlug: src.agentSlug,
             agentToken: src.agentToken,
         };
         // Return the promise so the caller only advances on a real success.

@@ -11,6 +11,8 @@ import {
 } from "../_lib/http.js";
 import { getUserFromRequest } from "../../backend/lib/auth.js";
 import { createAgentProfileForUser, getProfileByUserId } from "../../backend/lib/users.js";
+import { ensureAgentSlug } from "../../backend/lib/agentSlug.js";
+import { buildAgentAssessmentLinks } from "../../backend/lib/dashboard.js";
 import { env } from "../../backend/lib/env.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
@@ -65,12 +67,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const base = (optionalString(body, "frontendUrl") ?? env.frontendUrl).replace(/\/$/, "");
       const token = agent.public_assessment_token;
 
+      // Generate (or reuse) the branded public slug from the agent's name.
+      // Resilient: returns null on schema drift, in which case the response
+      // falls back to the legacy token links below.
+      const frontendUrl = optionalString(body, "frontendUrl") ?? undefined;
+      const publicSlug = await ensureAgentSlug(agent.id, agent.display_name);
+      const links = buildAgentAssessmentLinks({ token, slug: publicSlug, frontendUrl });
+
       // Safe server log (no tokens/keys/PII) — confirms the self-heal worked.
       console.log("AUTH_BOOTSTRAP_AGENT", {
         hasUser: true,
         profileUpserted: Boolean(profile && profile.id),
         agentUpserted: Boolean(agent && agent.id),
         role: profile?.role ?? null,
+        hasPublicSlug: Boolean(publicSlug),
       });
 
       // Safe response: ok + the minimal profile/agent the client needs to route.
@@ -91,9 +101,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             }
           : null,
         publicToken: token,
+        publicSlug: publicSlug,
         dashboardUrl: `${base}/agent/dashboard.html`,
-        assessmentLink: `${base}/client/assessment.html?agent=${token}&source=agent_link`,
-        qrLink: `${base}/client/assessment.html?agent=${token}&source=qr`,
+        // Branded clean links when a slug exists; legacy token links otherwise.
+        assessmentLink: links.assessmentLink,
+        qrLink: links.qrLink,
       });
     } catch (error) {
       logSupabaseError(ROUTE, error, { userId: user.id });

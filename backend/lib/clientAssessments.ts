@@ -10,6 +10,7 @@ import {
 import { createNotification } from "./messages.js";
 import { sendClientAssessmentCompletedEmail, type EmailTarget } from "./email.js";
 import { completeAssessmentLead, upsertAssessmentLeadStart } from "./assessmentLeads.js";
+import { getAgentIdBySlug } from "./agentSlug.js";
 import {
   insertWithSchemaFallback,
   updateWithSchemaFallback,
@@ -199,6 +200,8 @@ export type CreateClientAssessmentParams = {
   source: ClientSource;
   /** Required for QR/agent-link clients so they attach to that agent. */
   agentId?: string | null;
+  /** Optional branded public slug (preferred for clean agent links). */
+  agentSlug?: string | null;
   /** Optional agent public token (alternative to agentId for QR links). */
   agentToken?: string | null;
 };
@@ -213,9 +216,15 @@ export type ClientAssessmentRecord = {
 
 async function resolveAgentId(params: {
   agentId?: string | null;
+  agentSlug?: string | null;
   agentToken?: string | null;
 }): Promise<string | null> {
+  // Resolution priority (Part 5): explicit id → branded slug → legacy token.
   if (params.agentId) return params.agentId;
+  if (params.agentSlug) {
+    const bySlug = await getAgentIdBySlug(params.agentSlug);
+    if (bySlug) return bySlug;
+  }
   if (!params.agentToken) return null;
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
@@ -398,6 +407,7 @@ export async function getAgentClientAssessments(agentId: string) {
 export type CreateClientAssessmentLinkParams = {
   source: ClientLinkSource;
   agentId?: string | null;
+  agentSlug?: string | null;
   agentToken?: string | null;
   frontendUrl?: string;
 };
@@ -441,6 +451,8 @@ export type SubmitClientAssessmentWithContactParams = {
   answers: ClientAnswers;
   source: ClientLinkSource;
   agentId?: string | null;
+  /** Optional branded public slug (preferred for clean agent links). */
+  agentSlug?: string | null;
   agentToken?: string | null;
   /** Optional client-computed archetype; the server recomputes authoritatively. */
   archetypeResult?: ClientArchetypeResult | null;

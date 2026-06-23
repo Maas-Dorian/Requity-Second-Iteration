@@ -30,6 +30,8 @@ export type AgentRecord = {
   archetype: string | null;
   archetype_completed_at: string | null;
   public_assessment_token: string;
+  /** Branded public link slug (e.g. "jane-doe-requityapp-relational-assessment"). */
+  public_slug: string | null;
   created_at: string;
   updated_at: string;
 };
