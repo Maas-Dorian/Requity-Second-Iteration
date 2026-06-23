@@ -360,41 +360,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     applyPrefill();
 
-    // --- Agent attribution ("You're completing this for <Name>") -----------
-    // Resolve the branded slug (preferred) or legacy token to a friendly agent
-    // name. Never shows a raw id/token/slug. On an unresolved slug, marks the
-    // link invalid (submission falls back to the reviewer queue) and shows a
-    // clean message. Best-effort: any failure leaves the banner hidden.
-    function initAgentAttribution() {
+    // --- Agent link resolution (no visible banner) -------------------------
+    // Silently validate the branded slug against the backend so an unresolved
+    // (invalid/expired) link falls back to the reviewer queue instead of being
+    // orphaned. The agent is still resolved + attributed server-side on submit;
+    // we intentionally render NO visible "You're completing this for…" banner.
+    function initAgentLinkResolution() {
         if (!window.RequityAPI || typeof window.RequityAPI.fetchAgentPublicLink !== 'function') return;
-        const banner = document.getElementById('agentAttribution');
-        const params = new URLSearchParams(window.location.search);
         const slug = getAgentSlugFromPath();
-        const token = params.get('agent') || params.get('a') || params.get('agentToken') || null;
-        const ref = slug ? { slug: slug } : (token ? { token: token } : null);
-        if (!ref) return;
-        Promise.resolve(window.RequityAPI.fetchAgentPublicLink(ref))
+        if (!slug) return; // token/QR links resolve entirely server-side
+        Promise.resolve(window.RequityAPI.fetchAgentPublicLink({ slug: slug }))
             .then((res) => {
-                if (res && res.ok && res.agent && res.agent.displayName) {
-                    if (banner) {
-                        banner.classList.remove('hidden', 'is-invalid');
-                        banner.innerHTML = 'You’re completing this for <strong></strong>';
-                        banner.querySelector('strong').textContent = res.agent.displayName;
-                    }
-                } else if (slug) {
+                if (!res || !res.ok) {
                     // Branded link that did not resolve → invalid / expired.
                     slugInvalid = true;
-                    if (banner) {
-                        banner.classList.remove('hidden');
-                        banner.classList.add('is-invalid');
-                        banner.textContent =
-                            'This assessment link is invalid or expired. You can still complete the assessment and our team will match you with the right agent.';
-                    }
                 }
             })
-            .catch(() => { /* attribution is best-effort */ });
+            .catch(() => { /* best-effort; submit still resolves the slug */ });
     }
-    initAgentAttribution();
+    initAgentLinkResolution();
 
     startAssessmentBtn.addEventListener('click', () => {
         currentStepIndex = 0;
