@@ -3,7 +3,7 @@
  *
  * Runs during the Vercel build (see package.json "build"). Writes ONLY
  * browser-safe public values. After deploy you can verify it is served at:
- *   https://requity-second-iteration.vercel.app/frontend/shared/config.js
+ *   https://www.requityapp.com/frontend/shared/config.js
  *
  * ESM module (package.json has "type": "module").
  *
@@ -33,14 +33,14 @@ const config = {
     "https://mobyejpzfrjrryqatnbr.supabase.co",
   supabaseAnonKey:
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "",
-  frontendUrl: process.env.VERCEL_FRONTEND_URL || "https://requity-second-iteration.vercel.app",
+  frontendUrl: process.env.VERCEL_FRONTEND_URL || "https://www.requityapp.com",
   // Public, branded origin for clean agent slug links (e.g. www.requityapp.com).
-  // Falls back to PUBLIC_SITE_URL -> VERCEL_FRONTEND_URL -> the vercel domain.
+  // Falls back to PUBLIC_SITE_URL -> VERCEL_FRONTEND_URL -> the production domain.
   publicSiteUrl:
     process.env.PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.VERCEL_FRONTEND_URL ||
-    "https://requity-second-iteration.vercel.app",
+    "https://www.requityapp.com",
   // Whether Supabase Auth email confirmation is expected to be ON. Public,
   // non-secret hint used ONLY to shape the signup UX (it does not change auth).
   // Default false (testing-friendly): signup is expected to return a session.

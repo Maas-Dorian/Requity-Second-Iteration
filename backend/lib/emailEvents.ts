@@ -9,7 +9,14 @@ import { insertWithSchemaFallback, isMissingTableError, isMissingColumnError } f
  * leave an audit trail in the `email_events` table.
  */
 
-export type EmailEventStatus = "queued" | "sent" | "failed" | "test_mode" | "skipped";
+export type EmailEventStatus =
+  | "queued"
+  | "sent"
+  | "failed"
+  | "test_mode"
+  | "skipped"
+  | "rate_limited"
+  | "deduped";
 
 export type RecordEmailEventParams = {
   recipientEmail: string;

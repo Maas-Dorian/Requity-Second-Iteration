@@ -17,8 +17,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       hasBrevoApiKey: status.hasBrevoApiKey,
       hasSenderEmail: status.hasSenderEmail,
       hasSenderName: status.hasSenderName,
+      hasPublicSiteUrl: status.hasPublicSiteUrl,
       hasReviewNotificationEmail: status.hasReviewNotificationEmail,
       canSendConfigured: status.canSendConfigured,
+      // Safe, public origin used in email CTAs — never a secret.
+      publicSiteUrl: status.publicSiteUrl,
       timestamp: new Date().toISOString(),
     });
   });

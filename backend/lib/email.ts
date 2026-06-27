@@ -27,7 +27,7 @@ import { recordEmailEvent, emailEventAlreadySent } from "./emailEvents.js";
 export { sendBrevoEmail } from "./brevo.js";
 export { recordEmailEvent } from "./emailEvents.js";
 
-const FALLBACK_FRONTEND_URL = "https://requity-second-iteration.vercel.app";
+const PRODUCTION_SITE_URL = "https://www.requityapp.com";
 
 export type EmailDeliveryStatus = "sent" | "skipped" | "failed";
 
@@ -44,23 +44,30 @@ export type EmailDeliveryResult = {
 export type EmailRole = "agent" | "reviewer" | "admin";
 export type EmailTarget = { email: string; name?: string | null; role?: EmailRole };
 
-/** Resolve the public frontend base URL for email links (never localhost). */
-function frontendBaseUrl(): string {
+/**
+ * Resolve the public site origin for email CTAs (never localhost, never the old
+ * Vercel preview domain). Order: PUBLIC_SITE_URL → VERCEL_FRONTEND_URL → the
+ * production domain. All email links must point at https://www.requityapp.com.
+ */
+export function getPublicSiteUrl(): string {
   const configured = getOptionalEnv(
+    "PUBLIC_SITE_URL",
+    "NEXT_PUBLIC_SITE_URL",
     "VERCEL_FRONTEND_URL",
     "NEXT_PUBLIC_FRONTEND_URL",
     "VITE_FRONTEND_URL"
   );
-  const base = configured && !/localhost|127\.0\.0\.1/i.test(configured) ? configured : FALLBACK_FRONTEND_URL;
+  const base =
+    configured && !/localhost|127\.0\.0\.1/i.test(configured) ? configured : PRODUCTION_SITE_URL;
   return base.replace(/\/$/, "");
 }
 
 export function agentDashboardUrl(): string {
-  return `${frontendBaseUrl()}/agent/dashboard.html`;
+  return `${getPublicSiteUrl()}/agent/dashboard.html`;
 }
 
 export function reviewerDashboardUrl(): string {
-  return `${frontendBaseUrl()}/reviewer/index.html`;
+  return `${getPublicSiteUrl()}/reviewer/index.html`;
 }
 
 /** Reviewer/admin recipients get the reviewer dashboard; everyone else the agent one. */
@@ -169,7 +176,15 @@ export async function sendClientAssessmentCompletedEmail(
   }
 
   if (input.eventKey && (await emailEventAlreadySent(input.eventKey))) {
-    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "assessment_completed", status: "skipped" });
+    await recordEmailEvent({
+      recipientEmail: recipients[0].email,
+      templateKey: "client_complete",
+      eventType: "assessment_completed",
+      status: "deduped",
+      eventKey: null,
+      payload: { reason: "Already sent (duplicate event)", recipients: recipients.map((r) => r.email) },
+    });
+    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "assessment_completed", status: "deduped" });
     return {
       emailed: false,
       emailStatus: "skipped",
@@ -193,6 +208,7 @@ export async function sendClientAssessmentCompletedEmail(
       to: [{ email: r.email, name: r.name ?? undefined }],
       subject: CLIENT_COMPLETE_SUBJECT,
       htmlContent: html,
+      tags: ["assessment_completed"],
     });
     results.push(send);
   }
@@ -273,7 +289,15 @@ export async function sendClientMatchedEmail(
   }
 
   if (input.eventKey && (await emailEventAlreadySent(input.eventKey))) {
-    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "client_matched", status: "skipped" });
+    await recordEmailEvent({
+      recipientEmail: recipients[0].email,
+      templateKey: "client_matched",
+      eventType: "client_matched",
+      status: "deduped",
+      eventKey: null,
+      payload: { reason: "Already sent (duplicate event)", recipients: recipients.map((r) => r.email) },
+    });
+    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "client_matched", status: "deduped" });
     return {
       emailed: false,
       emailStatus: "skipped",
@@ -297,6 +321,7 @@ export async function sendClientMatchedEmail(
       to: [{ email: r.email, name: r.name ?? undefined }],
       subject: CLIENT_MATCH_SUBJECT,
       htmlContent: html,
+      tags: ["client_matched"],
     });
     results.push(send);
   }

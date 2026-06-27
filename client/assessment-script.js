@@ -580,12 +580,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Submit via the secure API (requires real config; no demo fallback) ---
-    // Extract a branded agent slug from a clean URL path, e.g.
+    // Extract a branded agent slug from the clean URL path, e.g.
     //   /tussa-domingo-requityapp-relational-assessment
-    // Returns null for normal paths like /client/assessment.html.
+    // Falls back to a ?slug= query param (Vercel rewrite Option B). Returns null
+    // for normal paths like /client/assessment.html with no slug.
     function getAgentSlugFromPath() {
         const seg = (window.location.pathname || '').split('/').filter(Boolean).pop() || '';
-        return /-requityapp-relational-assessment$/i.test(seg) ? seg : null;
+        if (/-requityapp-relational-assessment$/i.test(seg)) return seg;
+        try {
+            const qsSlug = new URLSearchParams(window.location.search).get('slug');
+            if (qsSlug && /-requityapp-relational-assessment$/i.test(qsSlug)) return qsSlug;
+        } catch (e) { /* ignore */ }
+        return null;
     }
 
     function getClientSource() {

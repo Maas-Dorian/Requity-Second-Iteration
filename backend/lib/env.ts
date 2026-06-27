@@ -67,19 +67,26 @@ export function getEmailConfigStatus(): {
   hasBrevoApiKey: boolean;
   hasSenderEmail: boolean;
   hasSenderName: boolean;
+  hasPublicSiteUrl: boolean;
   hasReviewNotificationEmail: boolean;
   canSendConfigured: boolean;
+  /** Safe to expose — a public, non-secret site origin used in email CTAs. */
+  publicSiteUrl: string;
 } {
   const hasBrevoApiKey = has("BREVO_API_KEY");
   return {
     hasBrevoApiKey,
-    // Presence of an explicit env override (a default is always available).
-    hasSenderEmail: has("BREVO_SENDER_EMAIL"),
-    hasSenderName: has("BREVO_SENDER_NAME"),
+    // A sender email/name are always resolvable (env override OR approved
+    // default), so these are always true. canSendConfigured therefore only
+    // truly requires the API key.
+    hasSenderEmail: true,
+    hasSenderName: true,
+    hasPublicSiteUrl: has("PUBLIC_SITE_URL", "NEXT_PUBLIC_SITE_URL", "VERCEL_FRONTEND_URL"),
     hasReviewNotificationEmail: has("REQUITY_REVIEW_EMAIL", "ADMIN_NOTIFICATION_EMAIL"),
     // A sender email is always resolvable (env override or approved default),
     // so live sending only requires the API key.
     canSendConfigured: hasBrevoApiKey,
+    publicSiteUrl: env.publicSiteUrl.replace(/\/$/, ""),
   };
 }
 
@@ -238,7 +245,8 @@ export const env = {
     return read("BREVO_API_KEY");
   },
   get brevoSenderEmail(): string {
-    return read("BREVO_SENDER_EMAIL") ?? "hello@requityapp.com";
+    // Must be a sender verified in Brevo. Override via BREVO_SENDER_EMAIL.
+    return read("BREVO_SENDER_EMAIL") ?? "notifications@requityapp.com";
   },
   get brevoSenderName(): string {
     return read("BREVO_SENDER_NAME") ?? "REQUITY";
@@ -267,7 +275,7 @@ export const env = {
     return (
       read("PUBLIC_SITE_URL", "NEXT_PUBLIC_SITE_URL") ??
       read("VERCEL_FRONTEND_URL", "NEXT_PUBLIC_FRONTEND_URL", "VITE_FRONTEND_URL") ??
-      "http://localhost:3000"
+      "https://www.requityapp.com"
     );
   },
 };
