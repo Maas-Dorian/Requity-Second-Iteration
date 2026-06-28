@@ -446,9 +446,12 @@
           clearMsg();
           dbgAuth("auth:submit-start", { mode: "forgot" });
           var reEnable = function () { isSubmitting = false; forgotBtn.disabled = false; forgotBtn.textContent = "Forgot password?"; };
-          // Return to THIS origin's login page in reset mode. Supabase Auth URL
-          // settings must allow https://www.requityapp.com/** and http://localhost:*/**.
-          var redirectTo = window.location.origin + "/agent/login.html?mode=reset-password";
+          // Always return to the PRODUCTION site in reset mode, never the current
+          // origin (which would be localhost in dev and break real reset links).
+          // The generated config normalizes away localhost / the old preview host.
+          var cfg = window.REQUITY_CONFIG || {};
+          var publicSiteUrl = (cfg.PUBLIC_SITE_URL || cfg.VERCEL_FRONTEND_URL || cfg.publicSiteUrl || cfg.frontendUrl || "https://www.requityapp.com");
+          var redirectTo = String(publicSiteUrl).replace(/\/$/, "") + "/agent/login.html?mode=reset-password";
           try {
             await API.sendPasswordReset(email, redirectTo);
             showMsg("If that email has an account, a password reset link is on its way. Check your inbox.", "success");
@@ -512,11 +515,28 @@
       // consume the recovery session and show the new-password form. Crucially we
       // do NOT auto-route to the dashboard in this case (the password isn't set yet).
       var qp = new URLSearchParams(window.location.search);
+      // Detect an expired/used recovery link: Supabase returns the failure in the
+      // URL hash (#error=...&error_code=...). Surface a clean message, never crash,
+      // and strip the hash so no error fragment lingers in the address bar.
+      var hashError = null;
+      try {
+        var rawHash = (window.location.hash || "").replace(/^#/, "");
+        if (rawHash) {
+          var hp = new URLSearchParams(rawHash);
+          if (hp.get("error") || hp.get("error_code")) {
+            hashError = hp.get("error_description") || "This password reset link has expired or has already been used.";
+            try { window.history.replaceState(null, "", window.location.pathname + window.location.search); } catch (e) {}
+          }
+        }
+      } catch (e) { /* ignore */ }
+
       var recoveryConsumed = API && API.consumeRecoverySession ? API.consumeRecoverySession() : false;
       var isResetMode = qp.get("mode") === "reset-password" || recoveryConsumed;
       if (isResetMode) {
         enterResetMode();
-        if (!recoveryConsumed && !(API && API.hasSession())) {
+        if (hashError) {
+          showMsg("This password reset link has expired or has already been used. Please request a new one.", "error");
+        } else if (!recoveryConsumed && !(API && API.hasSession())) {
           showMsg("Open the password reset link from your email to set a new password.", "info");
         }
         return;

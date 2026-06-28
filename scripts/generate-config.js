@@ -52,6 +52,11 @@ const config = {
       process.env.NEXT_PUBLIC_SITE_URL ||
       process.env.VERCEL_FRONTEND_URL
   ),
+  // Explicit production-only site URLs for auth redirects (password recovery,
+  // OAuth). Always normalized to production, never localhost / the old preview
+  // host, so reset links generated in the browser cannot return to localhost.
+  PUBLIC_SITE_URL: normalizeSiteUrl(process.env.PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL),
+  VERCEL_FRONTEND_URL: normalizeSiteUrl(process.env.VERCEL_FRONTEND_URL),
   // Whether Supabase Auth email confirmation is expected to be ON. Public,
   // non-secret hint used ONLY to shape the signup UX (it does not change auth).
   // Default false (testing-friendly): signup is expected to return a session.
