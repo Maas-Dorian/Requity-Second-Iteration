@@ -815,6 +815,11 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 1.25rem;
+      /* Cards size to their own content. Without this, the grid's default
+         align-items: stretch forces both cards in a row to the height of the
+         tallest one, so expanding one card stretches its neighbor into a big
+         blank white panel. */
+      align-items: start;
     }
 
     /* Matches / Closings deal cards. Reuse the existing card visual language. */
@@ -851,7 +856,12 @@
       box-shadow: var(--shadow-md);
     }
 
-    .client-detail-card { padding: 1.35rem; }
+    .client-detail-card {
+      padding: 1.35rem;
+      /* Natural height, never forced to match a sibling's expanded height. */
+      height: auto;
+      align-self: start;
+    }
 
     .client-card-top {
       display: flex;
@@ -1033,7 +1043,7 @@
       font-weight: 800;
       margin: 1rem 0 0.25rem;
     }
-    .closed-client-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1.25rem; }
+    .closed-client-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1.25rem; align-items: start; }
     @media (max-width: 900px) { .closed-client-grid { grid-template-columns: 1fr; } }
 
     .update-row {
