@@ -551,3 +551,37 @@ img, svg, canvas, video { max-width: 100%; height: auto; }
   .button-row, .assessment-actions, .form-actions { flex-direction: column; align-items: stretch; }
   button, .btn { width: 100%; min-height: 46px; }
 }
+
+/* ============================================================================
+   Assessment fit pass: every question + answer fits cleanly on screen.
+   - Card never exceeds the viewport (no horizontal scroll on any width).
+   - Question + answer text wraps cleanly (long words break, no overflow).
+   - Answer choices auto-fit and stack on narrow screens.
+   - No fixed heights on question/option cards (they grow with content).
+   These rules are additive and do not change which answers map to which score.
+   ============================================================================ */
+.card {
+  /* Keep the card inside the viewport with a comfortable gutter at any width. */
+  max-width: min(680px, calc(100vw - 32px));
+}
+.question-title,
+.opt-title,
+.opt-desc,
+.subtitle,
+.section-header h1,
+.section-header h2 {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.question-title { line-height: 1.35; }
+/* Answer grid auto-fits and never forces content off-screen; single long
+   options stay full width via the .one-col modifier already in the markup. */
+.options-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.option-card { height: auto; min-width: 0; }
+.option-card .opt-title,
+.option-card .opt-desc { min-width: 0; }
+@media (max-width: 560px) {
+  .options-grid { grid-template-columns: 1fr; }
+  .question-title { font-size: 1.3rem; }
+  .card { padding: 1.75rem 1.25rem; }
+}

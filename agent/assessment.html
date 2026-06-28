@@ -205,6 +205,18 @@
             var qp = new URLSearchParams(window.location.search);
             var isRetake = qp.get("retake") === "1" || qp.get("force") === "1";
             var agentRow = s.me && s.me.agent;
+            // Resolutions agents (@resolutions.realtor) never take the assessment:
+            // bounce straight to the dashboard even on a direct visit/retake link.
+            var agentEmail = (agentRow && agentRow.email) || (s.me && s.me.user && s.me.user.email) || (s.me && s.me.email) || null;
+            if (API.isResolutionsAgentEmail && API.isResolutionsAgentEmail(agentEmail)) {
+              try {
+                if (localStorage.requity_debug === "1") {
+                  console.log("agent:assessment-bypass", { assessmentDisabled: true, reason: "resolutions_email_domain" });
+                }
+              } catch (e) {}
+              window.location.replace("dashboard.html");
+              return;
+            }
             var archetype = (agentRow && agentRow.archetype) || null;
             var hasCompletedAgentAssessment = Boolean(
               archetype || (agentRow && (agentRow.archetype_completed_at || agentRow.archetypeCompletedAt))

@@ -71,6 +71,54 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Client pipeline status (Potential/Active/Under Contract/Closed) ---
+    // The reviewer can SEE and SET this status for matched/paired clients. Values
+    // map 1:1 to the agent dashboard pipeline status so changes stay consistent.
+    var STATUS_OPTIONS = [
+        { value: 'potential', label: 'Potential' },
+        { value: 'active', label: 'Active' },
+        { value: 'under_contract', label: 'Under Contract' },
+        { value: 'closed', label: 'Closed' }
+    ];
+    var STATUS_LABELS = { potential: 'Potential', active: 'Active', under_contract: 'Under Contract', closed: 'Closed' };
+
+    // Normalize any incoming/legacy status into one of the four pipeline values.
+    function normalizeStatus(value) {
+        var v = String(value == null ? '' : value).trim().toLowerCase();
+        if (v === 'active' || v === 'under_contract' || v === 'closed' || v === 'potential') return v;
+        if (v === 'assigned' || v === 'matched' || v === 'paired') return 'active';
+        if (v === 'closing') return 'under_contract';
+        // submitted/completed/ready_for_review/pending_review/etc. → potential.
+        return 'potential';
+    }
+
+    function statusLabel(value) {
+        return STATUS_LABELS[normalizeStatus(value)] || 'Potential';
+    }
+
+    // A read-only status pill (formatted, color-coded via the status- class).
+    function statusPillHtml(value) {
+        var v = normalizeStatus(value);
+        return '<span class="status-pill status-' + v + '">' + esc(STATUS_LABELS[v]) + '</span>';
+    }
+
+    // An editable status dropdown. target identifies the row to update:
+    //   { kind: 'client'|'lead', id: '<uuid>' }. The current value is preselected.
+    function statusSelectHtml(value, target) {
+        var v = normalizeStatus(value);
+        var attrs = 'class="status-select status-' + v + '"' +
+            ' data-target-kind="' + esc(target && target.kind ? target.kind : 'client') + '"' +
+            ' data-target-id="' + esc(target && target.id ? target.id : '') + '"' +
+            ' data-prev="' + v + '"' +
+            ' onchange="onReviewerStatusChange(this)"' +
+            ' onclick="event.stopPropagation();"' +
+            ' aria-label="Client status"';
+        var opts = STATUS_OPTIONS.map(function (o) {
+            return '<option value="' + o.value + '"' + (o.value === v ? ' selected' : '') + '>' + esc(o.label) + '</option>';
+        }).join('');
+        return '<select ' + attrs + '>' + opts + '</select>';
+    }
+
     // Debug logging (frontend), only when explicitly enabled. No tokens or
     // private payloads are ever logged.
     function reviewerDebug(name, payload) {
@@ -148,7 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
             buyingMarket: cityOrNull(c.buying_market_city),
             sellingMarket: cityOrNull(c.selling_market_city),
             report: c.report || null,
-            status: 'Pending Review',
+            // Pipeline status the reviewer can see/set. rowKind tells the update
+            // endpoint whether this row is a clients row or an assessment_leads row.
+            pipelineStatus: normalizeStatus(c.pipelineStatus || c.pipeline_status),
+            rowKind: c.rowKind === 'lead' ? 'lead' : 'client',
+            status: statusLabel(c.pipelineStatus || c.pipeline_status),
             highestMatch: fits.length ? fits[0].name : null,
             highestMatchAgentId: fits.length ? fits[0].agentId : null,
             fits: fits
@@ -316,7 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         '<h3>' + esc(client.name) + '</h3>' +
                         '<div class="queue-meta">Transaction: ' + esc(client.transaction) + ' &bull; Market: ' + esc(client.market) + ' &bull; ' + esc(client.archetype) + '</div>' +
                     '</div>' +
-                    '<span class="badge badge-pending">' + esc(client.status) + '</span>' +
+                    statusPillHtml(client.pipelineStatus) +
                 '</div>';
             elQueueList.insertAdjacentHTML('beforeend', html);
         });
@@ -347,7 +399,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     '<h3 class="text-xl mb-1">' + esc(client.name) + '</h3>' +
                     '<div class="helper-text">Real estate guidance</div>' +
                 '</div>' +
-                '<span class="badge badge-pending">' + esc(client.status) + '</span>' +
+                '<div class="status-control"><span class="status-control-label">Status</span>' +
+                    statusSelectHtml(client.pipelineStatus, { kind: client.rowKind, id: client.id }) +
+                '</div>' +
             '</div>' +
             '<p class="helper-text mb-2">This profile helps the reviewer understand which real estate agent relationship may support the client best.</p>' +
             '<div class="profile-grid">' +
@@ -460,7 +514,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         (p.clientArchetype ? (' &middot; ' + esc(p.clientArchetype)) : '') + '</div></div>' +
                     '<div class="lead-badges">' +
                         (fit ? ('<span class="badge badge-source">' + esc(fit) + '</span>') : '') +
-                        '<span class="badge badge-status-completed">' + esc(p.status || 'assigned') + '</span>' +
+                        '<div class="status-control"><span class="status-control-label">Status</span>' +
+                            statusSelectHtml(p.pipelineStatus, { kind: 'client', id: p.clientId }) +
+                        '</div>' +
                     '</div>' +
                 '</div>' +
                 '<div class="lead-meta">' +
@@ -505,6 +561,51 @@ document.addEventListener('DOMContentLoaded', () => {
         state.selectedAgentName = fit.name;
         elDecisionAgent.textContent = fit.name;
         renderActiveClient();
+    };
+
+    // Reviewer sets a client's pipeline status from any status dropdown. Updates
+    // optimistically, reverts on failure, and keeps the matching local row in sync
+    // so a re-render (and a refresh) shows the new status.
+    window.onReviewerStatusChange = function (el) {
+        if (!el) return;
+        var prev = el.getAttribute('data-prev') || 'potential';
+        var next = normalizeStatus(el.value);
+        var kind = el.getAttribute('data-target-kind') || 'client';
+        var id = el.getAttribute('data-target-id') || '';
+        if (!id || next === prev) return;
+        var api = window.RequityAPI;
+        if (!api || !api.updateReviewerClientStatus) {
+            el.value = prev;
+            return;
+        }
+
+        reviewerDebug('reviewer:status-change', { id: id, previousStatus: prev, nextStatus: next });
+
+        // Optimistic: reflect the new color immediately + disable while saving.
+        el.className = 'status-select status-' + next;
+        el.disabled = true;
+
+        var payload = { status: next };
+        if (kind === 'lead') payload.leadId = id; else payload.clientId = id;
+
+        Promise.resolve(api.updateReviewerClientStatus(payload)).then(function (res) {
+            var applied = normalizeStatus(res && res.status ? res.status : next);
+            el.setAttribute('data-prev', applied);
+            // Keep the local data rows in sync so re-renders/refresh are consistent.
+            pairedClients.forEach(function (p) { if (p.clientId === id) p.pipelineStatus = applied; });
+            clients.forEach(function (c) { if (c.id === id) { c.pipelineStatus = applied; c.status = statusLabel(applied); } });
+            addLog('Status updated to ' + statusLabel(applied) + '.');
+            // Re-render so the queue pill + paired cards reflect the change.
+            renderQueue();
+            renderPaired();
+        }).catch(function () {
+            // Revert cleanly on failure.
+            el.value = prev;
+            el.className = 'status-select status-' + prev;
+            addLog('Could not update the client status. Please try again.');
+        }).finally(function () {
+            el.disabled = false;
+        });
     };
 
     window.approveSelected = function () {

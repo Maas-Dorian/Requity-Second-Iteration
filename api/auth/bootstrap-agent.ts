@@ -85,6 +85,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         hasPublicSlug: Boolean(publicSlug),
       });
 
+      // Resolutions agents (@resolutions.realtor) skip the agent assessment. Log
+      // the bypass (no PII beyond the domain marker) so the routing is auditable.
+      if (typeof email === "string" && email.toLowerCase().trim().endsWith("@resolutions.realtor")) {
+        console.log("AUTH_ASSESSMENT_BYPASS_RESOLUTIONS_AGENT", {
+          agentUpserted: Boolean(agent && agent.id),
+          reason: "resolutions_email_domain",
+        });
+      }
+
       // Safe response: ok + the minimal profile/agent the client needs to route.
       // No access/refresh tokens, no service role key, no full auth payload. The
       // public_assessment_token (used for shareable QR/links) is intentionally

@@ -87,6 +87,15 @@
     .row { display: flex; gap: 0.75rem; }
     .row .field { flex: 1; }
 
+    .forgot-row { display: flex; justify-content: flex-end; margin-top: 0.1rem; }
+    .link-btn {
+      background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
+      color: var(--primary-blue); font-weight: 600; font-size: 0.8rem; text-decoration: none;
+    }
+    .link-btn:hover { text-decoration: underline; }
+    .link-btn:disabled { opacity: 0.6; cursor: default; text-decoration: none; }
+    .reset-intro { color: var(--secondary-text); font-size: 0.9rem; margin-bottom: 0.25rem; }
+
     .terms-field { display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 0.25rem; }
     .terms-field input { margin-top: 0.15rem; width: 1rem; height: 1rem; flex: 0 0 auto; cursor: pointer; }
     .terms-field label { font-size: 0.85rem; color: var(--secondary-text); font-weight: 400; line-height: 1.4; }
@@ -150,8 +159,24 @@
         <div class="field">
           <label for="si-password">Password</label>
           <input type="password" id="si-password" autocomplete="current-password" required />
+          <div class="forgot-row">
+            <button type="button" class="link-btn" id="forgot-password-btn">Forgot password?</button>
+          </div>
         </div>
         <button class="btn-primary" type="submit" id="signin-btn">Sign in</button>
+      </form>
+
+      <form id="reset-form">
+        <p class="reset-intro">Choose a new password for your agent account.</p>
+        <div class="field">
+          <label for="rs-password">New password</label>
+          <input type="password" id="rs-password" autocomplete="new-password" minlength="8" required />
+        </div>
+        <div class="field">
+          <label for="rs-password-2">Confirm new password</label>
+          <input type="password" id="rs-password-2" autocomplete="new-password" minlength="8" required />
+        </div>
+        <button class="btn-primary" type="submit" id="reset-btn">Update password</button>
       </form>
 
       <form id="signup-form">
@@ -196,6 +221,7 @@
       var tabs = document.querySelectorAll(".tab");
       var signinForm = document.getElementById("signin-form");
       var signupForm = document.getElementById("signup-form");
+      var resetForm = document.getElementById("reset-form");
 
       // Single in-flight guard shared by BOTH forms. Stops double submits and the
       // Enter-key resubmit from firing a second Supabase auth-email request.
@@ -214,6 +240,7 @@
         tabs.forEach(function (t) { t.classList.toggle("active", t.dataset.tab === name); });
         signinForm.classList.toggle("active", name === "signin");
         signupForm.classList.toggle("active", name === "signup");
+        if (resetForm) resetForm.classList.remove("active");
         clearMsg();
       }
       tabs.forEach(function (t) { t.addEventListener("click", function () { setTab(t.dataset.tab); }); });
@@ -246,9 +273,19 @@
       }
 
       // First-time agents (no saved archetype) go straight to the assessment;
-      // returning agents who already completed it go to the dashboard.
+      // returning agents who already completed it go to the dashboard. Resolutions
+      // agents (@resolutions.realtor) skip the assessment entirely and always land
+      // on the dashboard, this is a deliberate bypass, not an auth failure.
       function destinationForAgent(me) {
         var agent = me && me.agent;
+        var email = (agent && agent.email) || (me && me.user && me.user.email) || (me && me.email) || null;
+        var assessmentDisabled = Boolean(API.isResolutionsAgentEmail && API.isResolutionsAgentEmail(email));
+        if (assessmentDisabled) {
+          if (localStorage.requity_debug === "1") {
+            console.log("agent:assessment-bypass", { assessmentDisabled: true, reason: "resolutions_email_domain" });
+          }
+          return "dashboard.html";
+        }
         var hasCompletedAgentAssessment = Boolean(
           agent && (agent.archetype || agent.archetype_completed_at || agent.archetypeCompletedAt)
         );
@@ -390,6 +427,100 @@
           reEnable();
         }
       });
+
+      // --- Forgot password ------------------------------------------------
+      // Sends a Supabase recovery email. The link returns to this page in
+      // reset mode (?mode=reset-password) where the user sets a new password.
+      var forgotBtn = document.getElementById("forgot-password-btn");
+      if (forgotBtn) {
+        forgotBtn.addEventListener("click", async function () {
+          if (isSubmitting) { dbgAuth("auth:submit-blocked-duplicate", { mode: "forgot" }); return; }
+          var email = document.getElementById("si-email").value.trim();
+          if (!email) {
+            showMsg("Enter your email first, then click Forgot password.", "info");
+            return;
+          }
+          isSubmitting = true;
+          forgotBtn.disabled = true;
+          forgotBtn.textContent = "Sending...";
+          clearMsg();
+          dbgAuth("auth:submit-start", { mode: "forgot" });
+          var reEnable = function () { isSubmitting = false; forgotBtn.disabled = false; forgotBtn.textContent = "Forgot password?"; };
+          // Return to THIS origin's login page in reset mode. Supabase Auth URL
+          // settings must allow https://www.requityapp.com/** and http://localhost:*/**.
+          var redirectTo = window.location.origin + "/agent/login.html?mode=reset-password";
+          try {
+            await API.sendPasswordReset(email, redirectTo);
+            showMsg("If that email has an account, a password reset link is on its way. Check your inbox.", "success");
+          } catch (err) {
+            if (err && err.rateLimited) {
+              showMsg("Too many password reset emails requested. Please wait a few minutes before trying again.", "error");
+            } else {
+              showMsg("We couldn't send the reset email. Please try again in a moment.", "error");
+            }
+          }
+          reEnable();
+        });
+      }
+
+      // --- Reset password mode --------------------------------------------
+      // Shows the new-password form (no auto-route to dashboard) and applies the
+      // new password using the recovery session from the email link.
+      function enterResetMode() {
+        clearMsg();
+        document.querySelector(".tabs").style.display = "none";
+        signinForm.classList.remove("active");
+        signupForm.classList.remove("active");
+        var foot = document.querySelector(".auth-foot");
+        if (foot) foot.style.display = "none";
+        if (resetForm) resetForm.classList.add("active");
+        var headP = document.querySelector(".auth-head p");
+        if (headP) headP.textContent = "Set a new password to finish signing back in.";
+      }
+
+      if (resetForm) {
+        resetForm.addEventListener("submit", async function (e) {
+          e.preventDefault();
+          if (isSubmitting) { dbgAuth("auth:submit-blocked-duplicate", { mode: "reset" }); return; }
+          var pw = document.getElementById("rs-password").value;
+          var pw2 = document.getElementById("rs-password-2").value;
+          if (pw.length < 8) { showMsg("Choose a password with at least 8 characters.", "error"); return; }
+          if (pw !== pw2) { showMsg("Those passwords don't match. Please re-enter them.", "error"); return; }
+          isSubmitting = true;
+          var btn = document.getElementById("reset-btn");
+          var reEnable = function () { isSubmitting = false; btn.disabled = false; btn.textContent = "Update password"; };
+          btn.disabled = true; btn.textContent = "Updating...";
+          clearMsg();
+          dbgAuth("auth:submit-start", { mode: "reset" });
+          try {
+            await API.updatePassword(pw);
+            showMsg("Password updated. Taking you to your dashboard...", "success");
+            await redirectAfterAuth("dashboard.html");
+          } catch (err) {
+            if (err && err.rateLimited) {
+              showMsg("Too many password reset emails requested. Please wait a few minutes before trying again.", "error");
+            } else {
+              showMsg(err.message || "We couldn't update your password. Request a new reset link and try again.", "error");
+            }
+            reEnable();
+          }
+        });
+      }
+
+      // Reset mode is entered when the recovery link sends the user back here
+      // (?mode=reset-password and/or the recovery tokens in the URL hash). We
+      // consume the recovery session and show the new-password form. Crucially we
+      // do NOT auto-route to the dashboard in this case (the password isn't set yet).
+      var qp = new URLSearchParams(window.location.search);
+      var recoveryConsumed = API && API.consumeRecoverySession ? API.consumeRecoverySession() : false;
+      var isResetMode = qp.get("mode") === "reset-password" || recoveryConsumed;
+      if (isResetMode) {
+        enterResetMode();
+        if (!recoveryConsumed && !(API && API.hasSession())) {
+          showMsg("Open the password reset link from your email to set a new password.", "info");
+        }
+        return;
+      }
 
       // If already signed in, send straight to the right place.
       if (API && API.hasSession()) {

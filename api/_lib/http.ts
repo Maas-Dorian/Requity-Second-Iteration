@@ -65,7 +65,7 @@ export function applyCors(_req: VercelRequest, res: VercelResponse): void {
   const origin = process.env.VERCEL_FRONTEND_URL || "*";
   res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 }
 
@@ -73,7 +73,7 @@ export function sendJson(res: VercelResponse, status: number, body: unknown): vo
   res.status(status).json(body);
 }
 
-export function ensureMethod(req: VercelRequest, method: "GET" | "POST" | "DELETE"): void {
+export function ensureMethod(req: VercelRequest, method: "GET" | "POST" | "PATCH" | "DELETE"): void {
   if (req.method !== method) {
     throw new HttpError(405, `Method not allowed. Expected ${method}.`);
   }

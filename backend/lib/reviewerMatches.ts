@@ -14,6 +14,20 @@ import { sendClientMatchedEmail, type EmailTarget } from "./email.js";
 import { env } from "./env.js";
 import { assignArchetype, isApprovedClientArchetype } from "./archetypes.js";
 import { attachClientReport } from "./clientReport.js";
+import {
+  derivePipelineStatus,
+  pipelineStatusLabel,
+  type PipelineStatus,
+} from "./dashboard.js";
+
+/**
+ * Reviewer-facing pipeline status for a client/lead row. Never returns "hidden"
+ * here: a paired/queued row always shows a real status, defaulting to potential.
+ */
+function reviewerPipelineStatus(row: any): PipelineStatus {
+  const derived = derivePipelineStatus(row);
+  return derived === "hidden" ? "potential" : derived;
+}
 
 /**
  * REQUITY reviewer queue: rank agents for a reviewer-sourced client, record a
@@ -142,7 +156,11 @@ export async function listReviewerQueue(): Promise<ReviewerQueueItem[]> {
     if (error) throw new Error(error.message);
     for (const client of clients ?? []) {
       const rankings = await rankAgentsForClient(client.id);
-      queue.push({ client: attachClientReport(client), rankings });
+      const enriched = attachClientReport(client) as any;
+      enriched.rowKind = "client";
+      enriched.pipelineStatus = reviewerPipelineStatus(client);
+      enriched.pipelineLabel = pipelineStatusLabel(enriched.pipelineStatus);
+      queue.push({ client: enriched, rankings });
     }
   } catch (error) {
     // Missing/drifted clients table → fall through to the lead-based source.
@@ -231,27 +249,31 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
       agentRow: (agentRows ?? []).find((a) => a.id === match.agent.id),
     }));
 
-    items.push({
-      client: attachClientReport({
-        id: lead.id,
-        full_name: lead.full_name,
-        email: lead.email ?? null,
-        phone: lead.phone ?? null,
-        archetype,
-        orientation: scored.orientation,
-        style: scored.style,
-        stress_response: scored.stressResponse,
-        transaction_intent: lead.transaction_intent ?? null,
-        transaction_intent_label: lead.transaction_intent_label ?? null,
-        transaction_intent_other: lead.transaction_intent_other ?? null,
-        market_city: lead.market_city ?? null,
-        buying_market_city: lead.buying_market_city ?? null,
-        selling_market_city: lead.selling_market_city ?? null,
-        source: "requity_reviewer",
-        status: "reviewer_matching",
-      }),
-      rankings: ranked,
-    });
+    const leadClient = attachClientReport({
+      id: lead.id,
+      full_name: lead.full_name,
+      email: lead.email ?? null,
+      phone: lead.phone ?? null,
+      archetype,
+      orientation: scored.orientation,
+      style: scored.style,
+      stress_response: scored.stressResponse,
+      transaction_intent: lead.transaction_intent ?? null,
+      transaction_intent_label: lead.transaction_intent_label ?? null,
+      transaction_intent_other: lead.transaction_intent_other ?? null,
+      market_city: lead.market_city ?? null,
+      buying_market_city: lead.buying_market_city ?? null,
+      selling_market_city: lead.selling_market_city ?? null,
+      pipeline_status: lead.pipeline_status ?? null,
+      source: "requity_reviewer",
+      status: "reviewer_matching",
+    }) as any;
+    // This queue row is backed by an assessment_leads row, not a clients row, so
+    // the reviewer status update must target leadId (rowKind = "lead").
+    leadClient.rowKind = "lead";
+    leadClient.pipelineStatus = reviewerPipelineStatus({ pipeline_status: lead.pipeline_status });
+    leadClient.pipelineLabel = pipelineStatusLabel(leadClient.pipelineStatus);
+    items.push({ client: leadClient, rankings: ranked });
   }
   return items;
 }
@@ -274,6 +296,8 @@ export type PairedClientItem = {
   score: number | null;
   label: string | null;
   status: string;
+  pipelineStatus: PipelineStatus;
+  pipelineLabel: string;
   matchedAt: string | null;
 };
 
@@ -330,6 +354,8 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
         score: typeof row.score === "number" ? row.score : null,
         label: cleanText(row.label),
         status: cleanText(row.status) ?? "assigned",
+        pipelineStatus: reviewerPipelineStatus(client),
+        pipelineLabel: pipelineStatusLabel(reviewerPipelineStatus(client)),
         matchedAt: row.reviewed_at ?? row.created_at ?? null,
       });
     }
@@ -367,6 +393,8 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
         score: null,
         label: null,
         status: "assigned",
+        pipelineStatus: reviewerPipelineStatus(client),
+        pipelineLabel: pipelineStatusLabel(reviewerPipelineStatus(client)),
         matchedAt: client.updated_at ?? client.created_at ?? null,
       });
     }

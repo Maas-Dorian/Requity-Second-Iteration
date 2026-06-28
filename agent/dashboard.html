@@ -2737,6 +2737,25 @@
         // required for this.
         var hasArchetype = Boolean(archetype);
 
+        // Resolutions agents (@resolutions.realtor) never take the assessment, so
+        // we hide BOTH the archetype pill and the Discover CTA for them. This is a
+        // deliberate bypass (assessmentDisabled), never a fake archetype.
+        var api = window.RequityAPI;
+        var assessmentDisabled = Boolean(api && api.isResolutionsAgentEmail && api.isResolutionsAgentEmail(agent.email));
+        if (assessmentDisabled) {
+          if (headerArchetype) { headerArchetype.hidden = true; headerArchetype.style.display = 'none'; }
+          if (discover) { discover.hidden = true; discover.style.display = 'none'; }
+          try {
+            if (localStorage.requity_debug === '1') {
+              console.log('agent:assessment-bypass', { assessmentDisabled: true, reason: 'resolutions_email_domain' });
+            }
+          } catch (e) {}
+          if (api && api.__debug) {
+            api.__debug('dashboard:archetype-state', 'resolutions-bypass', { assessmentDisabled: true });
+          }
+          return;
+        }
+
         var normalizedKey = hasArchetype ? normalizeKey(archetype) : '';
         var isApproved = hasArchetype && Object.prototype.hasOwnProperty.call(AGENT_ARCHETYPE_DETAILS, normalizedKey);
 

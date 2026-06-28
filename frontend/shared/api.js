@@ -36,6 +36,13 @@
     return (global.REQUITY_CONFIG || {}).authEmailConfirmationExpected === true;
   }
 
+  // Resolutions agents (email ends in @resolutions.realtor) skip the agent
+  // assessment entirely. This is NOT an auth failure: they are fully valid agents
+  // who simply do not take the archetype assessment.
+  function isResolutionsAgentEmail(email) {
+    return Boolean(email && String(email).toLowerCase().trim().endsWith("@resolutions.realtor"));
+  }
+
   // Detect a Supabase Auth EMAIL rate limit (HTTP 429 or known messages/codes),
   // so the UI can show a calm "wait a few minutes" note instead of retrying.
   function isAuthRateLimit(status, dataObj) {
@@ -249,6 +256,26 @@
     // #region agent log
     reqDebug("api.js:apiPost", "POST ok", { path: path, status: res.status, hasAuth: hasAuth });
     // #endregion
+    return res.json();
+  }
+
+  async function apiPatch(path, body) {
+    var c = requireApi();
+    var headers = await withAuthHeaders({ "Content-Type": "application/json" });
+    var hasAuth = !!headers.Authorization;
+    var res = await fetch(c.apiBaseUrl.replace(/\/$/, "") + path, {
+      method: "PATCH",
+      headers: headers,
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      var ptext = "";
+      try { ptext = await res.text(); } catch (e) {}
+      var perr = makeApiError(path, res.status, ptext);
+      reqDebug("api.js:apiPatch", "PATCH failed", { path: path, status: res.status, hasAuth: hasAuth, code: perr.code, area: perr.area, serverError: perr.serverError });
+      throw perr;
+    }
+    reqDebug("api.js:apiPatch", "PATCH ok", { path: path, status: res.status, hasAuth: hasAuth });
     return res.json();
   }
 
@@ -585,6 +612,14 @@
     return apiPost("/reviewer/approve-match", payload);
   }
 
+  /**
+   * Reviewer: set a matched/paired client's pipeline status. Requires reviewer
+   * auth. payload: { clientId?, leadId?, status }. Returns { ok, status, label }.
+   */
+  async function updateReviewerClientStatus(payload) {
+    return apiPatch("/reviewer/client-status", payload);
+  }
+
   // --- Auth (Supabase Auth via REST) -------------------------------------
   function requireSupabaseAuth() {
     var c = getSupabaseConfig();
@@ -696,11 +731,16 @@
   /**
    * Send a Supabase password-recovery email to the given address. Real action
    * (uses the public anon key). Throws on failure so the UI can show a real result.
+   * `redirectTo` is the URL the recovery link returns to (must be allow-listed in
+   * Supabase Auth URL settings). The recovery link appends the session tokens to
+   * the URL hash, which the reset page reads via consumeRecoverySession().
    */
-  async function sendPasswordReset(email) {
+  async function sendPasswordReset(email, redirectTo) {
     var c = requireSupabaseAuth();
     if (!email) throw new Error("An account email is required.");
-    var res = await fetch(c.supabaseUrl + "/auth/v1/recover", {
+    var url = c.supabaseUrl + "/auth/v1/recover";
+    if (redirectTo) url += "?redirect_to=" + encodeURIComponent(redirectTo);
+    var res = await fetch(url, {
       method: "POST",
       headers: supabaseAuthHeaders(),
       body: JSON.stringify({ email: email }),
@@ -710,6 +750,66 @@
       try { data = await res.json(); } catch (e) { /* ignore */ }
       if (isAuthRateLimit(res.status, data)) throw makeRateLimitError("recover");
       throw new Error(data.msg || data.error_description || data.error || "Could not send the reset email.");
+    }
+    return true;
+  }
+
+  /**
+   * Read the recovery tokens Supabase appended to the URL hash after the user
+   * clicks a password-reset link (#access_token=...&type=recovery&...). When a
+   * recovery session is present it is stored so updatePassword() can authenticate,
+   * and the hash is cleared from the address bar. Returns true when a recovery
+   * session was consumed. Never throws.
+   */
+  function consumeRecoverySession() {
+    try {
+      var hash = (global.location && global.location.hash) ? global.location.hash.replace(/^#/, "") : "";
+      if (!hash) return false;
+      var params = new URLSearchParams(hash);
+      var type = params.get("type");
+      var accessToken = params.get("access_token");
+      if (!accessToken || type !== "recovery") return false;
+      var nowSec = Math.floor(Date.now() / 1000);
+      var expiresIn = parseInt(params.get("expires_in") || "0", 10);
+      setStoredSession({
+        access_token: accessToken,
+        refresh_token: params.get("refresh_token") || null,
+        expires_at: expiresIn ? nowSec + expiresIn : null,
+        user: null,
+      });
+      // Strip the tokens from the URL so they aren't left in history/screenshots.
+      try {
+        var clean = global.location.pathname + global.location.search;
+        global.history.replaceState(null, "", clean);
+      } catch (e) { /* ignore */ }
+      return true;
+    } catch (e) { return false; }
+  }
+
+  /**
+   * Set a new password for the currently authenticated (or recovery) session.
+   * Calls Supabase PUT /auth/v1/user. Throws a clean error on failure; surfaces a
+   * calm rate-limit message when Supabase throttles the request.
+   */
+  async function updatePassword(newPassword) {
+    var c = requireSupabaseAuth();
+    if (!newPassword || String(newPassword).length < 8) {
+      throw new Error("Choose a password with at least 8 characters.");
+    }
+    var token = await getAccessToken();
+    if (!token) {
+      throw new Error("Your reset link has expired. Request a new password reset email and try again.");
+    }
+    var res = await fetch(c.supabaseUrl + "/auth/v1/user", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", apikey: c.supabaseAnonKey, Authorization: "Bearer " + token },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    var data = {};
+    try { data = await res.json(); } catch (e) { /* ignore */ }
+    if (!res.ok) {
+      if (isAuthRateLimit(res.status, data)) throw makeRateLimitError("update_user");
+      throw new Error(data.msg || data.error_description || data.error || "Could not update your password.");
     }
     return true;
   }
@@ -937,6 +1037,9 @@
     signIn: signIn,
     signOut: signOut,
     sendPasswordReset: sendPasswordReset,
+    consumeRecoverySession: consumeRecoverySession,
+    updatePassword: updatePassword,
+    isResolutionsAgentEmail: isResolutionsAgentEmail,
     getCurrentUser: getCurrentUser,
     agentHasCompletedAssessment: agentHasCompletedAssessment,
     bootstrapAgentProfile: bootstrapAgentProfile,
@@ -964,6 +1067,7 @@
     fetchReviewerQueue: fetchReviewerQueue,
     fetchReviewerArchetypeReference: fetchReviewerArchetypeReference,
     approveReviewerMatch: approveReviewerMatch,
+    updateReviewerClientStatus: updateReviewerClientStatus,
     copyAssessmentLink: copyAssessmentLink,
   };
 })(window);

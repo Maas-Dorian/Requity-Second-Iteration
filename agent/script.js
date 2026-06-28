@@ -281,6 +281,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // New REQUITY agent assessment implementation
 window.addEventListener('DOMContentLoaded', () => {
+    // Layout diagnostics (debug only): confirm the assessment card fits the
+    // viewport with no horizontal overflow. Never logs answers or any PII.
+    try {
+        if (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1') {
+            console.log('assessment:layout-check', { page: 'agent', viewportWidth: window.innerWidth });
+        }
+    } catch (e) {}
+
     const agentSurveyQuestions = [
         { question: "Your approach to client relationships is:", options: [
             { value: "A", text: "Leading with vision and decisive action" },

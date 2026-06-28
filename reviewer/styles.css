@@ -642,6 +642,45 @@ body.demo-active {
 .badge-status-followed_up { background-color: #E8F5E9; color: var(--success-green); border: 1px solid #C8E6C9; }
 .badge-status-completed { background-color: #EDEFF3; color: var(--text-secondary); border: 1px solid #D8DEE8; }
 
+/* --- Client pipeline status (reviewer can see + set) ----------------------- */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+.status-control { display: inline-flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.status-control-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+.status-select {
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.3rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid var(--blue-border);
+    background-color: var(--white);
+    color: var(--text-primary);
+    cursor: pointer;
+    max-width: 100%;
+}
+.status-select:disabled { opacity: 0.6; cursor: default; }
+.status-select:focus { outline: none; border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(30,63,122,0.12); }
+/* Color-coding shared by the pill and the dropdown. */
+.status-potential { background-color: #EDEFF3; color: var(--text-secondary); border-color: #D8DEE8; }
+.status-active { background-color: #E3F2FD; color: var(--primary-blue); border-color: #BBDEFB; }
+.status-under_contract { background-color: #FFF3E0; color: var(--accent-orange); border-color: #FFE0B2; }
+.status-closed { background-color: #E8F5E9; color: var(--success-green); border-color: #C8E6C9; }
+
 /* Mobile fit pass */
 * { max-width: 100%; }
 html, body { overflow-x: hidden; }

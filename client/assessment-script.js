@@ -177,6 +177,14 @@ const consumerAssessmentQuestions = [
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // Layout diagnostics (debug only): confirm the card fits the viewport with no
+    // horizontal overflow. Never logs answers or any PII.
+    try {
+        if (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1') {
+            console.log('assessment:layout-check', { page: 'client', viewportWidth: window.innerWidth });
+        }
+    } catch (e) {}
+
     // --- State ---
     let currentStepIndex = -1; // -1 = Contact Info, 0-15 = Questions, 16 = Final Page
     let selectedGoal = null;

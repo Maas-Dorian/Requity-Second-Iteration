@@ -693,3 +693,34 @@ img, svg, canvas, video { max-width: 100%; height: auto; }
   .step-item { width: 100% !important; }
   .link-field-group, .qr-actions { flex-direction: column; align-items: stretch; }
 }
+
+/* ============================================================================
+   Agent assessment fit pass: every question + answer fits cleanly on screen.
+   - Question text and answer text wrap (no overflow, no horizontal scroll).
+   - Answer options stack vertically and grow with their content.
+   - Cards never exceed the viewport at any width.
+   Additive only: does not change answer ordering or scoring.
+   ============================================================================ */
+.agent-assessment-card,
+.agent-result-card {
+  max-width: 100%;
+}
+.agent-assessment-top h3,
+#agent-question-text {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+}
+.agent-options { grid-template-columns: 1fr; }
+.agent-answer {
+  height: auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+@media (max-width: 560px) {
+  .agent-assessment-top h3,
+  #agent-question-text { font-size: 1.3rem; }
+  .agent-assessment-actions { flex-direction: column; align-items: stretch; }
+  .agent-assessment-actions .btn { width: 100%; }
+}

@@ -16,6 +16,19 @@ import { logger } from "./logger.js";
 export const PIPELINE_STATUSES = ["potential", "active", "under_contract", "closed"] as const;
 export type PipelineStatus = (typeof PIPELINE_STATUSES)[number];
 
+/** Human-readable labels for each pipeline status (shared dashboard + reviewer). */
+export const PIPELINE_STATUS_LABELS: Record<PipelineStatus, string> = {
+  potential: "Potential",
+  active: "Active",
+  under_contract: "Under Contract",
+  closed: "Closed",
+};
+
+/** Safe label lookup, defaulting to Potential for unknown/missing values. */
+export function pipelineStatusLabel(value: unknown): string {
+  return isPipelineStatus(value) ? PIPELINE_STATUS_LABELS[value] : PIPELINE_STATUS_LABELS.potential;
+}
+
 /** Statuses that must be hidden from the normal dashboard sections entirely. */
 const HIDDEN_LIFECYCLE = new Set(["abandoned", "deleted", "archived"]);
 
@@ -120,6 +133,76 @@ export async function updateClientPipelineStatus(params: {
   await updateWithSchemaFallback("clients", patch, { column: "id", value: clientId });
 
   return { clientId, status };
+}
+
+/**
+ * Reviewer/admin status update for a matched/paired client or lead. Unlike the
+ * agent path this does NOT enforce client ownership (a reviewer manages every
+ * client), but the caller MUST already be an authenticated reviewer/admin.
+ *
+ * Writes the authoritative `pipeline_status` (the same field the agent dashboard
+ * reads first), so a reviewer change shows on the agent dashboard after refresh
+ * and vice versa. Keeps the legacy deal columns coherent on the clients row. For
+ * lead-only rows (no clients row yet) it writes `assessment_leads.pipeline_status`
+ * only, never the lifecycle `status`, so the reviewer queue classification
+ * (which filters status = 'completed') is left intact.
+ *
+ * Accepts a clientId, a leadId, or both (when linked, both are updated). Tolerates
+ * schema drift (a missing pipeline_status column is dropped from the write).
+ */
+export async function updateClientStatusByReviewer(params: {
+  clientId?: string | null;
+  leadId?: string | null;
+  status: PipelineStatus;
+}): Promise<{ ok: true; status: PipelineStatus; label: string; clientId: string | null; leadId: string | null }> {
+  const status = params.status;
+  if (!isPipelineStatus(status)) {
+    throw statusError(400, `Invalid status. Expected one of: ${PIPELINE_STATUSES.join(", ")}.`, "INVALID_STATUS");
+  }
+  const clientId = params.clientId ? String(params.clientId).trim() : null;
+  const leadId = params.leadId ? String(params.leadId).trim() : null;
+  if (!clientId && !leadId) {
+    throw statusError(400, "A clientId or leadId is required.", "MISSING_TARGET");
+  }
+
+  let touched = false;
+
+  if (clientId) {
+    const clientPatch: Record<string, unknown> = { pipeline_status: status };
+    if (status === "closed") {
+      clientPatch.deal_status = "closed";
+      clientPatch.close_date = new Date().toISOString().slice(0, 10);
+    } else {
+      clientPatch.deal_status = "active";
+      clientPatch.close_date = null;
+    }
+    try {
+      await updateWithSchemaFallback("clients", clientPatch, { column: "id", value: clientId });
+      touched = true;
+    } catch (error) {
+      // A genuinely missing clients table should not fail a lead-only update.
+      if (!isMissingTableError(error)) throw error;
+    }
+  }
+
+  if (leadId) {
+    try {
+      await updateWithSchemaFallback(
+        "assessment_leads",
+        { pipeline_status: status },
+        { column: "id", value: leadId }
+      );
+      touched = true;
+    } catch (error) {
+      if (!isMissingTableError(error)) throw error;
+    }
+  }
+
+  if (!touched) {
+    throw statusError(404, "No matching client or lead row to update.", "TARGET_NOT_FOUND");
+  }
+
+  return { ok: true, status, label: PIPELINE_STATUS_LABELS[status], clientId, leadId };
 }
 
 /**
