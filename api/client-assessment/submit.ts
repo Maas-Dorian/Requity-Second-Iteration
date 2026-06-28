@@ -173,6 +173,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       if (!isValidCity(marketCity)) cityError();
     }
 
+    // Optional structured state per market (metadata, never scored, max 60 chars).
+    const stateField = (key: string): string | null => {
+      const v = (optionalString(body, key) ?? "").trim();
+      return v ? v.slice(0, 60) : null;
+    };
+    const buyingMarketState = stateField("buyingMarketState");
+    const sellingMarketState = stateField("sellingMarketState");
+    const marketState = stateField("marketState");
+
     try {
       const result = await submitClientAssessmentWithContact({
         token,
@@ -190,6 +199,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         marketCity: marketCity || null,
         buyingMarketCity,
         sellingMarketCity,
+        buyingMarketState,
+        sellingMarketState,
+        marketState,
       });
       sendJson(res, 200, result);
     } catch (error) {

@@ -217,6 +217,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const otherMarketWrap = document.getElementById('otherMarketWrap');
     const buyingMarketInput = document.getElementById('buyingMarketCity');
     const sellingMarketInput = document.getElementById('sellingMarketCity');
+    const buyingStateInput = document.getElementById('buyingMarketState');
+    const sellingStateInput = document.getElementById('sellingMarketState');
+    const marketStateInput = document.getElementById('marketState');
+    const sameMarketRow = document.getElementById('sameMarketRow');
+    const sameMarketToggle = document.getElementById('sameMarketToggle');
 
     // --- Transaction intent helpers ---------------------------------------
     // selectedGoal holds the transaction intent: 'buying' | 'selling' | 'both' | 'other'.
@@ -227,9 +232,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // City/market values. Metadata only, never included in archetype scoring.
     function cityText(el) { return el ? el.value.trim() : ''; }
     function cityValid(v) { return v.length >= 2 && v.length <= 120; }
+    // "Buying and selling in the same market": copies the buying market into the
+    // selling market so the client never enters the same location twice.
+    function sameMarketChecked() { return selectedGoal === 'both' && !!(sameMarketToggle && sameMarketToggle.checked); }
     function buyingMarketText() { return cityText(buyingMarketInput); }
-    function sellingMarketText() { return cityText(sellingMarketInput); }
+    function sellingMarketText() { return sameMarketChecked() ? buyingMarketText() : cityText(sellingMarketInput); }
     function otherMarketText() { return cityText(marketCityInput); }
+    // State (metadata only, never scored).
+    function buyingStateText() { return cityText(buyingStateInput); }
+    function sellingStateText() { return sameMarketChecked() ? buyingStateText() : cityText(sellingStateInput); }
+    function otherStateText() { return cityText(marketStateInput); }
     // Combined market_city summary, derived per the selected intent.
     function marketCityText() {
         if (selectedGoal === 'buying') return buyingMarketText();
@@ -253,7 +265,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateMarketFields() {
         if (marketSection) marketSection.classList.toggle('hidden', !selectedGoal);
         if (buyingMarketWrap) buyingMarketWrap.classList.toggle('hidden', !needsBuyingMarket());
-        if (sellingMarketWrap) sellingMarketWrap.classList.toggle('hidden', !needsSellingMarket());
+        // The "same market" checkbox only applies to Buying and Selling.
+        if (sameMarketRow) sameMarketRow.classList.toggle('hidden', selectedGoal !== 'both');
+        // Hide the selling fields when the same-market shortcut is checked.
+        var hideSelling = !needsSellingMarket() || sameMarketChecked();
+        if (sellingMarketWrap) sellingMarketWrap.classList.toggle('hidden', hideSelling);
         if (otherMarketWrap) otherMarketWrap.classList.toggle('hidden', !isOtherIntent());
     }
     
@@ -304,8 +320,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     inputs.forEach(inp => inp.addEventListener('input', checkContactValid));
     if (otherIntentInput) otherIntentInput.addEventListener('input', checkContactValid);
-    [marketCityInput, buyingMarketInput, sellingMarketInput].forEach(el => {
+    [marketCityInput, buyingMarketInput, sellingMarketInput, buyingStateInput, sellingStateInput, marketStateInput].forEach(el => {
         if (el) el.addEventListener('input', checkContactValid);
+    });
+    if (sameMarketToggle) sameMarketToggle.addEventListener('change', function () {
+        updateMarketFields();
+        checkContactValid();
     });
 
     goalOptions.forEach(card => {
@@ -328,6 +348,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!needsBuyingMarket() && buyingMarketInput) buyingMarketInput.value = '';
             if (!needsSellingMarket() && sellingMarketInput) sellingMarketInput.value = '';
             if (!isOtherIntent() && marketCityInput) marketCityInput.value = '';
+            if (!needsBuyingMarket() && buyingStateInput) buyingStateInput.value = '';
+            if (!needsSellingMarket() && sellingStateInput) sellingStateInput.value = '';
+            if (!isOtherIntent() && marketStateInput) marketStateInput.value = '';
+            if (selectedGoal !== 'both' && sameMarketToggle) sameMarketToggle.checked = false;
             updateMarketFields();
             checkContactValid();
         });
@@ -414,6 +438,9 @@ document.addEventListener('DOMContentLoaded', () => {
             marketCity: marketCityText() || null,
             buyingMarketCity: needsBuyingMarket() ? (buyingMarketText() || null) : null,
             sellingMarketCity: needsSellingMarket() ? (sellingMarketText() || null) : null,
+            buyingMarketState: needsBuyingMarket() ? (buyingStateText() || null) : null,
+            sellingMarketState: needsSellingMarket() ? (sellingStateText() || null) : null,
+            marketState: isOtherIntent() ? (otherStateText() || null) : null,
         };
         // Reuse a recent lead id for this email if we have one cached.
         try {
@@ -667,6 +694,9 @@ document.addEventListener('DOMContentLoaded', () => {
             marketCity: marketCityText(),
             buyingMarketCity: needsBuyingMarket() ? buyingMarketText() : null,
             sellingMarketCity: needsSellingMarket() ? sellingMarketText() : null,
+            buyingMarketState: needsBuyingMarket() ? (buyingStateText() || null) : null,
+            sellingMarketState: needsSellingMarket() ? (sellingStateText() || null) : null,
+            marketState: isOtherIntent() ? (otherStateText() || null) : null,
             answers: answers,
             source: src.source,
             agentId: src.agentId,

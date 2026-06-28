@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import { createNotification } from "./messages.js";
 import { getAgentIdBySlug } from "./agentSlug.js";
+import { updateWithSchemaFallback } from "./supabaseWrite.js";
 
 /**
  * Incomplete / partial assessment lead capture.
@@ -280,6 +281,17 @@ export type CompleteAssessmentLeadInput = {
   marketCity?: string | null;
   buyingMarketCity?: string | null;
   sellingMarketCity?: string | null;
+  /** Structured location (state + coordinates) for proximity-based matching. */
+  marketState?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  buyingMarketState?: string | null;
+  buyingLatitude?: number | null;
+  buyingLongitude?: number | null;
+  sellingMarketState?: string | null;
+  sellingLatitude?: number | null;
+  sellingLongitude?: number | null;
+  locationNormalized?: string | null;
 };
 
 /**
@@ -319,6 +331,32 @@ export async function completeAssessmentLead(
     .select()
     .single();
   if (error) throw new Error(`completeAssessmentLead failed: ${error.message}`);
+
+  // Best-effort structured location write. Done as a separate, schema-tolerant
+  // update so a not-yet-migrated DB (missing the *_state / lat / lon columns)
+  // never breaks lead completion: the resilient writer drops absent columns.
+  const locationPatch: Record<string, unknown> = {};
+  const setIf = (key: string, value: unknown) => {
+    if (value !== undefined && value !== null) locationPatch[key] = value;
+  };
+  setIf("market_state", input.marketState);
+  setIf("latitude", input.latitude);
+  setIf("longitude", input.longitude);
+  setIf("buying_market_state", input.buyingMarketState);
+  setIf("buying_latitude", input.buyingLatitude);
+  setIf("buying_longitude", input.buyingLongitude);
+  setIf("selling_market_state", input.sellingMarketState);
+  setIf("selling_latitude", input.sellingLatitude);
+  setIf("selling_longitude", input.sellingLongitude);
+  setIf("location_normalized", input.locationNormalized);
+  if (Object.keys(locationPatch).length) {
+    try {
+      await updateWithSchemaFallback("assessment_leads", locationPatch, { column: "id", value: lead.id });
+    } catch (locErr) {
+      console.error("[assessmentLeads] location patch skipped:", locErr instanceof Error ? locErr.message : locErr);
+    }
+  }
+
   return data as AssessmentLeadRecord;
 }
 

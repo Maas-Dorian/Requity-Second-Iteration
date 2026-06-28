@@ -42,98 +42,40 @@
     </header>
 
     <div class="dashboard-layout">
-        
-        <!-- 2. Top Summary Row -->
-        <section class="summary-row">
-            <div class="summary-card">
-                <div class="summary-value" id="count-pending">0</div>
-                <div class="summary-label">Pending Profiles</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-value" id="count-fits">0</div>
-                <div class="summary-label">Recommended Fits</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-value" id="count-scheduled">0</div>
-                <div class="summary-label">Scheduled Matches</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-value" id="count-needs-review">0</div>
-                <div class="summary-label">Needs Reviewer</div>
-            </div>
-        </section>
 
-        <!-- 3. Main Layout (Two Columns) -->
-        <main class="main-grid">
-            
-            <!-- Left Column -->
-            <div class="column-main">
-                
-                <!-- 4. Pending Client Queue -->
-                <section id="queue-section" class="section">
-                    <h2 class="section-title">Pending Client Queue</h2>
-                    <div id="queue-list" class="queue-list">
-                        <!-- Populated by JS -->
-                    </div>
-                </section>
+        <!-- Tabs (mirrors the agent dashboard: one section visible at a time) -->
+        <nav class="reviewer-tabs" id="reviewer-tabs" role="tablist" aria-label="Reviewer sections">
+            <button type="button" class="reviewer-tab is-active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+            <button type="button" class="reviewer-tab" data-tab="review" role="tab" aria-selected="false">Up for Review <span class="tab-count" id="tabcount-review" hidden>0</span></button>
+            <button type="button" class="reviewer-tab" data-tab="paired" role="tab" aria-selected="false">Paired Clients <span class="tab-count" id="tabcount-paired" hidden>0</span></button>
+            <button type="button" class="reviewer-tab" data-tab="incomplete" role="tab" aria-selected="false">Incomplete <span class="tab-count" id="tabcount-incomplete" hidden>0</span></button>
+            <button type="button" class="reviewer-tab" data-tab="closed" role="tab" aria-selected="false">Closed <span class="tab-count" id="tabcount-closed" hidden>0</span></button>
+            <button type="button" class="reviewer-tab" data-tab="locations" role="tab" aria-selected="false">Locations</button>
+            <button type="button" class="reviewer-tab" data-tab="reference" role="tab" aria-selected="false">Archetype Reference</button>
+        </nav>
 
-                <!-- 5. Selected Client Profile -->
-                <section id="profile-section" class="section">
-                    <h2 class="section-title">Selected Client Profile</h2>
-                    <div class="card profile-card" id="profile-card">
-                        <!-- Populated by JS -->
-                    </div>
-                </section>
+        <!-- ===== Overview ===== -->
+        <section class="tab-panel is-active" id="tab-overview" role="tabpanel">
+            <section class="summary-row">
+                <div class="summary-card">
+                    <div class="summary-value" id="count-pending">0</div>
+                    <div class="summary-label">Pending Profiles</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="count-fits">0</div>
+                    <div class="summary-label">Recommended Fits</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="count-scheduled">0</div>
+                    <div class="summary-label">Scheduled Matches</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="count-needs-review">0</div>
+                    <div class="summary-label">Needs Reviewer</div>
+                </div>
+            </section>
 
-                <!-- 6. Recommended Real Estate Agent Matches -->
-                <section id="fits-section" class="section">
-                    <h2 class="section-title">Recommended Real Estate Agent Matches</h2>
-                    <div id="fits-list" class="fits-list">
-                        <!-- Populated by JS -->
-                    </div>
-                </section>
-
-                <!-- 6b. Incomplete Assessments -->
-                <section id="leads-section" class="section">
-                    <div class="leads-header">
-                        <h2 class="section-title">Incomplete Assessments</h2>
-                        <div class="leads-filters">
-                            <select id="leads-filter-status" class="leads-select" aria-label="Filter by status">
-                                <option value="">All statuses</option>
-                                <option value="started">Started</option>
-                                <option value="in_progress">In progress</option>
-                                <option value="followed_up">Followed up</option>
-                            </select>
-                            <select id="leads-filter-source" class="leads-select" aria-label="Filter by source">
-                                <option value="">All sources</option>
-                                <option value="qr">QR</option>
-                                <option value="agent_link">Agent link</option>
-                                <option value="reviewer">Reviewer</option>
-                            </select>
-                            <input id="leads-search" class="leads-search" type="search" placeholder="Search name, email, phone">
-                        </div>
-                    </div>
-                    <p class="helper-text mb-3">Clients who started an assessment but haven’t finished. Follow up to help them complete it.</p>
-                    <div id="leads-list" class="leads-list">
-                        <!-- Populated by JS -->
-                    </div>
-                </section>
-
-                <!-- 6c. Paired Clients -->
-                <section id="paired-section" class="section">
-                    <h2 class="section-title">Paired Clients</h2>
-                    <p class="helper-text mb-3">Clients who have been matched and assigned to a real estate agent.</p>
-                    <div id="paired-list" class="leads-list">
-                        <!-- Populated by JS -->
-                    </div>
-                </section>
-
-            </div>
-
-            <!-- Right Column -->
-            <div class="column-sidebar">
-                
-                <!-- 8. Auto Status Panel -->
+            <div class="overview-grid">
                 <section class="section">
                     <div class="card auto-status-card" id="auto-status-panel">
                         <div class="auto-header">
@@ -141,7 +83,6 @@
                             <span id="auto-badge" class="badge badge-internal">Inactive</span>
                         </div>
                         <p class="helper-text" id="auto-status-copy">Enable Auto to process pending profiles and schedule each client with the highest percentage real estate agent match after the 48-hour review window.</p>
-                        
                         <div id="auto-progress-container" class="hidden mt-4">
                             <div class="detail-row"><span class="detail-label">Profiles Scanned:</span> <strong id="auto-scanned">0</strong></div>
                             <div class="detail-row"><span class="detail-label">Matches Scheduled:</span> <strong id="auto-scheduled">0</strong></div>
@@ -150,29 +91,6 @@
                     </div>
                 </section>
 
-                <!-- 7. Reviewer Decision Panel -->
-                <section class="section">
-                    <div class="card decision-card">
-                        <h2 class="section-title">Reviewer decision</h2>
-                        
-                        <div class="detail-row mb-3">
-                            <span class="detail-label">Selected real estate agent:</span>
-                            <strong class="text-blue text-large" id="decision-selected-agent">, </strong>
-                        </div>
-
-                        <div id="decision-actions" class="action-stack">
-                            <button class="btn btn-primary w-100" onclick="approveSelected()">Approve Selected</button>
-                            <button class="btn btn-outline w-100" onclick="holdSelected()">Hold for Review</button>
-                            <button class="btn btn-outline w-100" onclick="document.getElementById('fits-section').scrollIntoView({behavior:'smooth'})">Select Different Agent</button>
-                        </div>
-
-                        <div id="decision-success" class="success-message hidden mt-3">
-                            <!-- Populated by JS -->
-                        </div>
-                    </div>
-                </section>
-
-                <!-- 11. Activity Log -->
                 <section class="section">
                     <div class="card log-card">
                         <h2 class="section-title">Activity Log</h2>
@@ -184,27 +102,138 @@
                         </ul>
                     </div>
                 </section>
-
-                <!-- 12. Archetype Reference (live, canonical approved data) -->
-                <section class="section">
-                    <div class="card reference-card">
-                        <h2 class="section-title">Archetype reference</h2>
-
-                        <h3 class="detail-label mt-2 mb-1 text-blue">Client Archetypes</h3>
-                        <div id="ref-client-list">
-                            <div class="ref-item">Loading client archetypes…</div>
-                        </div>
-
-                        <h3 class="detail-label mt-3 mb-1 text-blue">Real Estate Agent Archetypes</h3>
-                        <div id="ref-agent-list">
-                            <div class="ref-item">Loading agent archetypes…</div>
-                        </div>
-                    </div>
-                </section>
-
             </div>
+        </section>
 
-        </main>
+        <!-- ===== Up for Review ===== -->
+        <section class="tab-panel" id="tab-review" role="tabpanel" hidden>
+            <main class="main-grid">
+                <div class="column-main">
+                    <section id="queue-section" class="section">
+                        <h2 class="section-title">Pending Client Queue</h2>
+                        <div id="queue-list" class="queue-list"></div>
+                    </section>
+
+                    <section id="profile-section" class="section">
+                        <h2 class="section-title">Selected Client Profile</h2>
+                        <div class="card profile-card" id="profile-card"></div>
+                    </section>
+
+                    <section id="fits-section" class="section">
+                        <h2 class="section-title">Recommended Real Estate Agent Matches</h2>
+                        <div id="fits-list" class="fits-list"></div>
+                    </section>
+                </div>
+
+                <div class="column-sidebar">
+                    <section class="section">
+                        <div class="card decision-card">
+                            <h2 class="section-title">Reviewer decision</h2>
+                            <div class="detail-row mb-3">
+                                <span class="detail-label">Selected real estate agent:</span>
+                                <strong class="text-blue text-large" id="decision-selected-agent">, </strong>
+                            </div>
+                            <div id="decision-actions" class="action-stack">
+                                <button class="btn btn-primary w-100" onclick="approveSelected()">Approve Selected</button>
+                                <button class="btn btn-outline w-100" onclick="holdSelected()">Hold for Review</button>
+                                <button class="btn btn-outline w-100" onclick="document.getElementById('fits-section').scrollIntoView({behavior:'smooth'})">Select Different Agent</button>
+                            </div>
+                            <div id="decision-success" class="success-message hidden mt-3"></div>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </section>
+
+        <!-- ===== Paired Clients ===== -->
+        <section class="tab-panel" id="tab-paired" role="tabpanel" hidden>
+            <section id="paired-section" class="section">
+                <h2 class="section-title">Paired Clients</h2>
+                <p class="helper-text mb-3">Clients who have been matched and assigned to a real estate agent.</p>
+                <div id="paired-list" class="leads-list"></div>
+            </section>
+        </section>
+
+        <!-- ===== Incomplete ===== -->
+        <section class="tab-panel" id="tab-incomplete" role="tabpanel" hidden>
+            <section id="leads-section" class="section">
+                <div class="leads-header">
+                    <h2 class="section-title">Incomplete Assessments</h2>
+                    <div class="leads-filters">
+                        <select id="leads-filter-status" class="leads-select" aria-label="Filter by status">
+                            <option value="">All statuses</option>
+                            <option value="started">Started</option>
+                            <option value="in_progress">In progress</option>
+                            <option value="followed_up">Followed up</option>
+                        </select>
+                        <select id="leads-filter-source" class="leads-select" aria-label="Filter by source">
+                            <option value="">All sources</option>
+                            <option value="qr">QR</option>
+                            <option value="agent_link">Agent link</option>
+                            <option value="reviewer">Reviewer</option>
+                        </select>
+                        <input id="leads-search" class="leads-search" type="search" placeholder="Search name, email, phone">
+                    </div>
+                </div>
+                <p class="helper-text mb-3">Clients who started an assessment but haven’t finished. Follow up to help them complete it.</p>
+                <div id="leads-list" class="leads-list"></div>
+            </section>
+        </section>
+
+        <!-- ===== Closed ===== -->
+        <section class="tab-panel" id="tab-closed" role="tabpanel" hidden>
+            <section id="closed-section" class="section">
+                <h2 class="section-title">Closed Clients</h2>
+                <p class="helper-text mb-3">Paired clients whose deal is marked Closed. They still count toward each market in Locations.</p>
+                <div id="closed-list" class="leads-list"></div>
+            </section>
+        </section>
+
+        <!-- ===== Locations ===== -->
+        <section class="tab-panel" id="tab-locations" role="tabpanel" hidden>
+            <section class="section">
+                <h2 class="section-title">Markets &amp; proximity</h2>
+                <p class="helper-text mb-3">Search and group clients and agents by market. Matching and distance are computed server-side; only bounded results are loaded.</p>
+                <div class="locations-filters">
+                    <input id="loc-search" class="leads-search" type="search" placeholder="Search city, state, client, or agent">
+                    <input id="loc-state" class="leads-select" type="text" maxlength="60" placeholder="State (e.g. FL)">
+                    <select id="loc-status" class="leads-select" aria-label="Filter by status">
+                        <option value="">All statuses</option>
+                        <option value="potential">Potential</option>
+                        <option value="active">Active</option>
+                        <option value="under_contract">Under Contract</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                    <select id="loc-transaction" class="leads-select" aria-label="Filter by transaction">
+                        <option value="">All transactions</option>
+                        <option value="buying">Buying</option>
+                        <option value="selling">Selling</option>
+                        <option value="both">Buying and Selling</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div id="loc-summary" class="helper-text mb-3"></div>
+                <div id="loc-markets" class="locations-markets"></div>
+            </section>
+        </section>
+
+        <!-- ===== Archetype Reference ===== -->
+        <section class="tab-panel" id="tab-reference" role="tabpanel" hidden>
+            <section class="section">
+                <div class="card reference-card">
+                    <h2 class="section-title">Archetype reference</h2>
+                    <h3 class="detail-label mt-2 mb-1 text-blue">Client Archetypes</h3>
+                    <div id="ref-client-list">
+                        <div class="ref-item">Loading client archetypes…</div>
+                    </div>
+                    <h3 class="detail-label mt-3 mb-1 text-blue">Real Estate Agent Archetypes</h3>
+                    <div id="ref-agent-list">
+                        <div class="ref-item">Loading agent archetypes…</div>
+                    </div>
+                </div>
+            </section>
+        </section>
+
     </div>
 
     <!-- 13. Bottom Status Bar -->
@@ -533,6 +562,7 @@
                 try {
                     if (window.__reviewerCounts) window.__reviewerCounts.incompleteCount = rows.length;
                     if (window.__reviewerLogClassification) window.__reviewerLogClassification();
+                    if (window.__reviewerSetTabCount) window.__reviewerSetTabCount('incomplete', rows.length);
                 } catch (e) {}
             }).catch(function () {
                 listEl.innerHTML = '<div class="leads-empty">We could not load incomplete assessments. Please refresh or try again later.</div>';
@@ -623,6 +653,248 @@
         }
 
         load();
+    })();
+    </script>
+
+    <!-- Tabs: one section visible at a time. Lazy-loads the Locations tab. -->
+    <script>
+    (function () {
+        var tabs = document.getElementById('reviewer-tabs');
+        if (!tabs) return;
+        var buttons = Array.prototype.slice.call(tabs.querySelectorAll('.reviewer-tab'));
+
+        function dbg(name, payload) {
+            if (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1') {
+                try { console.log(name, payload); } catch (e) {}
+            }
+        }
+
+        function showTab(name) {
+            buttons.forEach(function (b) {
+                var on = b.getAttribute('data-tab') === name;
+                b.classList.toggle('is-active', on);
+                b.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+            ['overview', 'review', 'paired', 'incomplete', 'closed', 'locations', 'reference'].forEach(function (t) {
+                var panel = document.getElementById('tab-' + t);
+                if (!panel) return;
+                var on = t === name;
+                panel.classList.toggle('is-active', on);
+                panel.hidden = !on;
+            });
+            dbg('reviewer:tab-change', { tab: name });
+            // Lazy-load the Locations tab the first time it is opened.
+            if (name === 'locations' && typeof window.__reviewerLoadLocations === 'function') {
+                window.__reviewerLoadLocations();
+            }
+        }
+
+        buttons.forEach(function (b) {
+            b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); });
+        });
+
+        // Update the small count badge on a tab label.
+        window.__reviewerSetTabCount = function (name, count) {
+            var el = document.getElementById('tabcount-' + name);
+            if (!el) return;
+            var n = Number(count) || 0;
+            el.textContent = n;
+            el.hidden = n <= 0;
+        };
+    })();
+    </script>
+
+    <!-- Locations tab: server-side grouping + search (debounced, lazy). -->
+    <script>
+    (function () {
+        var marketsEl = document.getElementById('loc-markets');
+        if (!marketsEl) return;
+        var searchEl = document.getElementById('loc-search');
+        var stateEl = document.getElementById('loc-state');
+        var statusEl = document.getElementById('loc-status');
+        var transactionEl = document.getElementById('loc-transaction');
+        var summaryEl = document.getElementById('loc-summary');
+
+        var loaded = false;
+        var searchTimer = null;
+        var lastClients = [];
+        var lastAgents = [];
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+        function dbg(name, payload) {
+            if (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1') {
+                try { console.log(name, payload); } catch (e) {}
+            }
+        }
+
+        function filters() {
+            return {
+                q: (searchEl && searchEl.value || '').trim() || null,
+                state: (stateEl && stateEl.value || '').trim() || null,
+                status: (statusEl && statusEl.value) || null,
+                transaction: (transactionEl && transactionEl.value) || null,
+                limit: 50
+            };
+        }
+
+        function statusPill(s) {
+            var v = String(s || 'potential').toLowerCase();
+            var label = ({ potential: 'Potential', active: 'Active', under_contract: 'Under Contract', closed: 'Closed' })[v] || 'Potential';
+            return '<span class="status-pill status-' + v + '">' + esc(label) + '</span>';
+        }
+
+        function clientRowHtml(c) {
+            var dist = '';
+            return '<div class="loc-row" data-row-kind="' + esc(c.rowKind) + '" data-row-id="' + esc(c.id || '') + '">' +
+                '<div class="loc-row-main">' +
+                    '<strong>' + esc(c.name || 'Unknown client') + '</strong>' +
+                    '<span class="loc-row-sub">' + esc(c.transactionIntentLabel || 'Not specified') +
+                        (c.archetype ? (' &middot; ' + esc(c.archetype)) : '') +
+                        (c.agentName ? (' &middot; Agent: ' + esc(c.agentName)) : '') + '</span>' +
+                '</div>' +
+                '<div class="loc-row-side">' + statusPill(c.status) +
+                    '<button type="button" class="btn btn-outline btn-sm loc-suggest" data-kind="' + esc(c.rowKind) + '" data-id="' + esc(c.id || '') + '">Suggest agents</button>' +
+                '</div>' +
+                '<div class="loc-suggestions" hidden></div>' +
+            '</div>';
+        }
+
+        function agentRowHtml(a) {
+            var radius = (a.serviceRadiusMiles != null && a.serviceRadiusMiles < 100000) ? (a.serviceRadiusMiles + ' mi radius') : 'Statewide / flexible';
+            return '<div class="loc-row">' +
+                '<div class="loc-row-main">' +
+                    '<strong>' + esc(a.name || 'Unknown agent') + '</strong>' +
+                    '<span class="loc-row-sub">' + esc(a.archetype || 'No archetype') + ' &middot; ' + esc(radius) + '</span>' +
+                '</div>' +
+            '</div>';
+        }
+
+        function marketCardHtml(m, idx) {
+            var clientsHere = lastClients.filter(function (c) { return c.marketNormalized === m.normalized; });
+            var agentsHere = lastAgents.filter(function (a) { return a.marketNormalized === m.normalized; });
+            return '<div class="market-card">' +
+                '<button type="button" class="market-card-head" data-idx="' + idx + '" aria-expanded="false">' +
+                    '<span class="market-card-title">' + esc(m.label) + '</span>' +
+                    '<span class="market-card-counts">' +
+                        '<span>Clients ' + (m.clientCount || 0) + '</span>' +
+                        '<span>Agents ' + (m.agentCount || 0) + '</span>' +
+                        '<span>Unmatched ' + (m.unmatchedClientCount || 0) + '</span>' +
+                        '<span>Active ' + (m.pairedCount || 0) + '</span>' +
+                        '<span>Closed ' + (m.closedCount || 0) + '</span>' +
+                    '</span>' +
+                '</button>' +
+                '<div class="market-card-body" hidden>' +
+                    '<h4 class="loc-subhead">Clients in this market</h4>' +
+                    (clientsHere.length ? clientsHere.map(clientRowHtml).join('') : '<div class="leads-empty">No clients loaded for this market.</div>') +
+                    '<h4 class="loc-subhead">Agents serving this market</h4>' +
+                    (agentsHere.length ? agentsHere.map(agentRowHtml).join('') : '<div class="leads-empty">No agents loaded for this market.</div>') +
+                '</div>' +
+            '</div>';
+        }
+
+        function bindSuggest(scope) {
+            scope.querySelectorAll('.loc-suggest').forEach(function (btn) {
+                btn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    var kind = btn.getAttribute('data-kind');
+                    var id = btn.getAttribute('data-id');
+                    var box = btn.closest('.loc-row').querySelector('.loc-suggestions');
+                    if (!box || !window.RequityAPI || !window.RequityAPI.fetchReviewerMatchSuggestions) return;
+                    box.hidden = false;
+                    box.innerHTML = '<div class="leads-empty">Finding nearby matches…</div>';
+                    btn.disabled = true;
+                    var params = kind === 'lead' ? { leadId: id } : { clientId: id };
+                    Promise.resolve(window.RequityAPI.fetchReviewerMatchSuggestions(params)).then(function (list) {
+                        if (!list || !list.length) { box.innerHTML = '<div class="leads-empty">No agent suggestions available.</div>'; btn.disabled = false; return; }
+                        list.forEach(function (s) {
+                            dbg('matching:location-score', { leadId: kind === 'lead' ? id : null, agentId: s.agentId, locationScore: s.locationScore, distanceMiles: s.distanceMiles });
+                        });
+                        box.innerHTML = list.map(function (s) {
+                            var d = (s.distanceMiles != null) ? (s.distanceMiles + ' mi') : 'Distance N/A';
+                            return '<div class="loc-suggestion">' +
+                                '<div><strong>' + esc(s.agentName || 'Agent') + '</strong> ' +
+                                    '<span class="loc-row-sub">' + esc(s.agentArchetype || '') +
+                                        (s.marketCity ? (' &middot; ' + esc(s.marketCity) + (s.marketState ? (', ' + esc(s.marketState)) : '')) : '') + '</span></div>' +
+                                '<div class="loc-suggestion-meta">' +
+                                    '<span class="badge badge-internal">Total ' + s.totalScore + '%</span>' +
+                                    '<span class="badge badge-source">Fit ' + s.compatibilityScore + '%</span>' +
+                                    '<span class="badge badge-source">Location ' + s.locationScore + '</span>' +
+                                    '<span>' + esc(d) + '</span>' +
+                                '</div>' +
+                                '<div class="loc-row-sub">' + esc(s.matchReason || '') + '</div>' +
+                            '</div>';
+                        }).join('');
+                        btn.disabled = false;
+                    }).catch(function () {
+                        box.innerHTML = '<div class="leads-empty">Could not load suggestions.</div>';
+                        btn.disabled = false;
+                    });
+                });
+            });
+        }
+
+        function render(result) {
+            lastClients = result.clients || [];
+            lastAgents = result.agents || [];
+            var markets = result.markets || [];
+            if (summaryEl) {
+                var t = result.total || {};
+                summaryEl.textContent = (t.marketCount || markets.length) + ' markets · ' + (t.clientCount || 0) + ' clients · ' + (t.agentCount || 0) + ' agents';
+            }
+            if (!markets.length) {
+                marketsEl.innerHTML = '<div class="leads-empty">No markets match these filters yet.</div>';
+                return;
+            }
+            marketsEl.innerHTML = markets.map(marketCardHtml).join('');
+            // Expand/collapse + lazy-bind suggestion buttons on first open.
+            marketsEl.querySelectorAll('.market-card-head').forEach(function (head) {
+                head.addEventListener('click', function () {
+                    var body = head.parentNode.querySelector('.market-card-body');
+                    if (!body) return;
+                    var open = body.hidden;
+                    body.hidden = !open;
+                    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    if (open) bindSuggest(body);
+                });
+            });
+            dbg('reviewer:location-results', {
+                marketCount: markets.length,
+                clientCount: lastClients.length,
+                agentCount: lastAgents.length
+            });
+        }
+
+        function loadInner() {
+            if (!window.RequityAPI || !window.RequityAPI.fetchReviewerLocations) {
+                marketsEl.innerHTML = '<div class="leads-empty">Locations are not available.</div>';
+                return;
+            }
+            var f = filters();
+            dbg('reviewer:location-search', { query: f.q, state: f.state, status: f.status, transaction: f.transaction });
+            marketsEl.innerHTML = '<div class="leads-empty">Loading markets…</div>';
+            Promise.resolve(window.RequityAPI.fetchReviewerLocations(f)).then(render).catch(function () {
+                marketsEl.innerHTML = '<div class="leads-empty">We could not load locations. Please try again.</div>';
+            });
+        }
+
+        function debouncedLoad() {
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(loadInner, 300);
+        }
+
+        // Lazy entry point invoked by the tab switcher; loads once, then on filters.
+        window.__reviewerLoadLocations = function () {
+            var gate = window.__reviewerGate || Promise.resolve({ ok: false });
+            Promise.resolve(gate).then(function (g) {
+                if (!g || g.ok === false) return;
+                if (!loaded) { loaded = true; loadInner(); }
+            });
+        };
+
+        if (searchEl) searchEl.addEventListener('input', debouncedLoad);
+        if (stateEl) stateEl.addEventListener('input', debouncedLoad);
+        if (statusEl) statusEl.addEventListener('change', loadInner);
+        if (transactionEl) transactionEl.addEventListener('change', loadInner);
     })();
     </script>
 </body>

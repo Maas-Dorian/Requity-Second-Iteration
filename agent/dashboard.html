@@ -364,6 +364,59 @@
       font-size: 1rem;
     }
 
+    /* "Complete your market profile" card (assessment-exempt agents). */
+    .market-profile-card {
+      background: var(--white, #fff);
+      border: 1px solid #D3E0F2;
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 12px rgba(7, 54, 110, 0.05);
+    }
+    .market-profile-head h3 {
+      margin: 0 0 0.25rem;
+      color: var(--primary-text, #07366E);
+      font-size: 1.1rem;
+    }
+    .market-profile-head p {
+      margin: 0 0 1rem;
+      color: var(--secondary-text, #4A607C);
+      font-size: 0.9rem;
+    }
+    .market-profile-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.85rem;
+    }
+    .market-profile-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--primary-text, #07366E);
+    }
+    .market-profile-field input,
+    .market-profile-field select {
+      padding: 0.6rem 0.7rem;
+      border: 1px solid #C9D7EC;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #1E3F7A;
+      background: #fff;
+    }
+    .market-profile-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .market-profile-msg { font-size: 0.85rem; color: #4A607C; margin-right: auto; }
+    .market-profile-msg.is-success { color: #1E7A46; }
+    .market-profile-msg.is-error { color: #C0392B; }
+
     /* Agent archetype pill + "View more" (native dashboard styling). */
     .header-archetype {
       display: inline-flex;
@@ -1341,6 +1394,40 @@
           <a href="assessment.html" class="btn-primary">Discover your Agent Archetype</a>
         </div>
       </header>
+
+      <!-- Compact "Complete your market profile" card. Shown only when an agent
+           is missing their market location (e.g. assessment-exempt agents) so
+           REQUITY can match them by proximity. Populated/toggled by JS. -->
+      <section class="market-profile-card" id="market-profile-card" hidden>
+        <div class="market-profile-head">
+          <h3>Complete your market profile</h3>
+          <p>Tell us where you work so REQUITY can match you with nearby clients.</p>
+        </div>
+        <div class="market-profile-grid">
+          <label class="market-profile-field">
+            <span>City or market</span>
+            <input type="text" id="market-profile-city" maxlength="120" placeholder="Example: Miami" autocomplete="address-level2" />
+          </label>
+          <label class="market-profile-field">
+            <span>State</span>
+            <input type="text" id="market-profile-state" maxlength="60" placeholder="Example: FL" autocomplete="address-level1" />
+          </label>
+          <label class="market-profile-field">
+            <span>Service radius</span>
+            <select id="market-profile-radius">
+              <option value="10">10 miles</option>
+              <option value="25">25 miles</option>
+              <option value="50" selected>50 miles</option>
+              <option value="100">100 miles</option>
+              <option value="statewide">Statewide / flexible</option>
+            </select>
+          </label>
+        </div>
+        <div class="market-profile-actions">
+          <span class="market-profile-msg" id="market-profile-msg" role="status"></span>
+          <button type="button" class="btn-primary" id="market-profile-save">Save market profile</button>
+        </div>
+      </section>
 
       <!-- Agent archetype explanation modal (matches dashboard card style). -->
       <div class="archetype-modal-overlay" id="archetype-modal-overlay" hidden>
@@ -2726,6 +2813,56 @@
        * Boolean(agent.archetype), archetype_completed_at is NOT required.
        * Accepts the agent object from /api/auth/me or /api/dashboard/agent.
        */
+      // Show the compact market-profile card when an agent has no market on file.
+      // Wired once; safe to call repeatedly.
+      var __marketCardWired = false;
+      function maybeShowMarketProfileCard(agent) {
+        var card = document.getElementById('market-profile-card');
+        if (!card || !agent) return;
+        // Accept either the curated dashboard shape (camelCase) or a raw agent row.
+        var marketCity = agent.marketCity || agent.market_city || null;
+        var marketState = agent.marketState || agent.market_state || null;
+        var locNorm = agent.locationNormalized || agent.location_normalized || null;
+        var hasMarket = Boolean((marketCity && String(marketCity).trim()) || (locNorm && String(locNorm).trim()));
+        if (hasMarket) { card.hidden = true; return; }
+        card.hidden = false;
+
+        var cityEl = document.getElementById('market-profile-city');
+        var stateEl = document.getElementById('market-profile-state');
+        var radiusEl = document.getElementById('market-profile-radius');
+        var saveBtn = document.getElementById('market-profile-save');
+        var msgEl = document.getElementById('market-profile-msg');
+        if (cityEl && marketCity) cityEl.value = marketCity;
+        if (stateEl && marketState) stateEl.value = marketState;
+
+        if (__marketCardWired || !saveBtn) return;
+        __marketCardWired = true;
+        saveBtn.addEventListener('click', function () {
+          var api = window.RequityAPI;
+          var city = (cityEl && cityEl.value || '').trim();
+          if (city.length < 2) {
+            if (msgEl) { msgEl.textContent = 'Please enter your city or market.'; msgEl.className = 'market-profile-msg is-error'; }
+            return;
+          }
+          var rv = radiusEl ? radiusEl.value : '50';
+          var radius = rv === 'statewide' ? 100000 : (parseInt(rv, 10) || 50);
+          saveBtn.disabled = true;
+          if (msgEl) { msgEl.textContent = 'Saving…'; msgEl.className = 'market-profile-msg'; }
+          Promise.resolve(api && api.updateAgentMarketProfile({
+            marketCity: city,
+            marketState: (stateEl && stateEl.value || '').trim() || null,
+            serviceRadiusMiles: radius
+          })).then(function () {
+            if (msgEl) { msgEl.textContent = 'Saved. Thanks!'; msgEl.className = 'market-profile-msg is-success'; }
+            saveBtn.disabled = false;
+            setTimeout(function () { card.hidden = true; }, 1200);
+          }).catch(function () {
+            saveBtn.disabled = false;
+            if (msgEl) { msgEl.textContent = 'We couldn’t save that. Please try again.'; msgEl.className = 'market-profile-msg is-error'; }
+          });
+        });
+      }
+
       window.__requityRenderAgentArchetype = function (agent) {
         var headerArchetype = document.getElementById('header-archetype');
         var pill = document.getElementById('archetype-pill');
@@ -2753,6 +2890,8 @@
           if (api && api.__debug) {
             api.__debug('dashboard:archetype-state', 'resolutions-bypass', { assessmentDisabled: true });
           }
+          // Assessment-exempt agents still need a market for proximity matching.
+          maybeShowMarketProfileCard(agent);
           return;
         }
 

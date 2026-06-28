@@ -133,17 +133,45 @@
                 <div class="mt-l hidden" id="marketSection">
                     <h3 class="mb-s" id="marketHeading">Where are you looking?</h3>
                     <p class="subtitle mb-m">This helps your reviewer match you with an agent who knows your area.</p>
-                    <div class="input-group full-width hidden" id="buyingMarketWrap">
-                        <label for="buyingMarketCity">What city or market are you looking to buy in? *</label>
-                        <input type="text" id="buyingMarketCity" maxlength="120" placeholder="Example: Miami, FL" autocomplete="address-level2">
+
+                    <div class="hidden" id="buyingMarketWrap">
+                        <div class="input-group full-width">
+                            <label for="buyingMarketCity">What city are you looking to buy in? *</label>
+                            <input type="text" id="buyingMarketCity" maxlength="120" placeholder="Example: Miami" autocomplete="address-level2">
+                        </div>
+                        <div class="input-group full-width mt-m">
+                            <label for="buyingMarketState">What state is that in?</label>
+                            <input type="text" id="buyingMarketState" maxlength="60" placeholder="Example: FL" autocomplete="address-level1">
+                        </div>
                     </div>
-                    <div class="input-group full-width hidden mt-m" id="sellingMarketWrap">
-                        <label for="sellingMarketCity">What city or market are you selling in? *</label>
-                        <input type="text" id="sellingMarketCity" maxlength="120" placeholder="Example: Tampa, FL" autocomplete="address-level2">
+
+                    <div class="checkbox-row hidden mt-m" id="sameMarketRow">
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="sameMarketToggle">
+                            <span>Buying and selling in the same market</span>
+                        </label>
                     </div>
-                    <div class="input-group full-width hidden" id="otherMarketWrap">
-                        <label for="marketCity">What city or market is this for?</label>
-                        <input type="text" id="marketCity" maxlength="120" placeholder="Example: Miami, FL" autocomplete="address-level2">
+
+                    <div class="hidden mt-m" id="sellingMarketWrap">
+                        <div class="input-group full-width">
+                            <label for="sellingMarketCity">What city are you selling in? *</label>
+                            <input type="text" id="sellingMarketCity" maxlength="120" placeholder="Example: Tampa" autocomplete="address-level2">
+                        </div>
+                        <div class="input-group full-width mt-m">
+                            <label for="sellingMarketState">What state is that in?</label>
+                            <input type="text" id="sellingMarketState" maxlength="60" placeholder="Example: FL" autocomplete="address-level1">
+                        </div>
+                    </div>
+
+                    <div class="hidden" id="otherMarketWrap">
+                        <div class="input-group full-width">
+                            <label for="marketCity">What city or market is this for?</label>
+                            <input type="text" id="marketCity" maxlength="120" placeholder="Example: Miami" autocomplete="address-level2">
+                        </div>
+                        <div class="input-group full-width mt-m">
+                            <label for="marketState">What state is that in?</label>
+                            <input type="text" id="marketState" maxlength="60" placeholder="Example: FL" autocomplete="address-level1">
+                        </div>
                     </div>
                 </div>
 

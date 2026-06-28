@@ -68,6 +68,15 @@ create table if not exists agents (
   negotiation_style text,
   -- City/market the agent primarily works in (metadata, not scored).
   market_city text,
+  -- Structured location + service area for proximity-based matching.
+  market_state text,
+  market_country text default 'US',
+  service_radius_miles integer default 50,
+  latitude double precision,
+  longitude double precision,
+  location_normalized text,
+  location_place_id text,
+  service_areas jsonb default '[]'::jsonb,
   -- JSON snapshots of the agent assessment (answers + resolved dimensions).
   assessment_responses jsonb default '{}'::jsonb,
   assessment_summary jsonb default '{}'::jsonb,
@@ -99,6 +108,17 @@ create table if not exists clients (
   -- Separate buying/selling markets (market_city is the combined summary).
   buying_market_city text,
   selling_market_city text,
+  -- Structured location (state + coordinates) for proximity-based matching.
+  buying_market_state text,
+  buying_latitude double precision,
+  buying_longitude double precision,
+  selling_market_state text,
+  selling_latitude double precision,
+  selling_longitude double precision,
+  market_state text,
+  latitude double precision,
+  longitude double precision,
+  location_normalized text,
   status assessment_status default 'draft',
   -- Status-based closings for the agent dashboard.
   deal_status text default 'active',
@@ -138,6 +158,10 @@ create table if not exists match_recommendations (
   reason text,
   status text default 'pending' check (status in ('pending','approved','rejected','assigned')),
   reviewer_id uuid references profiles(id),
+  -- Location component of the match (proximity-aware ranking).
+  location_score integer,
+  distance_miles double precision,
+  match_reason text,
   created_at timestamptz default now(),
   reviewed_at timestamptz
 );
@@ -205,9 +229,35 @@ create table if not exists assessment_leads (
   market_city text,
   buying_market_city text,
   selling_market_city text,
+  -- Structured location (state + coordinates) for proximity-based matching.
+  buying_market_state text,
+  buying_latitude double precision,
+  buying_longitude double precision,
+  selling_market_state text,
+  selling_latitude double precision,
+  selling_longitude double precision,
+  market_state text,
+  latitude double precision,
+  longitude double precision,
+  location_normalized text,
   -- Agent-controlled pipeline status (mirrors clients.pipeline_status).
   pipeline_status text,
   notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Server-side geocode cache (never shipped to the browser). Normalized
+-- "city, st" keys map to coordinates so geocoding happens once per market.
+create table if not exists location_cache (
+  id uuid primary key default gen_random_uuid(),
+  normalized text unique not null,
+  city text,
+  state text,
+  country text default 'US',
+  latitude double precision,
+  longitude double precision,
+  provider text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

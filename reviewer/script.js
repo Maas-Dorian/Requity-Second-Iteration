@@ -33,6 +33,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const elProfileCard = document.getElementById('profile-card');
     const elFitsList = document.getElementById('fits-list');
     const elPairedList = document.getElementById('paired-list');
+    const elClosedList = document.getElementById('closed-list');
+
+    // Update a tab's count badge (defined by the tabs IIFE in index.html).
+    function setTabCount(name, count) {
+        if (typeof window.__reviewerSetTabCount === 'function') window.__reviewerSetTabCount(name, count);
+    }
 
     const elCountPending = document.getElementById('count-pending');
     const elCountFits = document.getElementById('count-fits');
@@ -176,7 +182,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 archetype: agent.archetype || ', ',
                 fit: (r && typeof r.score === 'number') ? r.score : null,
                 label: (r && r.label) || '',
-                reason: (r && r.reason) || '',
+                // Prefer the location-aware match reason when present.
+                reason: (r && (r.matchReason || r.reason)) || '',
+                // Proximity-aware extras (present from the location-aware ranker).
+                total: (r && typeof r.totalScore === 'number') ? r.totalScore : null,
+                locationScore: (r && typeof r.locationScore === 'number') ? r.locationScore : null,
+                distanceMiles: (r && r.distanceMiles != null) ? r.distanceMiles : null,
                 top: i === 0
             };
         });
@@ -427,6 +438,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isSelected = state.selectedAgentId && state.selectedAgentId === fit.agentId ? 'selected' : '';
                 const badgeHtml = fit.top ? '<span class="badge badge-highest">Highest recommended fit</span>' : '';
                 const pctHtml = (fit.fit != null) ? '<span class="badge badge-internal">' + fit.fit + '%</span>' : '';
+                const totalHtml = (fit.total != null) ? '<span class="badge badge-source">Total ' + fit.total + '%</span>' : '';
+                const distHtml = (fit.distanceMiles != null)
+                    ? '<span class="badge badge-source">' + fit.distanceMiles + ' mi</span>'
+                    : (fit.locationScore != null ? '<span class="badge badge-source">Loc ' + fit.locationScore + '</span>' : '');
                 const labelHtml = fit.label
                     ? '<div class="mb-2"><span class="detail-label">Fit:</span> <span class="helper-text" style="color:var(--text-primary)">' + esc(fit.label) + '</span></div>'
                     : '';
@@ -440,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 '<h3 class="fit-name">' + esc(fit.name) + '</h3>' +
                                 '<div class="fit-meta">Agent Archetype: <strong class="text-blue">' + esc(fit.archetype) + '</strong></div>' +
                             '</div>' +
-                            '<div style="display:flex; gap:0.5rem; align-items:center;">' + badgeHtml + pctHtml + '</div>' +
+                            '<div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">' + badgeHtml + pctHtml + totalHtml + distHtml + '</div>' +
                         '</div>' +
                         labelHtml +
                         reasonHtml +
@@ -494,41 +509,72 @@ document.addEventListener('DOMContentLoaded', () => {
         return '<span>Market <strong>' + esc(general || 'Not specified') + '</strong></span>';
     }
 
-    function renderPaired() {
-        if (!elPairedList) return;
-        if (!pairedClients.length) {
-            elPairedList.innerHTML = '<div class="leads-empty">No pairings yet.</div>';
-            return;
-        }
-        elPairedList.innerHTML = '';
-        pairedClients.forEach(function (p) {
-            var fit = (typeof p.score === 'number' && p.score > 0)
-                ? (p.label ? (p.label + ' · ' + p.score + '%') : (p.score + '%'))
-                : (p.label || null);
-            var card = document.createElement('div');
-            card.className = 'lead-card';
-            card.innerHTML =
-                '<div class="lead-top">' +
-                    '<div><div class="lead-name">' + esc(p.clientName || 'Unknown client') + '</div>' +
-                    '<div class="lead-contact">' + esc(p.clientEmail || 'no email') +
-                        (p.clientArchetype ? (' &middot; ' + esc(p.clientArchetype)) : '') + '</div></div>' +
-                    '<div class="lead-badges">' +
-                        (fit ? ('<span class="badge badge-source">' + esc(fit) + '</span>') : '') +
-                        '<div class="status-control"><span class="status-control-label">Status</span>' +
-                            statusSelectHtml(p.pipelineStatus, { kind: 'client', id: p.clientId }) +
-                        '</div>' +
+    function pairedCardHtml(p) {
+        var fit = (typeof p.score === 'number' && p.score > 0)
+            ? (p.label ? (p.label + ' · ' + p.score + '%') : (p.score + '%'))
+            : (p.label || null);
+        return '<div class="lead-top">' +
+                '<div><div class="lead-name">' + esc(p.clientName || 'Unknown client') + '</div>' +
+                '<div class="lead-contact">' + esc(p.clientEmail || 'no email') +
+                    (p.clientArchetype ? (' &middot; ' + esc(p.clientArchetype)) : '') + '</div></div>' +
+                '<div class="lead-badges">' +
+                    (fit ? ('<span class="badge badge-source">' + esc(fit) + '</span>') : '') +
+                    '<div class="status-control"><span class="status-control-label">Status</span>' +
+                        statusSelectHtml(p.pipelineStatus, { kind: 'client', id: p.clientId }) +
                     '</div>' +
                 '</div>' +
-                '<div class="lead-meta">' +
-                    '<span>Transaction <strong>' + esc(transactionText(p.transactionIntentLabel ? { transaction_intent_label: p.transactionIntentLabel } : { transaction_intent: p.transactionIntent })) + '</strong></span>' +
-                    pairedMarketHtml(p) +
-                    '<span>Paired agent <strong>' + esc(p.agentName || 'Unknown agent') + '</strong></span>' +
-                    (p.agentEmail ? ('<span>Agent email <strong>' + esc(p.agentEmail) + '</strong></span>') : '') +
-                    (p.agentArchetype ? ('<span>Agent archetype <strong>' + esc(p.agentArchetype) + '</strong></span>') : '') +
-                    '<span>Matched <strong>' + fmtPairedDate(p.matchedAt) + '</strong></span>' +
-                '</div>';
-            elPairedList.appendChild(card);
+            '</div>' +
+            '<div class="lead-meta">' +
+                '<span>Transaction <strong>' + esc(transactionText(p.transactionIntentLabel ? { transaction_intent_label: p.transactionIntentLabel } : { transaction_intent: p.transactionIntent })) + '</strong></span>' +
+                pairedMarketHtml(p) +
+                '<span>Paired agent <strong>' + esc(p.agentName || 'Unknown agent') + '</strong></span>' +
+                (p.agentEmail ? ('<span>Agent email <strong>' + esc(p.agentEmail) + '</strong></span>') : '') +
+                (p.agentArchetype ? ('<span>Agent archetype <strong>' + esc(p.agentArchetype) + '</strong></span>') : '') +
+                '<span>Matched <strong>' + fmtPairedDate(p.matchedAt) + '</strong></span>' +
+            '</div>';
+    }
+
+    // Active (non-closed) pairings render in Paired Clients; Closed pairings move
+    // to the Closed tab. Both keep the editable status control so a reviewer can
+    // move a client back and forth.
+    function renderPaired() {
+        var active = [];
+        var closed = [];
+        pairedClients.forEach(function (p) {
+            if (normalizeStatus(p.pipelineStatus) === 'closed') closed.push(p); else active.push(p);
         });
+
+        if (elPairedList) {
+            if (!active.length) {
+                elPairedList.innerHTML = '<div class="leads-empty">No pairings yet.</div>';
+            } else {
+                elPairedList.innerHTML = '';
+                active.forEach(function (p) {
+                    var card = document.createElement('div');
+                    card.className = 'lead-card';
+                    card.innerHTML = pairedCardHtml(p);
+                    elPairedList.appendChild(card);
+                });
+            }
+        }
+
+        if (elClosedList) {
+            if (!closed.length) {
+                elClosedList.innerHTML = '<div class="leads-empty">No closed clients yet.</div>';
+            } else {
+                elClosedList.innerHTML = '';
+                closed.forEach(function (p) {
+                    var card = document.createElement('div');
+                    card.className = 'lead-card';
+                    card.innerHTML = pairedCardHtml(p);
+                    elClosedList.appendChild(card);
+                });
+            }
+        }
+
+        setTabCount('paired', active.length);
+        setTabCount('closed', closed.length);
+        setTabCount('review', clients.length);
     }
 
     function selectActiveAgent(client) {

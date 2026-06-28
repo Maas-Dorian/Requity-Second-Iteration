@@ -251,6 +251,10 @@ export type AgentDashboard = {
     archetypeCompletedAt: string | null;
     /** City/market the agent works in, or null when not provided/migrated. */
     marketCity: string | null;
+    /** State of that market, or null when not provided/migrated. */
+    marketState: string | null;
+    /** Normalized "city, st" key, or null when not provided/migrated. */
+    locationNormalized: string | null;
     /** Branded public link slug, or null when not generated/migrated. */
     publicSlug: string | null;
   } | null;
@@ -386,6 +390,8 @@ export async function getAgentDashboard(
   // missing column surfaces as an error (not a throw), so we simply fall back to
   // null and the UI shows "Not specified".
   let marketCity: string | null = null;
+  let marketState: string | null = null;
+  let locationNormalized: string | null = null;
   if (agent) {
     const { data: marketRow } = await supabase
       .from("agents")
@@ -393,6 +399,15 @@ export async function getAgentDashboard(
       .eq("id", agentId)
       .maybeSingle();
     marketCity = (marketRow && (marketRow as { market_city?: string | null }).market_city) || null;
+    // Structured location columns may be absent on a not-yet-migrated DB; read
+    // them separately so a missing column never nulls out market_city above.
+    const { data: locRow } = await supabase
+      .from("agents")
+      .select("market_state, location_normalized")
+      .eq("id", agentId)
+      .maybeSingle();
+    marketState = (locRow && (locRow as { market_state?: string | null }).market_state) || null;
+    locationNormalized = (locRow && (locRow as { location_normalized?: string | null }).location_normalized) || null;
   }
 
   // Clients are an OPTIONAL/legacy enrichment source. On a drifted live DB that
@@ -554,6 +569,8 @@ export async function getAgentDashboard(
           archetype: agent.archetype ?? null,
           archetypeCompletedAt: agent.archetype_completed_at ?? null,
           marketCity,
+          marketState,
+          locationNormalized,
           publicSlug,
         }
       : null,

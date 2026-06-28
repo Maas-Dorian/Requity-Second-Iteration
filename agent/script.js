@@ -386,6 +386,8 @@ window.addEventListener('DOMContentLoaded', () => {
     };
     let current = 0;
     let marketCity = '';
+    let marketState = '';
+    let serviceRadiusMiles = 50;
     const answers = {};
     const questionCount = document.getElementById('agent-question-count');
     const questionText = document.getElementById('agent-question-text');
@@ -398,6 +400,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const errorCard = document.getElementById('agent-error-card');
     const marketCard = document.getElementById('agent-market-card');
     const marketInput = document.getElementById('agent-market-city');
+    const marketStateInput = document.getElementById('agent-market-state');
+    const serviceRadiusSelect = document.getElementById('agent-service-radius');
     const marketContinue = document.getElementById('agent-market-continue');
     const marketError = document.getElementById('agent-market-error');
     if (!questionCount || !questionText || !optionsWrap || !back || !next) return;
@@ -419,6 +423,13 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (marketError) marketError.style.display = 'block';
                 marketInput.focus();
                 return;
+            }
+            marketState = marketStateInput ? (marketStateInput.value || '').trim() : '';
+            if (serviceRadiusSelect) {
+                var rv = serviceRadiusSelect.value;
+                // "Statewide / flexible" is stored as a very large radius so the
+                // backend never caps the agent out of nearby markets.
+                serviceRadiusMiles = rv === 'statewide' ? 100000 : (parseInt(rv, 10) || 50);
             }
             if (marketError) marketError.style.display = 'none';
             startQuestions();
@@ -534,7 +545,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // resolved server-side from the session, we only send the answers.
     function submitAgentAssessment(result) {
         if (!window.RequityAPI) return Promise.reject(new Error('REQUITY is not configured.'));
-        return window.RequityAPI.submitAgentAssessment({ answers: answers, result: result, marketCity: marketCity });
+        return window.RequityAPI.submitAgentAssessment({ answers: answers, result: result, marketCity: marketCity, marketState: marketState, serviceRadiusMiles: serviceRadiusMiles });
     }
     const retryBtn = document.getElementById('agent-retry-btn');
     if (retryBtn) {

@@ -9,6 +9,7 @@ import {
 import { createNotification } from "./messages.js";
 import { sendAgentAssessmentCompletedEmail } from "./email.js";
 import { insertWithSchemaFallback, updateWithSchemaFallback } from "./supabaseWrite.js";
+import { resolveMarketLocation } from "./location.js";
 
 /**
  * Agent assessment lifecycle: score the 18-question agent survey into the five
@@ -122,6 +123,10 @@ export type SubmitAgentAssessmentParams = {
   answers: AgentAnswers;
   /** City/market the agent primarily works in (metadata, not scored). */
   marketCity?: string | null;
+  /** State of that market (metadata, not scored). */
+  marketState?: string | null;
+  /** How far the agent will work from that market (miles); 0/large = flexible. */
+  serviceRadiusMiles?: number | null;
   /** Optional existing agent id (e.g. logged-in agent retaking/updating). */
   agentId?: string | null;
   /** Optional profile id to attach the agent to an auth user. */
@@ -132,6 +137,8 @@ export type SubmitAgentAssessmentResult = AgentArchetypeResult & {
   agentId: string;
   assessmentId: string;
   marketCity: string;
+  marketState: string | null;
+  serviceRadiusMiles: number | null;
 };
 
 /** Score the agent survey and save the resulting archetype + dimensions to Supabase. */
@@ -141,6 +148,15 @@ export async function submitAgentAssessment(
   const result = calculateAgentArchetype(params.answers);
   const completedAt = new Date().toISOString();
   const marketCity = (params.marketCity ?? "").trim();
+  const marketStateRaw = (params.marketState ?? "").trim() || null;
+  const serviceRadiusMiles =
+    typeof params.serviceRadiusMiles === "number" && params.serviceRadiusMiles >= 0
+      ? params.serviceRadiusMiles
+      : null;
+
+  // Resolve structured location (state + coordinates) without ever blocking the
+  // submit: geocoding is cached and degrades to null coordinates / text match.
+  const location = await resolveMarketLocation(marketCity || null, marketStateRaw);
 
   // The full, authoritative dimensions live on the `assessments` row (result)
   // and in the agent's `assessment_summary` JSON. The five scalar dimension
@@ -155,6 +171,8 @@ export async function submitAgentAssessment(
     perceivedValue: result.perceivedValue,
     negotiationStyle: result.negotiationStyle,
     marketCity,
+    marketState: location.state,
+    serviceRadiusMiles,
   };
 
   const agentValues: Record<string, unknown> = {
@@ -165,6 +183,12 @@ export async function submitAgentAssessment(
     archetype_completed_at: completedAt,
     // City/market column (dropped by the resilient writer if absent live).
     market_city: marketCity || null,
+    // Structured location + service area (dropped by writer if absent live).
+    market_state: location.state ?? marketStateRaw,
+    service_radius_miles: serviceRadiusMiles,
+    latitude: location.latitude,
+    longitude: location.longitude,
+    location_normalized: location.normalized,
     // Optional/drift-prone scalar dimension columns (dropped if absent live).
     interaction_style: result.interactionStyle,
     focus: result.focus,
@@ -233,5 +257,60 @@ export async function submitAgentAssessment(
     );
   }
 
-  return { ...result, agentId: agentId!, assessmentId: assessment.id, marketCity };
+  return {
+    ...result,
+    agentId: agentId!,
+    assessmentId: assessment.id,
+    marketCity,
+    marketState: location.state ?? marketStateRaw,
+    serviceRadiusMiles,
+  };
+}
+
+/**
+ * Update only an agent's market profile (city/state/service radius). Used by the
+ * dashboard "Complete your market profile" card so agents who skip the
+ * assessment (e.g. @resolutions.realtor) can still provide a location for
+ * proximity-based matching. Geocoding is cached + never blocks the update.
+ */
+export async function updateAgentMarketProfile(params: {
+  agentId: string;
+  marketCity: string;
+  marketState?: string | null;
+  serviceRadiusMiles?: number | null;
+}): Promise<{
+  ok: true;
+  marketCity: string;
+  marketState: string | null;
+  serviceRadiusMiles: number | null;
+  locationNormalized: string | null;
+}> {
+  const marketCity = (params.marketCity ?? "").trim();
+  const marketStateRaw = (params.marketState ?? "").trim() || null;
+  const serviceRadiusMiles =
+    typeof params.serviceRadiusMiles === "number" && params.serviceRadiusMiles >= 0
+      ? params.serviceRadiusMiles
+      : null;
+  const location = await resolveMarketLocation(marketCity || null, marketStateRaw);
+
+  await updateWithSchemaFallback(
+    "agents",
+    {
+      market_city: marketCity || null,
+      market_state: location.state ?? marketStateRaw,
+      service_radius_miles: serviceRadiusMiles,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      location_normalized: location.normalized,
+    },
+    { column: "id", value: params.agentId }
+  );
+
+  return {
+    ok: true,
+    marketCity,
+    marketState: location.state ?? marketStateRaw,
+    serviceRadiusMiles,
+    locationNormalized: location.normalized,
+  };
 }

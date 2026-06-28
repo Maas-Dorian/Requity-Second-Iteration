@@ -17,6 +17,7 @@ import {
   isMissingTableError,
 } from "./supabaseWrite.js";
 import { logger } from "./logger.js";
+import { resolveMarketLocation } from "./location.js";
 
 /**
  * Thrown only when NO durable client-assessment storage exists on the live DB
@@ -474,6 +475,10 @@ export type SubmitClientAssessmentWithContactParams = {
   marketCity?: string | null;
   buyingMarketCity?: string | null;
   sellingMarketCity?: string | null;
+  /** Structured market state for proximity-based matching (metadata, not scored). */
+  marketState?: string | null;
+  buyingMarketState?: string | null;
+  sellingMarketState?: string | null;
 };
 
 export type SubmitClientAssessmentWithContactResult = SubmitClientAssessmentResult & {
@@ -566,6 +571,22 @@ export async function submitClientAssessmentWithContact(
   const marketCity =
     (params.marketCity ?? "").trim() ||
     deriveMarketCitySummary(transactionIntent, buyingMarketCity, sellingMarketCity);
+  const buyingMarketState = (params.buyingMarketState ?? "").trim() || null;
+  const sellingMarketState = (params.sellingMarketState ?? "").trim() || null;
+  const marketState = (params.marketState ?? "").trim() || null;
+
+  // Resolve structured location (state + coordinates) per market. Geocoding is
+  // cached + never throws, so a failure never blocks the assessment submit; we
+  // still save city/state text and fall back to text matching.
+  const buyingLoc = buyingMarketCity ? await resolveMarketLocation(buyingMarketCity, buyingMarketState) : null;
+  const sellingLoc = sellingMarketCity ? await resolveMarketLocation(sellingMarketCity, sellingMarketState) : null;
+  // Fallback/combined market for the legacy single-field surfaces.
+  const fallbackCity =
+    (params.marketCity ?? "").trim() || buyingMarketCity || sellingMarketCity || null;
+  const fallbackState = marketState || buyingMarketState || sellingMarketState;
+  const fallbackLoc = fallbackCity ? await resolveMarketLocation(fallbackCity, fallbackState) : null;
+  const locationNormalized =
+    fallbackLoc?.normalized ?? buyingLoc?.normalized ?? sellingLoc?.normalized ?? null;
 
   // ---- OPTIONAL: public.clients (legacy enrichment) ----------------------
   // The full archetype + dimensions live on the `assessments` row and the
@@ -595,6 +616,16 @@ export async function submitClientAssessmentWithContact(
         market_city: marketCity,
         buying_market_city: buyingMarketCity,
         selling_market_city: sellingMarketCity,
+        buying_market_state: buyingLoc?.state ?? buyingMarketState,
+        buying_latitude: buyingLoc?.latitude ?? null,
+        buying_longitude: buyingLoc?.longitude ?? null,
+        selling_market_state: sellingLoc?.state ?? sellingMarketState,
+        selling_latitude: sellingLoc?.latitude ?? null,
+        selling_longitude: sellingLoc?.longitude ?? null,
+        market_state: fallbackLoc?.state ?? fallbackState,
+        latitude: fallbackLoc?.latitude ?? null,
+        longitude: fallbackLoc?.longitude ?? null,
+        location_normalized: locationNormalized,
         status,
       },
       { required: ["full_name", "source"] }
@@ -632,6 +663,16 @@ export async function submitClientAssessmentWithContact(
     market_city: marketCity,
     buying_market_city: buyingMarketCity,
     selling_market_city: sellingMarketCity,
+    buying_market_state: buyingLoc?.state ?? buyingMarketState,
+    buying_latitude: buyingLoc?.latitude ?? null,
+    buying_longitude: buyingLoc?.longitude ?? null,
+    selling_market_state: sellingLoc?.state ?? sellingMarketState,
+    selling_latitude: sellingLoc?.latitude ?? null,
+    selling_longitude: sellingLoc?.longitude ?? null,
+    market_state: fallbackLoc?.state ?? fallbackState,
+    latitude: fallbackLoc?.latitude ?? null,
+    longitude: fallbackLoc?.longitude ?? null,
+    location_normalized: locationNormalized,
     status: "completed" as const,
     completed_at: completedAt,
   };
@@ -684,6 +725,16 @@ export async function submitClientAssessmentWithContact(
       marketCity,
       buyingMarketCity,
       sellingMarketCity,
+      marketState: fallbackLoc?.state ?? fallbackState,
+      latitude: fallbackLoc?.latitude ?? null,
+      longitude: fallbackLoc?.longitude ?? null,
+      buyingMarketState: buyingLoc?.state ?? buyingMarketState,
+      buyingLatitude: buyingLoc?.latitude ?? null,
+      buyingLongitude: buyingLoc?.longitude ?? null,
+      sellingMarketState: sellingLoc?.state ?? sellingMarketState,
+      sellingLatitude: sellingLoc?.latitude ?? null,
+      sellingLongitude: sellingLoc?.longitude ?? null,
+      locationNormalized,
     });
     if (!lead && !assessmentId) {
       const started = await upsertAssessmentLeadStart({
@@ -708,6 +759,16 @@ export async function submitClientAssessmentWithContact(
         marketCity,
         buyingMarketCity,
         sellingMarketCity,
+        marketState: fallbackLoc?.state ?? fallbackState,
+        latitude: fallbackLoc?.latitude ?? null,
+        longitude: fallbackLoc?.longitude ?? null,
+        buyingMarketState: buyingLoc?.state ?? buyingMarketState,
+        buyingLatitude: buyingLoc?.latitude ?? null,
+        buyingLongitude: buyingLoc?.longitude ?? null,
+        sellingMarketState: sellingLoc?.state ?? sellingMarketState,
+        sellingLatitude: sellingLoc?.latitude ?? null,
+        sellingLongitude: sellingLoc?.longitude ?? null,
+        locationNormalized,
       });
     }
     leadSaved = !!lead;

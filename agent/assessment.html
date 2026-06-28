@@ -80,8 +80,22 @@
                     </div>
                     <div class="contact-field" style="margin-top:8px;">
                         <span>City or market *</span>
-                        <input type="text" id="agent-market-city" maxlength="120" placeholder="Example: Miami, FL" autocomplete="address-level2" />
+                        <input type="text" id="agent-market-city" maxlength="120" placeholder="Example: Miami" autocomplete="address-level2" />
                         <p id="agent-market-error" style="color:#B3261E;font-size:0.85rem;margin:0;display:none;">Please enter your city or market (at least 2 characters).</p>
+                    </div>
+                    <div class="contact-field" style="margin-top:12px;">
+                        <span>State</span>
+                        <input type="text" id="agent-market-state" maxlength="60" placeholder="Example: FL" autocomplete="address-level1" />
+                    </div>
+                    <div class="contact-field" style="margin-top:12px;">
+                        <span>How far are you willing to work from that market?</span>
+                        <select id="agent-service-radius">
+                            <option value="10">10 miles</option>
+                            <option value="25">25 miles</option>
+                            <option value="50" selected>50 miles</option>
+                            <option value="100">100 miles</option>
+                            <option value="statewide">Statewide / flexible</option>
+                        </select>
                     </div>
                     <div class="agent-assessment-actions">
                         <span></span>

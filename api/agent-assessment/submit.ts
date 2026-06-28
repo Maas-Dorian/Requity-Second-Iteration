@@ -55,6 +55,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       logValidationFailure(ROUTE, "invalid_market_city", { length: marketCity.length });
       throw new HttpError(400, "Please enter the city or market you work in (2 to 120 characters).");
     }
+    // Optional structured market state + service radius (metadata, not scored).
+    const marketState = (optionalString(body, "marketState") ?? "").trim() || null;
+    const radiusRaw = (body as Record<string, unknown>)["serviceRadiusMiles"];
+    const serviceRadiusMiles =
+      typeof radiusRaw === "number" && Number.isFinite(radiusRaw) && radiusRaw >= 0
+        ? Math.min(Math.round(radiusRaw), 100000)
+        : null;
 
     // --- Authenticated agent/admin: attach to their own agent row -----------
     const user = await getUserFromRequest(req);
@@ -71,6 +78,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           contact: { name: agent.display_name, email: agent.email, phone: agent.phone },
           answers,
           marketCity,
+          marketState,
+          serviceRadiusMiles,
           agentId: agent.id,
           profileId: profile.profileId,
         });
@@ -103,6 +112,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         contact,
         answers,
         marketCity,
+        marketState,
+        serviceRadiusMiles,
         agentId: optionalString(body, "agentId") ?? null,
         profileId: optionalString(body, "profileId") ?? null,
       });

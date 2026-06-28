@@ -585,3 +585,22 @@ img, svg, canvas, video { max-width: 100%; height: auto; }
   .question-title { font-size: 1.3rem; }
   .card { padding: 1.75rem 1.25rem; }
 }
+
+/* "Buying and selling in the same market" shortcut. */
+.checkbox-row { margin-top: 0.5rem; }
+.checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: #1E3F7A;
+  cursor: pointer;
+  line-height: 1.35;
+}
+.checkbox-inline input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: #FF7500;
+  cursor: pointer;
+}

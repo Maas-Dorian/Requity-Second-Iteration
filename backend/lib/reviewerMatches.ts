@@ -19,6 +19,16 @@ import {
   pipelineStatusLabel,
   type PipelineStatus,
 } from "./dashboard.js";
+import {
+  geocode,
+  scoreLocationFit,
+  combineMatchScore,
+  buildLocationMatchReason,
+  normalizeCityState,
+  normalizeState,
+  type LocationParty,
+  type LocationScoreResult,
+} from "./location.js";
 
 /**
  * Reviewer-facing pipeline status for a client/lead row. Never returns "hidden"
@@ -66,9 +76,140 @@ function toAgentProfile(row: any): AgentProfile {
   };
 }
 
-export type RankedAgent = MatchResult & { agentRow: any };
+export type RankedAgent = MatchResult & {
+  agentRow: any;
+  /** Location/proximity component (0-100). */
+  locationScore: number;
+  /** Distance in miles to the client market, when both have coordinates. */
+  distanceMiles: number | null;
+  /** Blended total (70% compatibility, 25% location, 5% availability). */
+  totalScore: number;
+  /** Reviewer-facing one-line explanation of the match. */
+  matchReason: string;
+  /** True when the client market is outside the agent's service radius. */
+  outsideRadius: boolean;
+};
 
-/** Rank all available agents for a reviewer-queue client by id. */
+// --- Location-aware ranking -------------------------------------------------
+
+/** Build a LocationParty from a row's coordinates, geocoding (cache) if absent. */
+async function marketParty(
+  city: string | null | undefined,
+  state: string | null | undefined,
+  lat: number | null | undefined,
+  lon: number | null | undefined,
+  memo: Map<string, LocationParty>
+): Promise<LocationParty | null> {
+  const normalized = normalizeCityState(city, state);
+  if (lat != null && lon != null) {
+    return { city: city ?? null, state: state ?? null, normalized, latitude: lat, longitude: lon };
+  }
+  if (!normalized) return null;
+  if (memo.has(normalized)) return memo.get(normalized)!;
+  const geo = await geocode(city, state);
+  const party: LocationParty = {
+    city: geo.city,
+    state: geo.state,
+    normalized: geo.normalized || normalized,
+    latitude: geo.latitude,
+    longitude: geo.longitude,
+  };
+  memo.set(normalized, party);
+  return party;
+}
+
+/** The client market(s) relevant to scoring, chosen by transaction intent. */
+async function clientMarketParties(row: any, memo: Map<string, LocationParty>): Promise<LocationParty[]> {
+  const intent = row.transaction_intent ?? null;
+  const out: LocationParty[] = [];
+  const buy = await marketParty(row.buying_market_city, row.buying_market_state, row.buying_latitude, row.buying_longitude, memo);
+  const sell = await marketParty(row.selling_market_city, row.selling_market_state, row.selling_latitude, row.selling_longitude, memo);
+  const fallback = await marketParty(row.market_city, row.market_state, row.latitude, row.longitude, memo);
+  if (intent === "buying" && buy) out.push(buy);
+  else if (intent === "selling" && sell) out.push(sell);
+  else if (intent === "both") {
+    if (buy) out.push(buy);
+    if (sell) out.push(sell);
+  } else if (fallback) out.push(fallback);
+  // Last-resort fallback so we never lose a client with only one market filled.
+  if (!out.length) {
+    for (const p of [buy, sell, fallback]) if (p) { out.push(p); break; }
+  }
+  return out;
+}
+
+/**
+ * Score a client's market(s) against an agent. For "Buying and Selling" we use
+ * the LOWER of the two location scores so a top match requires BOTH markets to
+ * be within reach (one side outside the radius lowers the overall fit).
+ */
+function clientAgentLocation(markets: LocationParty[], agent: LocationParty, radius: number | null): LocationScoreResult {
+  if (!markets.length) return scoreLocationFit({}, agent, radius);
+  let chosen = scoreLocationFit(markets[0], agent, radius);
+  for (let i = 1; i < markets.length; i++) {
+    const s = scoreLocationFit(markets[i], agent, radius);
+    if (s.score < chosen.score) chosen = s;
+  }
+  return chosen;
+}
+
+/**
+ * Location-aware ranking of agent rows for a client/lead row. Personality
+ * compatibility is computed first (never replaced); location + availability
+ * re-rank agents whose compatibility is similar. Sorted: inside-radius first,
+ * then blended total desc, then location score desc.
+ */
+export async function rankAgentsForClientLocationAware(
+  clientRow: any,
+  agentRows: any[]
+): Promise<RankedAgent[]> {
+  const client = toClientProfile(clientRow);
+  const personalityRanked = rankProfiles(client, (agentRows ?? []).map(toAgentProfile));
+  const memo = new Map<string, LocationParty>();
+  const markets = await clientMarketParties(clientRow, memo);
+
+  const enriched: RankedAgent[] = [];
+  for (const match of personalityRanked) {
+    const agentRow = (agentRows ?? []).find((a) => a.id === match.agent.id);
+    const radius =
+      agentRow && typeof agentRow.service_radius_miles === "number" ? agentRow.service_radius_miles : null;
+    const agentParty =
+      (await marketParty(
+        agentRow?.market_city,
+        agentRow?.market_state,
+        agentRow?.latitude,
+        agentRow?.longitude,
+        memo
+      )) ?? {};
+    const loc = clientAgentLocation(markets, agentParty, radius);
+    const totalScore = combineMatchScore(match.score, loc.score, 100);
+    const matchReason = buildLocationMatchReason(match.score, loc);
+    console.log("MATCH_LOCATION_SCORE_CALCULATED", {
+      hasClientMarket: markets.length > 0,
+      locationScore: loc.score,
+      distanceMiles: loc.distanceMiles,
+      outsideRadius: loc.outsideRadius,
+    });
+    enriched.push({
+      ...match,
+      agentRow,
+      locationScore: loc.score,
+      distanceMiles: loc.distanceMiles,
+      totalScore,
+      matchReason,
+      outsideRadius: loc.outsideRadius,
+    });
+  }
+
+  enriched.sort((a, b) => {
+    if (a.outsideRadius !== b.outsideRadius) return a.outsideRadius ? 1 : -1;
+    if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+    return b.locationScore - a.locationScore;
+  });
+  return enriched;
+}
+
+/** Rank all available agents for a reviewer-queue client by id (location-aware). */
 export async function rankAgentsForClient(clientId: string): Promise<RankedAgent[]> {
   const supabase = getSupabaseAdmin();
 
@@ -85,13 +226,7 @@ export async function rankAgentsForClient(clientId: string): Promise<RankedAgent
     .not("archetype", "is", null);
   if (agentError) throw new Error(`rankAgentsForClient agents failed: ${agentError.message}`);
 
-  const client = toClientProfile(clientRow);
-  const ranked = rankProfiles(client, (agentRows ?? []).map(toAgentProfile));
-
-  return ranked.map((match) => ({
-    ...match,
-    agentRow: (agentRows ?? []).find((a) => a.id === match.agent.id),
-  }));
+  return rankAgentsForClientLocationAware(clientRow, agentRows ?? []);
 }
 
 export type CreateReviewerClientMatchParams = {
@@ -222,7 +357,6 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
     .from("agents")
     .select("*")
     .not("archetype", "is", null);
-  const agentProfiles = (agentRows ?? []).map(toAgentProfile);
 
   const items: ReviewerQueueItem[] = [];
   for (const lead of leads as any[]) {
@@ -235,19 +369,18 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
     const archetype = isApprovedClientArchetype(lead.archetype) ? lead.archetype : scored.archetype;
     if (!isApprovedClientArchetype(archetype)) continue;
 
-    const profile: ClientProfile = {
-      id: lead.id,
-      name: lead.full_name,
+    // Merge the recomputed dimensions onto the raw lead row so the
+    // location-aware ranker can read both the scored dimensions and the lead's
+    // structured location columns (buying/selling state + coordinates).
+    const rankRow = {
+      ...lead,
       archetype,
-      orientation: scored.orientation as ClientProfile["orientation"],
-      style: scored.style as ClientProfile["style"],
-      stressResponse: scored.stressResponse as ClientProfile["stressResponse"],
+      orientation: scored.orientation,
+      style: scored.style,
+      stress_response: scored.stressResponse,
       source: "requity_reviewer",
     };
-    const ranked = rankProfiles(profile, agentProfiles).map((match) => ({
-      ...match,
-      agentRow: (agentRows ?? []).find((a) => a.id === match.agent.id),
-    }));
+    const ranked = await rankAgentsForClientLocationAware(rankRow, agentRows ?? []);
 
     const leadClient = attachClientReport({
       id: lead.id,
@@ -570,4 +703,389 @@ export async function approveReviewerMatch(
     (match as any).label ?? labelForScore((match as any).score ?? 0)
   );
   return { matchId, clientId: client.id, agentId: agent.id, notified, emailed };
+}
+
+// ============================================================================
+// Location grouping + reviewer search (Parts 8-10)
+// ============================================================================
+
+export type ReviewerMarket = {
+  city: string | null;
+  state: string | null;
+  normalized: string;
+  label: string;
+  clientCount: number;
+  agentCount: number;
+  unmatchedClientCount: number;
+  pairedCount: number;
+  closedCount: number;
+};
+
+export type ReviewerLocationClient = {
+  id: string | null;
+  rowKind: "client" | "lead";
+  name: string | null;
+  email: string | null;
+  archetype: string | null;
+  transactionIntent: string | null;
+  transactionIntentLabel: string | null;
+  market: string | null;
+  marketNormalized: string | null;
+  state: string | null;
+  status: PipelineStatus;
+  statusLabel: string;
+  assigned: boolean;
+  agentName: string | null;
+};
+
+export type ReviewerLocationAgent = {
+  id: string | null;
+  name: string | null;
+  email: string | null;
+  archetype: string | null;
+  market: string | null;
+  marketNormalized: string | null;
+  state: string | null;
+  serviceRadiusMiles: number | null;
+};
+
+export type ReviewerLocationsResult = {
+  markets: ReviewerMarket[];
+  clients: ReviewerLocationClient[];
+  agents: ReviewerLocationAgent[];
+  total: { marketCount: number; clientCount: number; agentCount: number };
+};
+
+export type ReviewerLocationFilters = {
+  q?: string | null;
+  city?: string | null;
+  state?: string | null;
+  status?: string | null;
+  transaction?: string | null;
+  limit?: number;
+  offset?: number;
+};
+
+function titleCase(value: string): string {
+  return value
+    .split(" ")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+/** "miami, fl" → "Miami, FL"; "miami" → "Miami". */
+function prettyMarketLabel(normalized: string): string {
+  const [city, state] = normalized.split(",").map((p) => p.trim());
+  const prettyCity = titleCase(city);
+  return state ? `${prettyCity}, ${state.toUpperCase()}` : prettyCity;
+}
+
+/** A client/lead row's primary market for grouping, chosen by intent. */
+function primaryClientMarket(row: any): { city: string | null; state: string | null; normalized: string | null } {
+  const pick = (city: any, state: any) => {
+    const normalized = normalizeCityState(city, state);
+    return normalized ? { city: cleanText(city), state: cleanText(state), normalized } : null;
+  };
+  const intent = row.transaction_intent ?? null;
+  const buy = pick(row.buying_market_city, row.buying_market_state);
+  const sell = pick(row.selling_market_city, row.selling_market_state);
+  const fallback = pick(row.market_city, row.market_state);
+  let chosen: { city: string | null; state: string | null; normalized: string } | null = null;
+  if (intent === "selling") chosen = sell ?? buy ?? fallback;
+  else if (intent === "buying" || intent === "both") chosen = buy ?? sell ?? fallback;
+  else chosen = fallback ?? buy ?? sell;
+  return chosen ?? { city: null, state: null, normalized: null };
+}
+
+function transactionLabel(row: any): string | null {
+  if (row.transaction_intent_label) return cleanText(row.transaction_intent_label);
+  const intent = row.transaction_intent;
+  if (intent === "buying") return "Buying";
+  if (intent === "selling") return "Selling";
+  if (intent === "both") return "Buying and Selling";
+  if (intent === "other") return cleanText(row.transaction_intent_other) ?? "Other";
+  return null;
+}
+
+/**
+ * Reviewer Locations view: group clients + agents by normalized market, with
+ * counts and (limited) flat lists. All filtering happens server-side; the
+ * browser only receives bounded result sets (default limit 50).
+ */
+export async function listReviewerLocations(
+  filters: ReviewerLocationFilters
+): Promise<ReviewerLocationsResult> {
+  const supabase = getSupabaseAdmin();
+  const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+  const offset = Math.max(filters.offset ?? 0, 0);
+  const q = (filters.q ?? "").trim().toLowerCase();
+  const cityFilter = (filters.city ?? "").trim().toLowerCase();
+  const stateFilter = (filters.state ?? "").trim();
+  const statusFilter = (filters.status ?? "").trim();
+  const transactionFilter = (filters.transaction ?? "").trim();
+  const stateAbbr = stateFilter ? (normalizeState(stateFilter) ?? stateFilter.toUpperCase()) : null;
+
+  // --- Load bounded source data ------------------------------------------
+  const clientRows: any[] = [];
+  try {
+    const { data } = await supabase
+      .from("clients")
+      .select("*, agents:assigned_agent_id(display_name)")
+      .order("created_at", { ascending: false })
+      .limit(1000);
+    for (const c of data ?? []) clientRows.push({ ...c, __rowKind: "client" });
+  } catch (error) {
+    console.error("[reviewerMatches] locations clients load failed:", error);
+  }
+
+  // Completed reviewer leads not represented as a client row (dedupe by email).
+  try {
+    const existingEmails = new Set(
+      clientRows.map((c) => (c.email ? String(c.email).toLowerCase() : null)).filter(Boolean) as string[]
+    );
+    const { data: leads } = await supabase
+      .from("assessment_leads")
+      .select("*")
+      .eq("source", "reviewer")
+      .eq("status", "completed")
+      .order("last_activity_at", { ascending: false })
+      .limit(500);
+    for (const l of leads ?? []) {
+      const email = l.email ? String(l.email).toLowerCase() : null;
+      if (email && existingEmails.has(email)) continue;
+      clientRows.push({ ...l, __rowKind: "lead" });
+    }
+  } catch (error) {
+    if (!isMissingTableErrorSafe(error)) console.error("[reviewerMatches] locations leads load failed:", error);
+  }
+
+  const agentRowsRaw: any[] = [];
+  try {
+    const { data } = await supabase
+      .from("agents")
+      .select("*")
+      .not("archetype", "is", null)
+      .limit(1000);
+    for (const a of data ?? []) agentRowsRaw.push(a);
+  } catch (error) {
+    console.error("[reviewerMatches] locations agents load failed:", error);
+  }
+
+  // --- Normalize + filter clients ----------------------------------------
+  const markets = new Map<string, ReviewerMarket & { _city: string | null; _state: string | null }>();
+  const clientResults: ReviewerLocationClient[] = [];
+
+  for (const row of clientRows) {
+    const market = primaryClientMarket(row);
+    const status = reviewerPipelineStatus(row);
+    const assigned = Boolean(row.assigned_agent_id) || row.status === "assigned";
+    const item: ReviewerLocationClient = {
+      id: row.id ?? null,
+      rowKind: row.__rowKind === "lead" ? "lead" : "client",
+      name: cleanText(row.full_name),
+      email: cleanText(row.email),
+      archetype: cleanText(row.archetype),
+      transactionIntent: cleanText(row.transaction_intent),
+      transactionIntentLabel: transactionLabel(row),
+      market: market.normalized ? prettyMarketLabel(market.normalized) : cleanText(row.market_city),
+      marketNormalized: market.normalized,
+      state: market.state ? market.state.toUpperCase() : null,
+      status,
+      statusLabel: pipelineStatusLabel(status),
+      assigned,
+      agentName: cleanText(row.agents?.display_name),
+    };
+
+    // Filters.
+    if (statusFilter && status !== statusFilter) continue;
+    if (transactionFilter && (row.transaction_intent ?? "") !== transactionFilter) continue;
+    if (stateAbbr && (item.state ?? "").toUpperCase() !== String(stateAbbr).toUpperCase()) continue;
+    if (cityFilter && !(item.marketNormalized ?? "").toLowerCase().includes(cityFilter)) continue;
+    if (q) {
+      const hay = `${item.name ?? ""} ${item.email ?? ""} ${item.market ?? ""}`.toLowerCase();
+      if (!hay.includes(q)) continue;
+    }
+
+    clientResults.push(item);
+
+    // Market aggregation (only when we have a normalized market).
+    if (market.normalized) {
+      const key = market.normalized;
+      const entry =
+        markets.get(key) ??
+        {
+          city: market.city,
+          state: market.state ? market.state.toUpperCase() : null,
+          normalized: key,
+          label: prettyMarketLabel(key),
+          clientCount: 0,
+          agentCount: 0,
+          unmatchedClientCount: 0,
+          pairedCount: 0,
+          closedCount: 0,
+          _city: market.city,
+          _state: market.state,
+        };
+      entry.clientCount += 1;
+      if (status === "closed") entry.closedCount += 1;
+      else if (assigned) entry.pairedCount += 1;
+      else entry.unmatchedClientCount += 1;
+      markets.set(key, entry);
+    }
+  }
+
+  // --- Normalize + filter agents -----------------------------------------
+  const agentResults: ReviewerLocationAgent[] = [];
+  for (const a of agentRowsRaw) {
+    const normalized = a.location_normalized ?? normalizeCityState(a.market_city, a.market_state);
+    const stateUpper = (a.market_state ? normalizeState(a.market_state) : normalized ? (normalized.split(",")[1] ?? "").trim().toUpperCase() : null) || null;
+    const item: ReviewerLocationAgent = {
+      id: a.id ?? null,
+      name: cleanText(a.display_name),
+      email: cleanText(a.email),
+      archetype: cleanText(a.archetype),
+      market: normalized ? prettyMarketLabel(normalized) : cleanText(a.market_city),
+      marketNormalized: normalized,
+      state: stateUpper,
+      serviceRadiusMiles: typeof a.service_radius_miles === "number" ? a.service_radius_miles : null,
+    };
+
+    if (stateAbbr && (item.state ?? "").toUpperCase() !== String(stateAbbr).toUpperCase()) continue;
+    if (cityFilter && !(item.marketNormalized ?? "").toLowerCase().includes(cityFilter)) continue;
+    if (q) {
+      const hay = `${item.name ?? ""} ${item.email ?? ""} ${item.market ?? ""}`.toLowerCase();
+      if (!hay.includes(q)) continue;
+    }
+
+    agentResults.push(item);
+    if (normalized && markets.has(normalized)) markets.get(normalized)!.agentCount += 1;
+    else if (normalized) {
+      markets.set(normalized, {
+        city: item.market,
+        state: item.state,
+        normalized,
+        label: prettyMarketLabel(normalized),
+        clientCount: 0,
+        agentCount: 1,
+        unmatchedClientCount: 0,
+        pairedCount: 0,
+        closedCount: 0,
+        _city: item.market,
+        _state: item.state,
+      });
+    }
+  }
+
+  // --- Order + page -------------------------------------------------------
+  const allMarkets = Array.from(markets.values())
+    .map(({ _city, _state, ...m }) => m)
+    .sort((a, b) => b.clientCount + b.agentCount - (a.clientCount + a.agentCount));
+
+  console.log("REVIEWER_LOCATION_QUERY", {
+    hasQuery: Boolean(q),
+    state: stateAbbr,
+    status: statusFilter || null,
+    transaction: transactionFilter || null,
+    marketCount: allMarkets.length,
+    clientCount: clientResults.length,
+    agentCount: agentResults.length,
+  });
+
+  return {
+    markets: allMarkets.slice(offset, offset + limit),
+    clients: clientResults.slice(offset, offset + limit),
+    agents: agentResults.slice(offset, offset + limit),
+    total: {
+      marketCount: allMarkets.length,
+      clientCount: clientResults.length,
+      agentCount: agentResults.length,
+    },
+  };
+}
+
+function isMissingTableErrorSafe(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /relation .* does not exist|could not find the table|schema cache/i.test(msg);
+}
+
+export type ReviewerMatchSuggestion = {
+  agentId: string | null;
+  agentName: string | null;
+  agentEmail: string | null;
+  agentArchetype: string | null;
+  marketCity: string | null;
+  marketState: string | null;
+  serviceRadiusMiles: number | null;
+  distanceMiles: number | null;
+  locationScore: number;
+  compatibilityScore: number;
+  totalScore: number;
+  label: string;
+  matchReason: string;
+  outsideRadius: boolean;
+};
+
+/**
+ * Top suggested agents for a queued client/lead, ordered by inside-radius, then
+ * blended total score, then location score. Used by the reviewer Locations tab
+ * and client detail.
+ */
+export async function getReviewerMatchSuggestions(params: {
+  clientId?: string | null;
+  leadId?: string | null;
+  limit?: number;
+}): Promise<{ ok: true; suggestions: ReviewerMatchSuggestion[] }> {
+  const supabase = getSupabaseAdmin();
+  const limit = Math.min(Math.max(params.limit ?? 8, 1), 20);
+
+  let rankRow: any = null;
+  if (params.clientId) {
+    const { data } = await supabase.from("clients").select("*").eq("id", params.clientId).maybeSingle();
+    rankRow = data ?? null;
+  }
+  if (!rankRow && params.leadId) {
+    const { data: lead } = await supabase
+      .from("assessment_leads")
+      .select("*")
+      .eq("id", params.leadId)
+      .maybeSingle();
+    if (lead) {
+      const scored = assignArchetype((lead.partial_answers as Record<string, string>) || {});
+      const archetype = isApprovedClientArchetype(lead.archetype) ? lead.archetype : scored.archetype;
+      rankRow = {
+        ...lead,
+        archetype,
+        orientation: scored.orientation,
+        style: scored.style,
+        stress_response: scored.stressResponse,
+        source: "requity_reviewer",
+      };
+    }
+  }
+  if (!rankRow) return { ok: true, suggestions: [] };
+
+  const { data: agentRows } = await supabase.from("agents").select("*").not("archetype", "is", null);
+  const ranked = await rankAgentsForClientLocationAware(rankRow, agentRows ?? []);
+
+  const suggestions: ReviewerMatchSuggestion[] = ranked.slice(0, limit).map((r) => {
+    const a = r.agentRow ?? {};
+    return {
+      agentId: a.id ?? r.agent.id ?? null,
+      agentName: cleanText(a.display_name) ?? r.agent.name ?? null,
+      agentEmail: cleanText(a.email),
+      agentArchetype: cleanText(a.archetype) ?? r.agent.archetype ?? null,
+      marketCity: cleanText(a.market_city),
+      marketState: cleanText(a.market_state),
+      serviceRadiusMiles: typeof a.service_radius_miles === "number" ? a.service_radius_miles : null,
+      distanceMiles: r.distanceMiles,
+      locationScore: r.locationScore,
+      compatibilityScore: r.score,
+      totalScore: r.totalScore,
+      label: r.label,
+      matchReason: r.matchReason,
+      outsideRadius: r.outsideRadius,
+    };
+  });
+
+  return { ok: true, suggestions };
 }

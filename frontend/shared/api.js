@@ -450,6 +450,15 @@
   }
 
   /**
+   * Save an agent's market profile (city/state/service radius) without the full
+   * archetype assessment. Used by the dashboard "Complete your market profile"
+   * card for assessment-exempt agents. payload: { marketCity, marketState?, serviceRadiusMiles? }
+   */
+  async function updateAgentMarketProfile(payload) {
+    return apiPost("/agent/market-profile", payload || {});
+  }
+
+  /**
    * Full dashboard payload for the authenticated agent. The API derives the
    * agent from the session, so agentId is OPTIONAL (admins may pass one to view
    * another agent). Throws on failure.
@@ -590,6 +599,44 @@
       upForReview: data.upForReview || queue,
       pairedClients: data.pairedClients || [],
     };
+  }
+
+  /**
+   * Reviewer: location grouping + search. All heavy filtering is server-side.
+   * filters: { q?, city?, state?, status?, transaction?, limit?, offset? }
+   * Returns { ok, markets, clients, agents, total }.
+   */
+  async function fetchReviewerLocations(filters) {
+    var f = filters || {};
+    var qs = [];
+    if (f.q) qs.push("q=" + encodeURIComponent(f.q));
+    if (f.city) qs.push("city=" + encodeURIComponent(f.city));
+    if (f.state) qs.push("state=" + encodeURIComponent(f.state));
+    if (f.status) qs.push("status=" + encodeURIComponent(f.status));
+    if (f.transaction) qs.push("transaction=" + encodeURIComponent(f.transaction));
+    if (f.limit) qs.push("limit=" + encodeURIComponent(f.limit));
+    if (f.offset) qs.push("offset=" + encodeURIComponent(f.offset));
+    var data = (await apiGet("/reviewer/locations" + (qs.length ? "?" + qs.join("&") : ""))) || {};
+    return {
+      markets: data.markets || [],
+      clients: data.clients || [],
+      agents: data.agents || [],
+      total: data.total || { marketCount: 0, clientCount: 0, agentCount: 0 },
+    };
+  }
+
+  /**
+   * Reviewer: top suggested agents for a queued client/lead (proximity-aware).
+   * params: { clientId?, leadId?, limit? }. Returns an array of suggestions.
+   */
+  async function fetchReviewerMatchSuggestions(params) {
+    var p = params || {};
+    var qs = [];
+    if (p.clientId) qs.push("clientId=" + encodeURIComponent(p.clientId));
+    if (p.leadId) qs.push("leadId=" + encodeURIComponent(p.leadId));
+    if (p.limit) qs.push("limit=" + encodeURIComponent(p.limit));
+    var data = (await apiGet("/reviewer/match-suggestions" + (qs.length ? "?" + qs.join("&") : ""))) || {};
+    return (data && data.suggestions) || [];
   }
 
   /**
@@ -1050,6 +1097,7 @@
     fetchAgentPublicLink: fetchAgentPublicLink,
     submitClientAssessment: submitClientAssessment,
     submitAgentAssessment: submitAgentAssessment,
+    updateAgentMarketProfile: updateAgentMarketProfile,
     __debug: reqDebug,
     fetchAgentDashboard: fetchAgentDashboard,
     updateClientStatus: updateClientStatus,
@@ -1066,6 +1114,8 @@
     fetchReviewerMatches: fetchReviewerMatches,
     fetchReviewerQueue: fetchReviewerQueue,
     fetchReviewerArchetypeReference: fetchReviewerArchetypeReference,
+    fetchReviewerLocations: fetchReviewerLocations,
+    fetchReviewerMatchSuggestions: fetchReviewerMatchSuggestions,
     approveReviewerMatch: approveReviewerMatch,
     updateReviewerClientStatus: updateReviewerClientStatus,
     copyAssessmentLink: copyAssessmentLink,

@@ -73,6 +73,34 @@ export const MATCH_WEIGHTS = {
   value: 0.1,
 } as const;
 
+/**
+ * Blended, location-aware match weighting. The personality/archetype
+ * compatibility score (calculateAgentClientMatch.score) is combined with a
+ * location/proximity score and an availability score:
+ *   total = round(compatibility*0.70 + location*0.25 + availability*0.05)
+ * Personality is never replaced; location and availability only re-rank agents
+ * whose compatibility is already similar. The proximity scoring + blend helpers
+ * live in backend/lib/location.ts (scoreLocationFit, combineMatchScore).
+ */
+export const BLENDED_MATCH_WEIGHTS = {
+  compatibility: 0.7,
+  location: 0.25,
+  availability: 0.05,
+} as const;
+
+/** Pure blend of compatibility + location + availability (0-100 inputs). */
+export function blendMatchScore(
+  compatibilityScore: number,
+  locationScore: number,
+  availabilityScore = 100
+): number {
+  return Math.round(
+    compatibilityScore * BLENDED_MATCH_WEIGHTS.compatibility +
+      locationScore * BLENDED_MATCH_WEIGHTS.location +
+      availabilityScore * BLENDED_MATCH_WEIGHTS.availability
+  );
+}
+
 export const clientArchetypeMap: Record<string, Omit<ClientProfile, "id" | "name" | "source">> = {
   "The Visionary": { archetype: "The Visionary", orientation: "Driver", style: "Design-Focused", stressResponse: "Freeze" },
   "The Trailblazer": { archetype: "The Trailblazer", orientation: "Driver", style: "Design-Focused", stressResponse: "Fight" },
