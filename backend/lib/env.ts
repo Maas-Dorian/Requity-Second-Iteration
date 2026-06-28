@@ -87,7 +87,7 @@ export function getRequiredEnvStatus(): {
  *
  * `canSendConfigured` is true when an API key is present AND a sender email is
  * resolvable. The sender email/name fall back to project-approved defaults
- * (REQUITY / hello@requityapp.com), so the only hard requirement for live
+ * (REQUITY / info@requityapp.com), so the only hard requirement for live
  * sending is the API key.
  */
 export function getEmailConfigStatus(): {
@@ -273,7 +273,8 @@ export const env = {
   },
   get brevoSenderEmail(): string {
     // Must be a sender verified in Brevo. Override via BREVO_SENDER_EMAIL.
-    return read("BREVO_SENDER_EMAIL") ?? "notifications@requityapp.com";
+    // Production sender is info@requityapp.com.
+    return read("BREVO_SENDER_EMAIL") ?? "info@requityapp.com";
   },
   get brevoSenderName(): string {
     return read("BREVO_SENDER_NAME") ?? "REQUITY";

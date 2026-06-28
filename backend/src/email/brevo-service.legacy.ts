@@ -63,13 +63,13 @@ class BrevoService {
   constructor() {
     this.apiKey = process.env.BREVO_API_KEY || '';
     this.listId = parseInt(process.env.BREVO_LIST_ID || '0');
-    this.senderEmail = process.env.BREVO_SENDER_EMAIL || 'hello@requityapp.com';
+    this.senderEmail = process.env.BREVO_SENDER_EMAIL || 'info@requityapp.com';
     
     if (!this.apiKey) {
       console.log('[BREVO] No API key found, running in test mode');
     } else {
       console.log('[BREVO] Service initialized with API key');
-      console.log('[BREVO] Sender email:', process.env.BREVO_SENDER_EMAIL || 'hello@requityapp.com');
+      console.log('[BREVO] Sender email:', process.env.BREVO_SENDER_EMAIL || 'info@requityapp.com');
       console.log('[BREVO] List ID:', this.listId);
     }
   }
@@ -151,7 +151,7 @@ class BrevoService {
       const emailData: any = {
         sender: {
           name: "REQUITY Team",
-          email: process.env.BREVO_SENDER_EMAIL || "hello@requityapp.com"
+          email: process.env.BREVO_SENDER_EMAIL || "info@requityapp.com"
         },
         to: [{ email }],
         subject: "Your REQUITY Ebook + Exclusive Resources Inside",
@@ -254,7 +254,7 @@ class BrevoService {
         body: JSON.stringify({
           sender: {
             name: "REQUITY Team",
-            email: process.env.BREVO_SENDER_EMAIL || "hello@requityapp.com"
+            email: process.env.BREVO_SENDER_EMAIL || "info@requityapp.com"
           },
           to: [{ email, name: userName || '' }],
           subject: "Reset Your REQUITY Password",
@@ -326,7 +326,7 @@ class BrevoService {
     }
 
     try {
-      const senderEmail = process.env.BREVO_SENDER_EMAIL || "hello@requityapp.com";
+      const senderEmail = process.env.BREVO_SENDER_EMAIL || "info@requityapp.com";
 
       const emailPayload = {
         sender: {
@@ -428,7 +428,7 @@ class BrevoService {
       const emailData = {
         sender: {
           name: "REQUITY Platform",
-          email: process.env.BREVO_SENDER_EMAIL || "hello@requityapp.com"
+          email: process.env.BREVO_SENDER_EMAIL || "info@requityapp.com"
         },
         to: [{ email: agentEmail, name: agentName }],
         subject: `Client Feedback Received: ${clientName} - ${stars}`,
@@ -560,7 +560,7 @@ class BrevoService {
       const emailData = {
         sender: {
           name: "REQUITY Platform",
-          email: process.env.BREVO_SENDER_EMAIL || "hello@requityapp.com"
+          email: process.env.BREVO_SENDER_EMAIL || "info@requityapp.com"
         },
         to: [{ email: agentEmail, name: agentName }],
         subject: `New Assessment Completed: ${clientName} - ${archetype}`,
@@ -1080,7 +1080,7 @@ class BrevoService {
     }
 
     try {
-      const senderEmail = process.env.BREVO_SENDER_EMAIL || "hello@requityapp.com";
+      const senderEmail = process.env.BREVO_SENDER_EMAIL || "info@requityapp.com";
 
       const emailPayload: any = {
         sender: {
@@ -1185,7 +1185,7 @@ class BrevoService {
     }
 
     try {
-      const senderEmail = process.env.BREVO_SENDER_EMAIL || "hello@requityapp.com";
+      const senderEmail = process.env.BREVO_SENDER_EMAIL || "info@requityapp.com";
       const dashboardUrl = `${process.env.VITE_PUBLIC_URL || 'https://requity.app'}/admin`;
 
       const emailPayload = {
@@ -1286,7 +1286,7 @@ class BrevoService {
       const emailData = {
         sender: {
           name: "REQUITY Platform",
-          email: process.env.BREVO_SENDER_EMAIL || "hello@requityapp.com"
+          email: process.env.BREVO_SENDER_EMAIL || "info@requityapp.com"
         },
         to: [{ email: agentEmail, name: agentName }],
         subject: `🎯 ${clientName} has started their REQUITY assessment`,
@@ -1604,7 +1604,7 @@ class BrevoService {
               <!-- Footer -->
               <div style="border-top: 1px solid #e0e0e0; margin-top: 35px; padding-top: 20px; text-align: center;">
                 <p style="color: #999; font-size: 14px; margin: 5px 0;">
-                  Need help? Contact support at support@requityapp.com
+                  Need help? Contact support at info@requityapp.com
                 </p>
                 <p style="color: #999; font-size: 12px; margin: 10px 0;">
                   © ${new Date().getFullYear()} REQUITY. All rights reserved.

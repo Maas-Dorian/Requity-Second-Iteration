@@ -8,7 +8,7 @@ const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
 export async function sendBrevoEmail(email: BrevoEmail): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const apiKey = process.env.BREVO_API_KEY;
-  const senderEmail = process.env.BREVO_SENDER_EMAIL || "hello@requityapp.com";
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || "info@requityapp.com";
   const senderName = process.env.BREVO_SENDER_NAME || "REQUITY";
 
   if (!apiKey) {
