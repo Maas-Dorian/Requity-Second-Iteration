@@ -8,6 +8,13 @@ import {
   HttpError,
 } from "../_lib/http.js";
 import { sendBrevoEmail } from "../../backend/lib/brevo.js";
+import {
+  EMAIL_SUBJECTS,
+  buildRequityEmailHtml,
+  buildPlainTextEmail,
+  agentDashboardUrl,
+  type EmailContentInput,
+} from "../../backend/lib/email.js";
 import { recordEmailEvent } from "../../backend/lib/emailEvents.js";
 import { requireReviewer } from "../../backend/lib/auth.js";
 import { getOptionalEnv } from "../../backend/lib/env.js";
@@ -15,10 +22,12 @@ import { logApiStart } from "../../backend/lib/logger.js";
 
 const ROUTE = "admin/test-email";
 
-const TEST_SUBJECT = "REQUITY Brevo test email";
-const TEST_TEXT =
-  "This is a REQUITY Brevo test email. If you received this, Brevo sending is working.";
-const TEST_HTML = `<p>${TEST_TEXT}</p>`;
+const TEST_CONTENT: EmailContentInput = {
+  title: "REQUITY Brevo test email",
+  intro: "This is a REQUITY Brevo test email. If you received this, Brevo sending is working.",
+  ctaLabel: "Open REQUITY",
+  ctaUrl: agentDashboardUrl(),
+};
 
 /**
  * POST /api/admin/test-email
@@ -50,9 +59,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const result = await sendBrevoEmail({
       to: [{ email: to }],
-      subject: TEST_SUBJECT,
-      htmlContent: TEST_HTML,
-      textContent: TEST_TEXT,
+      subject: EMAIL_SUBJECTS.testEmail,
+      htmlContent: buildRequityEmailHtml(TEST_CONTENT),
+      textContent: buildPlainTextEmail(TEST_CONTENT),
       tags: ["test_email"],
     });
 
@@ -68,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       payload: { httpStatus: result.httpStatus ?? null, errorCode: result.errorCode ?? null },
     });
 
-    // Safe response — booleans/codes only, never the API key, body, or sender
+    // Safe response, booleans/codes only, never the API key, body, or sender
     // secret. 200 when sent or in test mode (no key configured); 502 on a real
     // Brevo failure so callers see the honest outcome.
     sendJson(res, result.sent || result.testMode ? 200 : 502, {

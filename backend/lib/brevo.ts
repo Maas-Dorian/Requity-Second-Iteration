@@ -64,7 +64,7 @@ function brevoErrorCode(data: unknown): string {
 /**
  * Low-level Brevo transactional email sender.
  *
- * Never throws — always returns a structured {@link SendResult} so a failed
+ * Never throws, always returns a structured {@link SendResult} so a failed
  * email can never break assessment submission. When BREVO_API_KEY is missing it
  * runs in test mode (logs instead of sending) so local/previews keep working.
  *
@@ -76,7 +76,7 @@ export async function sendBrevoEmail(email: BrevoEmail): Promise<SendResult> {
   const senderEmail = env.brevoSenderEmail;
   const senderName = env.brevoSenderName;
 
-  // Safe config snapshot — booleans/lengths only, never the key/sender secret.
+  // Safe config snapshot, booleans/lengths only, never the key/sender secret.
   try {
     console.log(
       "EMAIL_CONFIG_CHECK",

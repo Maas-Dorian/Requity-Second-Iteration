@@ -20,7 +20,7 @@ const ROUTE = "client-assessment/create";
  * POST /api/client-assessment/create
  * Body: { source: "qr"|"agent_link"|"reviewer", agentId?, agentToken?, frontendUrl? }
  * Returns: { token, surveyUrl, source, agentId }
- * Public route — validated + rate limited.
+ * Public route, validated + rate limited.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {

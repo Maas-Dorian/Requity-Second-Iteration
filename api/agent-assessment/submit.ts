@@ -33,7 +33,7 @@ const ROUTE = "agent-assessment/submit";
  *
  * Primary path: an authenticated agent/admin. When an Authorization bearer token
  * is present, the result is attached to THAT user's own agent row (identity is
- * taken from the session — body-provided ids are ignored). No duplicate contact
+ * taken from the session, body-provided ids are ignored). No duplicate contact
  * info is collected; the agent profile is the source of truth.
  *
  * Anonymous fallback (kept for safety): validated + rate limited, requires
@@ -48,12 +48,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const body = getJsonBody(req);
     const answers = requireAnswers(body, "answers") as AgentAnswers;
 
-    // City/market the agent primarily works in. Required, trimmed, 2–120 chars.
+    // City/market the agent primarily works in. Required, trimmed, 2 to 120 chars.
     // This is metadata only and never affects archetype scoring.
     const marketCity = (optionalString(body, "marketCity") ?? "").trim();
     if (marketCity.length < 2 || marketCity.length > 120) {
       logValidationFailure(ROUTE, "invalid_market_city", { length: marketCity.length });
-      throw new HttpError(400, "Please enter the city or market you work in (2–120 characters).");
+      throw new HttpError(400, "Please enter the city or market you work in (2 to 120 characters).");
     }
 
     // --- Authenticated agent/admin: attach to their own agent row -----------

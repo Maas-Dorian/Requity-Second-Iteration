@@ -21,6 +21,16 @@ const rootDir = path.resolve(__dirname, "..");
 
 const configPath = path.join(rootDir, "frontend", "shared", "config.js");
 
+const PRODUCTION_SITE_URL = "https://www.requityapp.com";
+// A stale VERCEL_FRONTEND_URL pointing at the deleted preview deployment (or a
+// localhost value) must never be baked into the browser config, or share links
+// would point at a dead host. Such values are ignored in favor of production.
+const UNUSABLE_ORIGIN = /(requity-second-iteration\.vercel\.app|localhost|127\.0\.0\.1)/i;
+function normalizeSiteUrl(value) {
+  const v = (value || "").trim();
+  return (v && !UNUSABLE_ORIGIN.test(v) ? v : PRODUCTION_SITE_URL).replace(/\/$/, "");
+}
+
 // The Supabase URL and ANON key are PUBLIC, browser-safe values. Prefer the
 // NEXT_PUBLIC_* names, but fall back to the server names so a project that only
 // set SUPABASE_URL / SUPABASE_ANON_KEY still produces a working frontend config.
@@ -33,14 +43,15 @@ const config = {
     "https://mobyejpzfrjrryqatnbr.supabase.co",
   supabaseAnonKey:
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "",
-  frontendUrl: process.env.VERCEL_FRONTEND_URL || "https://www.requityapp.com",
+  frontendUrl: normalizeSiteUrl(process.env.VERCEL_FRONTEND_URL),
   // Public, branded origin for clean agent slug links (e.g. www.requityapp.com).
-  // Falls back to PUBLIC_SITE_URL -> VERCEL_FRONTEND_URL -> the production domain.
-  publicSiteUrl:
+  // Prefers PUBLIC_SITE_URL -> NEXT_PUBLIC_SITE_URL -> VERCEL_FRONTEND_URL, and
+  // ignores the deleted preview deployment / localhost in favor of production.
+  publicSiteUrl: normalizeSiteUrl(
     process.env.PUBLIC_SITE_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.VERCEL_FRONTEND_URL ||
-    "https://www.requityapp.com",
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.VERCEL_FRONTEND_URL
+  ),
   // Whether Supabase Auth email confirmation is expected to be ON. Public,
   // non-secret hint used ONLY to shape the signup UX (it does not change auth).
   // Default false (testing-friendly): signup is expected to return a session.

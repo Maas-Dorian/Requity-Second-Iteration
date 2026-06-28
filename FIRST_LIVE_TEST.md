@@ -1,4 +1,4 @@
-# REQUITY — First Live Test (click-by-click)
+# REQUITY, First Live Test (click-by-click)
 
 A manual end-to-end smoke test to run once after your first real deployment.
 Assumes you've completed `SETUP_SUPABASE_VERCEL.md` (Supabase schema applied,
@@ -47,12 +47,12 @@ Replace `YOUR-APP` with your Vercel host (e.g. `requity.vercel.app`) throughout.
       (+ optional phone) → submit.
 - [ ] You are routed to `agent/assessment.html` (not the dashboard) because the
       archetype is not complete yet. (If email confirmation is ON, confirm via
-      email first, then sign in — you'll land on the assessment.)
+      email first, then sign in, you'll land on the assessment.)
 - [ ] In Supabase → Table editor → `profiles`: a row exists with `role = agent`.
       In `agents`: a matching row exists with a `public_assessment_token`.
 
 ## 4. Complete the agent assessment
-- [ ] The assessment starts **directly with the questions** — it does NOT ask for
+- [ ] The assessment starts **directly with the questions**, it does NOT ask for
       your name, email, date of birth, or phone again (no duplicate contact step).
       Unauthenticated visitors who open `agent/assessment.html` are redirected to
       `agent/login.html`.
@@ -69,14 +69,14 @@ Replace `YOUR-APP` with your Vercel host (e.g. `requity.vercel.app`) throughout.
       served by `GET /api/agent/qr`). **Download** saves `requity-assessment-qr.png`
       and **Copy** copies the QR link. The QR encodes the `source=qr` link, so
       clients who scan it attach directly to you and never go to the reviewer queue.
-      (QR generation is Vercel-safe — `qrcode` only, no `canvas`/`sharp`.)
+      (QR generation is Vercel-safe, `qrcode` only, no `canvas`/`sharp`.)
 
 ## 6. Open the client link in incognito
 - [ ] Paste the agent link into a private window. The client assessment intro loads.
 
 ## 7. Enter contact info, then abandon
 - [ ] Enter name, email, phone and **start** the assessment.
-- [ ] Answer 1–2 questions, then **close the tab** (do not finish).
+- [ ] Answer 1 to 2 questions, then **close the tab** (do not finish).
 
 ## 8. Verify the incomplete lead appears
 - [ ] Sign in as a reviewer/admin (see step 11) and open `reviewer/index.html` →
@@ -92,7 +92,7 @@ Replace `YOUR-APP` with your Vercel host (e.g. `requity.vercel.app`) throughout.
 
 ## 10. Verify the client appears on the agent dashboard
 - [ ] Back in the agent dashboard → **Client Assessments**: the completed client
-      appears with their archetype. (QR/agent-link clients stay with the agent —
+      appears with their archetype. (QR/agent-link clients stay with the agent, 
       not routed to the reviewer queue.)
 - [ ] **Assessment activity chart** (dashboard overview) now reflects real data:
       the day you started the assessment shows a non-zero **started** bar, and the

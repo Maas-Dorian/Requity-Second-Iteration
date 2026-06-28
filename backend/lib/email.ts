@@ -1,11 +1,5 @@
 import { getOptionalEnv } from "./env.js";
 import { sendBrevoEmail, type SendResult } from "./brevo.js";
-import {
-  clientAssessmentCompleteEmail,
-  CLIENT_COMPLETE_SUBJECT,
-  clientMatchEmail,
-  CLIENT_MATCH_SUBJECT,
-} from "../emails/index.js";
 import { recordEmailEvent, emailEventAlreadySent } from "./emailEvents.js";
 
 /**
@@ -14,7 +8,7 @@ import { recordEmailEvent, emailEventAlreadySent } from "./emailEvents.js";
  * This module owns *what* to send and *to whom*, plus idempotency/dedupe and
  * audit recording. The actual Brevo transport lives in backend/lib/brevo.ts
  * (sendBrevoEmail) and is reused here. Nothing in this file is import-safe for
- * the browser — it reads server env and the Brevo API key.
+ * the browser, it reads server env and the Brevo API key.
  *
  * Guarantees:
  *   - Never throws to the caller; always returns a structured delivery result so
@@ -37,7 +31,7 @@ export type EmailDeliveryResult = {
   emailStatus: EmailDeliveryStatus;
   /** Recipient emails that were targeted (for logs; safe to surface internally). */
   recipients: string[];
-  /** Why the send was skipped/failed (safe text — never secrets). */
+  /** Why the send was skipped/failed (safe text, never secrets). */
   reason?: string;
 };
 
@@ -57,8 +51,12 @@ export function getPublicSiteUrl(): string {
     "NEXT_PUBLIC_FRONTEND_URL",
     "VITE_FRONTEND_URL"
   );
-  const base =
-    configured && !/localhost|127\.0\.0\.1/i.test(configured) ? configured : PRODUCTION_SITE_URL;
+  // Ignore localhost AND the deleted preview deployment so email CTA links never
+  // point at a dead host, even if a stale VERCEL_FRONTEND_URL is still set.
+  const usable =
+    configured &&
+    !/localhost|127\.0\.0\.1|requity-second-iteration\.vercel\.app/i.test(configured);
+  const base = usable ? configured : PRODUCTION_SITE_URL;
   return base.replace(/\/$/, "");
 }
 
@@ -109,7 +107,7 @@ function firstError(results: SendResult[]): string | null {
 
 /**
  * Safe structured email logging for Vercel. Never logs the Brevo API key,
- * sender values, or full HTML payloads — only event type, status, recipient
+ * sender values, or full HTML payloads, only event type, status, recipient
  * presence and short error text.
  */
 function logEmailEvent(
@@ -130,9 +128,106 @@ function safeErrorCode(message: string | null): string {
     const parsed = JSON.parse(message) as { code?: string };
     if (parsed && typeof parsed.code === "string") return parsed.code;
   } catch {
-    // not JSON — fall through to a generic code
+    // not JSON, fall through to a generic code
   }
   return "send_error";
+}
+
+/** REQUITY email subjects (no cross dashes). */
+export const EMAIL_SUBJECTS = {
+  assessmentCompleted: "New client assessment completed on REQUITY",
+  clientMatched: "New REQUITY match available",
+  agentAssessmentCompleted: "Your REQUITY agent archetype is ready",
+  testEmail: "REQUITY Brevo test email",
+} as const;
+
+/** Escape a dynamic value for safe inclusion in HTML email bodies. */
+export function escapeHtml(value: string | null | undefined): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export type EmailDetail = { label: string; value: string | null | undefined };
+
+export type EmailContentInput = {
+  title: string;
+  intro: string;
+  details?: EmailDetail[];
+  ctaLabel: string;
+  ctaUrl: string;
+};
+
+/** Keep only detail rows that have a non-empty value. */
+function usableDetails(details?: EmailDetail[]): { label: string; value: string }[] {
+  return (details ?? [])
+    .map((d) => ({ label: d.label, value: (d.value ?? "").toString().trim() }))
+    .filter((d) => d.value.length > 0);
+}
+
+/**
+ * Build a complete, self-contained HTML email (full document) so Brevo accepts
+ * and renders it. All dynamic values are HTML-escaped. Contains no cross dashes.
+ */
+export function buildRequityEmailHtml(input: EmailContentInput): string {
+  const rows = usableDetails(input.details);
+  const detailsHtml = rows.length
+    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 4px;border-collapse:collapse;">${rows
+        .map(
+          (d) =>
+            `<tr><td style="padding:6px 0;font-size:14px;color:#777;width:170px;vertical-align:top;">${escapeHtml(
+              d.label
+            )}</td><td style="padding:6px 0;font-size:15px;color:#1f1f1f;font-weight:600;">${escapeHtml(
+              d.value
+            )}</td></tr>`
+        )
+        .join("")}</table>`
+    : "";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(input.title)}</title>
+</head>
+<body style="margin:0;padding:0;background:#f7f4ef;font-family:Arial,Helvetica,sans-serif;color:#1f1f1f;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f4ef;padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:18px;padding:32px;border:1px solid #ece6dc;">
+          <tr>
+            <td>
+              <div style="font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:#9a5b2e;font-weight:700;">REQUITY</div>
+              <h1 style="margin:12px 0 12px;font-size:26px;line-height:1.25;color:#1f1f1f;">${escapeHtml(input.title)}</h1>
+              <p style="margin:0 0 22px;font-size:16px;line-height:1.6;color:#4a4a4a;">${escapeHtml(input.intro)}</p>
+              ${detailsHtml}
+              <a href="${escapeHtml(input.ctaUrl)}" style="display:inline-block;background:#b8652f;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:999px;margin-top:22px;">${escapeHtml(input.ctaLabel)}</a>
+              <p style="margin:22px 0 0;font-size:13px;line-height:1.5;color:#777;">If the button does not work, copy and paste this link into your browser:<br><span style="word-break:break-all;">${escapeHtml(input.ctaUrl)}</span></p>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0;font-size:12px;color:#9a9a9a;">REQUITY. Real estate agent and client relationship platform.</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/** Build a plain-text fallback from the same content (no cross dashes). */
+export function buildPlainTextEmail(input: EmailContentInput): string {
+  const rows = usableDetails(input.details);
+  const lines = ["REQUITY", "", input.title, "", input.intro];
+  if (rows.length) {
+    lines.push("");
+    for (const d of rows) lines.push(`${d.label}: ${d.value}`);
+  }
+  lines.push("", `${input.ctaLabel}: ${input.ctaUrl}`);
+  return lines.join("\n");
 }
 
 export type ClientCompletedEmailInput = {
@@ -195,19 +290,25 @@ export async function sendClientAssessmentCompletedEmail(
 
   const results: SendResult[] = [];
   for (const r of recipients) {
-    const html = clientAssessmentCompleteEmail({
-      clientName: input.clientName ?? null,
-      clientEmail: input.clientEmail ?? null,
-      assignedAgentName: input.assignedAgentName ?? null,
-      archetype: input.clientArchetype ?? null,
-      transaction: input.transactionIntentLabel ?? null,
-      market: input.marketCity ?? null,
-      dashboardUrl: dashboardUrlForRole(r.role),
-    });
+    const content: EmailContentInput = {
+      title: "New client assessment completed",
+      intro: `${input.clientName || "A client"} just completed their REQUITY assessment. Open your dashboard to view the full relational report.`,
+      details: [
+        { label: "Client", value: input.clientName },
+        { label: "Client email", value: input.clientEmail },
+        { label: "Archetype", value: input.clientArchetype },
+        { label: "Transaction", value: input.transactionIntentLabel },
+        { label: "Market", value: input.marketCity },
+        { label: "Assigned agent", value: input.assignedAgentName },
+      ],
+      ctaLabel: "View in REQUITY",
+      ctaUrl: dashboardUrlForRole(r.role),
+    };
     const send = await sendBrevoEmail({
       to: [{ email: r.email, name: r.name ?? undefined }],
-      subject: CLIENT_COMPLETE_SUBJECT,
-      htmlContent: html,
+      subject: EMAIL_SUBJECTS.assessmentCompleted,
+      htmlContent: buildRequityEmailHtml(content),
+      textContent: buildPlainTextEmail(content),
       tags: ["assessment_completed"],
     });
     results.push(send);
@@ -308,19 +409,27 @@ export async function sendClientMatchedEmail(
 
   const results: SendResult[] = [];
   for (const r of recipients) {
-    const html = clientMatchEmail({
-      clientName: input.clientName ?? null,
-      clientArchetype: input.clientArchetype ?? null,
-      agentName: input.agentName ?? null,
-      matchLabel: input.matchLabel ?? null,
-      transaction: input.transactionIntentLabel ?? null,
-      market: input.marketCity ?? null,
-      dashboardUrl: dashboardUrlForRole(r.role),
-    });
+    const content: EmailContentInput = {
+      title: "A new REQUITY match is ready",
+      intro: `${
+        input.clientName || "A client"
+      } has been matched and is ready for your review. Open your dashboard to see the match details.`,
+      details: [
+        { label: "Client", value: input.clientName },
+        { label: "Client archetype", value: input.clientArchetype },
+        { label: "Agent", value: input.agentName },
+        { label: "Match", value: input.matchLabel },
+        { label: "Transaction", value: input.transactionIntentLabel },
+        { label: "Market", value: input.marketCity },
+      ],
+      ctaLabel: "View match in REQUITY",
+      ctaUrl: dashboardUrlForRole(r.role),
+    };
     const send = await sendBrevoEmail({
       to: [{ email: r.email, name: r.name ?? undefined }],
-      subject: CLIENT_MATCH_SUBJECT,
-      htmlContent: html,
+      subject: EMAIL_SUBJECTS.clientMatched,
+      htmlContent: buildRequityEmailHtml(content),
+      textContent: buildPlainTextEmail(content),
       tags: ["client_matched"],
     });
     results.push(send);
@@ -360,4 +469,108 @@ export async function sendClientMatchedEmail(
     emailStatus: status,
     recipients: recipients.map((r) => r.email),
   };
+}
+
+export type AgentAssessmentCompletedEmailInput = {
+  /** Idempotency key, e.g. `agent_assessment_completed:<agentId>`. */
+  eventKey?: string | null;
+  agentEmail?: string | null;
+  agentName?: string | null;
+  archetype?: string | null;
+  marketCity?: string | null;
+};
+
+/**
+ * Email an agent that their archetype assessment is complete, with a CTA to the
+ * dashboard. Sends a full HTML email plus a plain-text fallback. Never throws,
+ * dedupes by eventKey, and records the attempt in email_events.
+ */
+export async function sendAgentAssessmentCompletedEmail(
+  input: AgentAssessmentCompletedEmailInput
+): Promise<EmailDeliveryResult> {
+  const email = (input.agentEmail ?? "").trim();
+  logEmailEvent("EMAIL_SEND_ATTEMPT", {
+    eventType: "agent_assessment_completed",
+    recipientFound: email.length > 0,
+  });
+
+  if (!email) {
+    await recordEmailEvent({
+      recipientEmail: "(none)",
+      templateKey: "agent_assessment_completed",
+      eventType: "agent_assessment_completed",
+      status: "skipped",
+      errorMessage: "No recipient found",
+      eventKey: null,
+      payload: { reason: "No recipient found", agentName: input.agentName ?? null },
+    });
+    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "agent_assessment_completed", status: "skipped" });
+    return { emailed: false, emailStatus: "skipped", recipients: [], reason: "No recipient found" };
+  }
+
+  if (input.eventKey && (await emailEventAlreadySent(input.eventKey))) {
+    await recordEmailEvent({
+      recipientEmail: email,
+      templateKey: "agent_assessment_completed",
+      eventType: "agent_assessment_completed",
+      status: "deduped",
+      eventKey: null,
+      payload: { reason: "Already sent (duplicate event)" },
+    });
+    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "agent_assessment_completed", status: "deduped" });
+    return {
+      emailed: false,
+      emailStatus: "skipped",
+      recipients: [email],
+      reason: "Already sent (duplicate event)",
+    };
+  }
+
+  const content: EmailContentInput = {
+    title: "Your REQUITY agent archetype is ready",
+    intro: `Your assessment is complete. ${
+      input.archetype
+        ? `Your agent archetype is ${input.archetype}.`
+        : "Your agent archetype has been saved."
+    } REQUITY uses this when reviewing future client matches.`,
+    details: [
+      { label: "Agent", value: input.agentName },
+      { label: "Archetype", value: input.archetype },
+      { label: "Market", value: input.marketCity },
+    ],
+    ctaLabel: "View in REQUITY",
+    ctaUrl: agentDashboardUrl(),
+  };
+
+  const send = await sendBrevoEmail({
+    to: [{ email, name: input.agentName ?? undefined }],
+    subject: EMAIL_SUBJECTS.agentAssessmentCompleted,
+    htmlContent: buildRequityEmailHtml(content),
+    textContent: buildPlainTextEmail(content),
+    tags: ["agent_assessment_completed"],
+  });
+
+  const status = aggregateStatus([send]);
+  await recordEmailEvent({
+    recipientEmail: email,
+    templateKey: "agent_assessment_completed",
+    eventType: "agent_assessment_completed",
+    status,
+    eventKey: status === "sent" ? input.eventKey ?? null : null,
+    brevoMessageId: firstMessageId([send]),
+    errorMessage: status === "failed" ? firstError([send]) : null,
+    payload: { agentName: input.agentName ?? null, archetype: input.archetype ?? null },
+  });
+
+  logEmailEvent("EMAIL_SEND_RESULT", { eventType: "agent_assessment_completed", status });
+  if (status === "failed") {
+    const message = firstError([send]);
+    logEmailEvent("EMAIL_SEND_FAILED", {
+      eventType: "agent_assessment_completed",
+      code: safeErrorCode(message),
+      message: message ?? "send failed",
+    });
+  }
+
+  return { emailed: status === "sent", emailStatus: status, recipients: [email] };
 }

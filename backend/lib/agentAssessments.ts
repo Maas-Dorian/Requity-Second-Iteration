@@ -7,6 +7,7 @@ import {
   type NegotiationStyle,
 } from "./matching.js";
 import { createNotification } from "./messages.js";
+import { sendAgentAssessmentCompletedEmail } from "./email.js";
 import { insertWithSchemaFallback, updateWithSchemaFallback } from "./supabaseWrite.js";
 
 /**
@@ -143,7 +144,7 @@ export async function submitAgentAssessment(
 
   // The full, authoritative dimensions live on the `assessments` row (result)
   // and in the agent's `assessment_summary` JSON. The five scalar dimension
-  // columns are written too, but ONLY persist where the live schema has them —
+  // columns are written too, but ONLY persist where the live schema has them, 
   // the resilient writer silently drops any column the live DB is missing
   // (e.g. a not-yet-migrated `focus`) instead of failing the whole submit.
   const summary = {
@@ -213,6 +214,23 @@ export async function submitAgentAssessment(
     });
   } catch (error) {
     console.error("[agentAssessments] notification failed:", error);
+  }
+
+  // Best-effort HTML email to the agent. A failed/missing email must never break
+  // the assessment submit, so this is fully guarded.
+  try {
+    await sendAgentAssessmentCompletedEmail({
+      eventKey: `agent_assessment_completed:${agentId}:${completedAt}`,
+      agentEmail: params.contact.email ?? null,
+      agentName: params.contact.name ?? null,
+      archetype: result.archetype,
+      marketCity: marketCity || null,
+    });
+  } catch (error) {
+    console.error(
+      "[agentAssessments] completion email failed:",
+      error instanceof Error ? error.message : error
+    );
   }
 
   return { ...result, agentId: agentId!, assessmentId: assessment.id, marketCity };

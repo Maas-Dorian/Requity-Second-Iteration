@@ -361,10 +361,10 @@ ${assessment.appreciationStyle ? `
 <p style="margin:0 0 8px 0;color:#333;font-size:14px;"><strong>This client most appreciates:</strong></p>
 <p style="margin:0;color:#333;font-size:14px;">${
   assessment.appreciationStyle === "words" ? "Uplifting Words - Recognition through sincere encouragement, positive feedback, or thoughtful praise. Clients feel seen when their achievements or progress are genuinely acknowledged." :
-  assessment.appreciationStyle === "acts" ? "Proactive Assistance - Appreciation shown by anticipating needs and stepping in to help—handling details, smoothing obstacles, or making the client's journey easier." :
+  assessment.appreciationStyle === "acts" ? "Proactive Assistance - Appreciation shown by anticipating needs and stepping in to help, handling details, smoothing obstacles, or making the client's journey easier." :
   assessment.appreciationStyle === "gifts" ? "Memorable Gestures - Recognition in the form of thoughtful tokens, surprises, or keepsakes. Small but meaningful acts demonstrate that clients are top-of-mind." :
-  assessment.appreciationStyle === "time" ? "Dedicated Attention - Feeling valued when an agent invests focused, quality time—actively listening, being present, and checking in thoughtfully." :
-  assessment.appreciationStyle === "gestures" ? "Personalized Celebrations - Recognition through unique, tailored touches—celebrating milestones and making moments feel special with creative, personal flair." :
+  assessment.appreciationStyle === "time" ? "Dedicated Attention - Feeling valued when an agent invests focused, quality time, actively listening, being present, and checking in thoughtfully." :
+  assessment.appreciationStyle === "gestures" ? "Personalized Celebrations - Recognition through unique, tailored touches, celebrating milestones and making moments feel special with creative, personal flair." :
   assessment.appreciationStyle
 }</p>
 </td>

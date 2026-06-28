@@ -13,14 +13,14 @@ import { getUserFromRequest } from "../../backend/lib/auth.js";
 import { createAgentProfileForUser, getProfileByUserId } from "../../backend/lib/users.js";
 import { ensureAgentSlug } from "../../backend/lib/agentSlug.js";
 import { buildAgentAssessmentLinks } from "../../backend/lib/dashboard.js";
-import { env } from "../../backend/lib/env.js";
+import { normalizePublicOrigin } from "../../backend/lib/env.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "auth/bootstrap-agent";
 
 /**
  * POST /api/auth/bootstrap-agent
- * Protected — requires Authorization: Bearer <access_token>.
+ * Protected, requires Authorization: Bearer <access_token>.
  * Creates/updates the caller's profile (role='agent') and agent row, then
  * returns the profile, agent, public token, and shareable links.
  */
@@ -64,7 +64,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         termsVersion,
       });
 
-      const base = (optionalString(body, "frontendUrl") ?? env.frontendUrl).replace(/\/$/, "");
+      // Always resolve to the live production origin (a stale frontendUrl or the
+      // deleted preview deployment is ignored) so dashboard/share links work.
+      const base = normalizePublicOrigin(optionalString(body, "frontendUrl"));
       const token = agent.public_assessment_token;
 
       // Generate (or reuse) the branded public slug from the agent's name.
@@ -74,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const publicSlug = await ensureAgentSlug(agent.id, agent.display_name);
       const links = buildAgentAssessmentLinks({ token, slug: publicSlug, frontendUrl });
 
-      // Safe server log (no tokens/keys/PII) — confirms the self-heal worked.
+      // Safe server log (no tokens/keys/PII), confirms the self-heal worked.
       console.log("AUTH_BOOTSTRAP_AGENT", {
         hasUser: true,
         profileUpserted: Boolean(profile && profile.id),

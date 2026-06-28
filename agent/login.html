@@ -231,7 +231,7 @@
 
       // Wait until the freshly stored session is actually readable (so the
       // dashboard's own auth gate recognizes it immediately) and then land the
-      // agent on the dashboard — never back on this login page.
+      // agent on the dashboard, never back on this login page.
       async function redirectAfterAuth(target) {
         var dest = target || "dashboard.html";
         // Wait (up to ~3s) for the freshly stored session + /auth/me to be
@@ -273,7 +273,7 @@
             try {
               await API.bootstrapAgentProfile(null);
               me = await API.getCurrentUser();
-            } catch (e) { /* ignore — handled below */ }
+            } catch (e) { /* ignore, handled below */ }
             hasAgentRow = me && me.agent && me.agent.id;
           }
           // An admin still without an agent row is reviewer-only in practice.
@@ -287,7 +287,7 @@
         }
         // Reviewer-only accounts get the reviewer portal panel.
         if (role === "reviewer") { showReviewerSwitch(); return true; }
-        // Unknown/pending role: don't guess — surface a clear message.
+        // Unknown/pending role: don't guess, surface a clear message.
         showMsg("We couldn't verify your account. Please try signing in again.", "error");
         return false;
       }
@@ -330,8 +330,8 @@
 
       signupForm.addEventListener("submit", async function (e) {
         e.preventDefault();
-        // Block duplicate submits (rapid clicks / Enter key) so signup — and any
-        // Supabase confirmation email — only ever fires once per attempt.
+        // Block duplicate submits (rapid clicks / Enter key) so signup, and any
+        // Supabase confirmation email, only ever fires once per attempt.
         if (isSubmitting) { dbgAuth("auth:submit-blocked-duplicate", { mode: "signup" }); return; }
         clearMsg();
         // Terms of Service are mandatory for account creation. Block the request

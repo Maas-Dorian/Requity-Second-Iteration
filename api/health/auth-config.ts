@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from "../../backend/lib/supabaseAdmin.js";
 
 /**
  * GET /api/health/auth-config
- * Booleans only — safe to call from anywhere, never crashes, never returns a
+ * Booleans only, safe to call from anywhere, never crashes, never returns a
  * secret value. Reports which auth/integration env vars are present and whether
  * the server can reach Supabase with the service role key.
  */

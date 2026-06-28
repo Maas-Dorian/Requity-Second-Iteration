@@ -18,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       testMode: !configured,
       message: configured
         ? "Brevo API key is configured. Transactional email will be sent live."
-        : "No Brevo API key — email runs in test mode (logged, not sent).",
+        : "No Brevo API key, email runs in test mode (logged, not sent).",
       timestamp: new Date().toISOString(),
     });
   });

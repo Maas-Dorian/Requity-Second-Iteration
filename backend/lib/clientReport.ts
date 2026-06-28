@@ -26,7 +26,7 @@ export type ClientReportDetail = {
   archetypeDisplayName: string | null;
   /** One-line archetype summary, or null. */
   summary: string | null;
-  /** 1–4 bullets describing what this client is after (real data only). */
+  /** 1 to 4 bullets describing what this client is after (real data only). */
   whatThisClientIsAfter: string[];
   buyerProfile: ClientArchetypeProfile | null;
   sellerProfile: ClientArchetypeProfile | null;
@@ -114,7 +114,7 @@ export function buildClientReportDetail(input: BuildClientReportInput): ClientRe
 
 /**
  * Attach a `.report` detail object to a raw client/lead row (snake_case fields),
- * preserving all existing fields. Pure function — no DB access, no new columns
+ * preserving all existing fields. Pure function, no DB access, no new columns
  * required (missing optional fields simply become null).
  */
 export function attachClientReport<T extends Record<string, any>>(

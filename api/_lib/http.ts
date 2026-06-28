@@ -2,13 +2,13 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 /**
  * Minimal HTTP helpers for REQUITY Vercel functions.
- * Small functions only — intentionally no web framework.
+ * Small functions only, intentionally no web framework.
  */
 
 export class HttpError extends Error {
   /**
    * @param code   stable machine-readable error code (e.g. AGENT_ASSESSMENT_SUBMIT_FAILED)
-   * @param detail safe extra context (e.g. the Postgres error message) — never secrets
+   * @param detail safe extra context (e.g. the Postgres error message), never secrets
    * @param area   the failing area (e.g. "public.agents")
    */
   constructor(
@@ -47,7 +47,7 @@ export function asSubmitError(error: unknown, code: string, fallbackArea: string
         ? error.message
         : String(error);
   // App-level errors (e.g. storage-not-configured) carry their own stable code
-  // and a user-safe message — surface those instead of the generic ones.
+  // and a user-safe message, surface those instead of the generic ones.
   if (typeof anyErr?.appCode === "string") {
     const message = error instanceof Error ? error.message : "Submission failed.";
     return new HttpError(status, message, anyErr.appCode, detail, area);

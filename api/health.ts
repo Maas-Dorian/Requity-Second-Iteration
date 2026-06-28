@@ -5,7 +5,7 @@ import { getEnv } from "../backend/lib/env.js";
 /**
  * GET /api/health
  * Liveness + environment configuration snapshot. Returns ONLY presence booleans
- * — never any secret value. Safe to call publicly to verify a deployment.
+ *, never any secret value. Safe to call publicly to verify a deployment.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {

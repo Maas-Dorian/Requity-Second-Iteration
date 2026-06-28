@@ -3,7 +3,7 @@
  *
  * Copy this file to `config.js` in the same folder and fill in your values, OR
  * inject `window.REQUITY_CONFIG` at deploy time. Real Supabase credentials are
- * REQUIRED — the agent and reviewer dashboards need a real Supabase Auth session,
+ * REQUIRED, the agent and reviewer dashboards need a real Supabase Auth session,
  * and the assessment flows call the secure /api routes. There is no demo mode.
  *
  * Every value below is SAFE to expose in the browser:

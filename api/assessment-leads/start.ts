@@ -21,7 +21,7 @@ const ROUTE = "assessment-leads/start";
 
 /**
  * POST /api/assessment-leads/start
- * Public route — called when contact info is submitted and the assessment begins.
+ * Public route, called when contact info is submitted and the assessment begins.
  * Captures an incomplete lead so reviewers can follow up if it's never finished.
  *
  * Body: { source, fullName, email, phone?, agentId?, agentToken?, reviewerId?, contactConsent? }

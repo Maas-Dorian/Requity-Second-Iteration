@@ -395,9 +395,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!questionCount || !questionText || !optionsWrap || !back || !next) return;
 
     // The agent is already authenticated (enforced by the page auth gate) and we
-    // have their account details, so we start directly with the questions — no
+    // have their account details, so we start directly with the questions, no
     // duplicate name/email/phone/DOB collection. We first ask the required
-    // city/market question (metadata only — it never affects archetype scoring),
+    // city/market question (metadata only, it never affects archetype scoring),
     // then reveal the question card.
     function startQuestions() {
         if (marketCard) marketCard.hidden = true;
@@ -424,7 +424,7 @@ window.addEventListener('DOMContentLoaded', () => {
         marketInput.focus();
     } else {
         // Fallback: if the market card is missing for any reason, don't block the
-        // assessment — go straight to the questions as before.
+        // assessment, go straight to the questions as before.
         startQuestions();
     }
 
@@ -523,7 +523,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
     // Submit via the secure API. The agent is authenticated, so identity is
-    // resolved server-side from the session — we only send the answers.
+    // resolved server-side from the session, we only send the answers.
     function submitAgentAssessment(result) {
         if (!window.RequityAPI) return Promise.reject(new Error('REQUITY is not configured.'));
         return window.RequityAPI.submitAgentAssessment({ answers: answers, result: result, marketCity: marketCity });

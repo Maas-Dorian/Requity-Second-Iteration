@@ -73,7 +73,7 @@ async function seedUser(email: string): Promise<void> {
     user = { id: data.user.id, email: data.user.email ?? email };
     console.log(`[seed] created auth user ${email} (${user.id})`);
   } else {
-    console.log(`[seed] auth user ${email} already exists (${user.id}) — password unchanged`);
+    console.log(`[seed] auth user ${email} already exists (${user.id}), password unchanged`);
   }
 
   // Force admin role (create or update the profile). Never downgrades to agent.

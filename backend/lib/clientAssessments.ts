@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
-import { env } from "./env.js";
+import { env, isUsablePublicOrigin } from "./env.js";
 import {
   clientArchetypeMap,
   type ClientOrientation,
@@ -439,7 +439,11 @@ export async function createClientAssessmentLink(
     .single();
   if (error) throw new Error(`createClientAssessmentLink failed: ${error.message}`);
 
-  const base = (params.frontendUrl || env.frontendUrl).replace(/\/$/, "");
+  // Survey links must use the live production origin, never the deleted preview
+  // deployment or localhost (a stale frontendUrl/env value is ignored).
+  const base = (
+    isUsablePublicOrigin(params.frontendUrl) ? params.frontendUrl! : env.publicSiteUrl
+  ).replace(/\/$/, "");
   const surveyUrl = `${base}/client/assessment.html?token=${data.token}&source=${params.source}`;
 
   return { token: data.token, surveyUrl, source: params.source, dbSource, agentId };
@@ -458,12 +462,12 @@ export type SubmitClientAssessmentWithContactParams = {
   archetypeResult?: ClientArchetypeResult | null;
   /** Optional incomplete-lead id to convert to completed. */
   leadId?: string | null;
-  /** Transaction intent — stored separately so it never affects scoring. */
+  /** Transaction intent, stored separately so it never affects scoring. */
   transactionIntent?: "buying" | "selling" | "both" | "other" | null;
   transactionIntentLabel?: string | null;
   transactionIntentOther?: string | null;
   /**
-   * City/market the client wants to buy/sell in — metadata, not scored.
+   * City/market the client wants to buy/sell in, metadata, not scored.
    * marketCity is the combined summary; buyingMarketCity/sellingMarketCity hold
    * the individual values when buying and/or selling.
    */

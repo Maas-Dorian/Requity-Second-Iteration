@@ -61,7 +61,7 @@
     e.code = "RATE_LIMITED";
     e.rateLimited = true;
     e.status = 429;
-    // #region agent log — observed client-side (auth emails go browser→Supabase).
+    // #region agent log, observed client-side (auth emails go browser→Supabase).
     try { console.warn("AUTH_RATE_LIMIT_DETECTED", { flow: flow || "auth" }); } catch (x) {}
     // #endregion
     return e;
@@ -90,7 +90,7 @@
     } catch (e) { return false; }
   }
   // Safe auth debug. NEVER logs the access token, refresh token, password,
-  // service role key, or the full user object — only booleans/status/role.
+  // service role key, or the full user object, only booleans/status/role.
   function authDebug(label, data) {
     if (!authDebugEnabled()) return;
     try { console.debug("[auth] " + label, data || {}); } catch (e) { /* ignore */ }
@@ -183,7 +183,7 @@
   // Safe debug logger. Toggle with: localStorage.setItem('requity_debug','1').
   // Logs ONLY to the browser console (no network calls) and ONLY safe metadata:
   // current page, has-session/has-token booleans, API route, response status,
-  // role, has-agent-row, and payload SHAPE (counts/keys) — never tokens,
+  // role, has-agent-row, and payload SHAPE (counts/keys), never tokens,
   // passwords, refresh tokens, service role keys, Brevo keys, or raw PII.
   function reqDebugEnabled() {
     try { return global.localStorage.getItem("requity_debug") === "1"; }
@@ -369,7 +369,7 @@
 
   /**
    * Resolve a branded agent slug (or legacy token) to safe public agent info for
-   * attribution on the client assessment page. Never throws — returns
+   * attribution on the client assessment page. Never throws, returns
    * { ok:false } when the link is invalid/expired so the page can show a clean
    * message. ref: { slug?, token? }
    */
@@ -637,7 +637,7 @@
       }
     } else {
       // No session returned (Supabase "Confirm email" is ON, or signup did not
-      // mint a session). We NEVER resend or retry — the UI shows a clear message.
+      // mint a session). We NEVER resend or retry, the UI shows a clear message.
       result.needsEmailConfirmation = true;
       result.confirmationExpected = authEmailConfirmationExpected();
     }
@@ -663,7 +663,7 @@
     var data = {};
     try { data = await res.json(); } catch (e) { /* ignore */ }
     if (!res.ok) {
-      // Rate limit first — never let the UI hammer sign-in and make it worse.
+      // Rate limit first, never let the UI hammer sign-in and make it worse.
       if (isAuthRateLimit(res.status, data)) throw makeRateLimitError("signin");
       var raw = (data.msg || data.error_description || data.error || "").toString();
       var err;
@@ -800,7 +800,7 @@
         var me = await fetchMe();
         if (me && (me.role || me.profile || me.agent || me.user)) return me;
       } catch (e) {
-        // A definitive 401 means there is genuinely no session — stop early.
+        // A definitive 401 means there is genuinely no session, stop early.
         if (e && e.status === 401) return null;
         // Transient/server error: keep trying within the window.
       }

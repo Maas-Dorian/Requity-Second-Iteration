@@ -30,22 +30,22 @@ Final Match Score =
 - 10% perceived-value fit
 
 Best primary matches:
-The Creative Guide = The Visionary — 99%
-The Trendsetter = The Trailblazer — 99%
-The Stylist = The Dreamchaser — 94%
-The Cheerleader = The Inspirer — 95%
-The Analyst = The Strategist — 99%
-The Deal Maker = The Closer — 99%
-The Adapter = The Pathfinder — 94%
-The Agent Supporter = The Advocate — 93%
-The Refiner = The Curator — 97%
-The Catalyst = The Spark — 95%
-The Observer = The Explorer — 92%
-The Encourager = The Harmonizer — 97%
-The Coordinator = The Organizer — 97%
-The Agent Producer = The Producer — 95%
-The Adjuster = The Navigator — 96%
-The Collaborator = The Supporter — 97%
+The Creative Guide = The Visionary, 99%
+The Trendsetter = The Trailblazer, 99%
+The Stylist = The Dreamchaser, 94%
+The Cheerleader = The Inspirer, 95%
+The Analyst = The Strategist, 99%
+The Deal Maker = The Closer, 99%
+The Adapter = The Pathfinder, 94%
+The Agent Supporter = The Advocate, 93%
+The Refiner = The Curator, 97%
+The Catalyst = The Spark, 95%
+The Observer = The Explorer, 92%
+The Encourager = The Harmonizer, 97%
+The Coordinator = The Organizer, 97%
+The Agent Producer = The Producer, 95%
+The Adjuster = The Navigator, 96%
+The Collaborator = The Supporter, 97%
 
 Recommended next Cursor tasks:
 1. Convert static pages into a Vite or Next.js frontend.

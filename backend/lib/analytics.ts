@@ -7,10 +7,10 @@ import { isMissingTableError } from "./supabaseWrite.js";
  * Powers the "Assessment activity" chart with REAL last-N-days counts instead of
  * static placeholder values. The source of truth is `assessment_leads`, which is
  * created when a client starts an assessment (`started_at`) and flipped to
- * completed (`completed_at`) on submission — so it captures both started and
+ * completed (`completed_at`) on submission, so it captures both started and
  * completed activity for an agent's qr/agent-link clients.
  *
- * Performance: one small, bounded query per call — scoped to a single agent and
+ * Performance: one small, bounded query per call, scoped to a single agent and
  * the requested window (max 30 days), selecting only two timestamp columns. No
  * full-table scans, no per-row browser counting, no polling/subscriptions.
  */

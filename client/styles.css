@@ -710,7 +710,7 @@ img, svg, canvas, video { max-width: 100%; height: auto; }
   .footer-content, .footer-grid { grid-template-columns: 1fr !important; flex-direction: column; gap: 22px; }
 }
 
-/* Hero trust pills — tasteful, on-brand signals under the hero CTAs. */
+/* Hero trust pills, tasteful, on-brand signals under the hero CTAs. */
 .hero-trust-pills {
   display: flex;
   flex-wrap: wrap;

@@ -19,7 +19,7 @@ const ROUTE = "assessment-leads/progress";
 
 /**
  * POST /api/assessment-leads/progress
- * Public route — called (debounced) as the client answers questions.
+ * Public route, called (debounced) as the client answers questions.
  * Body: { leadId, answeredCount?, partialAnswers?, archetype? }
  * Returns a minimal status only (does not expose other lead data).
  */

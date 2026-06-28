@@ -58,7 +58,7 @@ const RECENT_LEAD_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h dedupe window.
 
 /**
  * Feature flag: create a reviewer-facing notification when a lead starts.
- * Disabled by default — enable only once follow-up timing is configured.
+ * Disabled by default, enable only once follow-up timing is configured.
  */
 const ENABLE_LEAD_START_NOTIFICATION = false;
 
@@ -104,7 +104,7 @@ export type UpsertAssessmentLeadStartInput = {
  * Dedupe order:
  *   1. by `client_assessment_id` when present;
  *   2. otherwise by email + source + agent/reviewer within the last 24h.
- * A completed lead is never reused/downgraded — a new lead is created instead.
+ * A completed lead is never reused/downgraded, a new lead is created instead.
  */
 export async function upsertAssessmentLeadStart(
   input: UpsertAssessmentLeadStartInput
@@ -363,7 +363,7 @@ async function resolveLeadForCompletion(
 
 // --- Classification helpers ----------------------------------------------
 
-/** A lead's assessment is finished (submitted) — it must never be treated as incomplete. */
+/** A lead's assessment is finished (submitted), it must never be treated as incomplete. */
 export function leadHasCompletedAssessment(lead: {
   status?: string | null;
   completed_at?: string | null;
@@ -514,7 +514,7 @@ export async function updateAssessmentLeadFollowUpStatus(
  * to avoid cascading into matching/assignment history.
  *
  * Throws when the id is missing/blank or the delete errors. When the id simply
- * does not exist we still resolve ok:true (idempotent — the goal is "it's gone").
+ * does not exist we still resolve ok:true (idempotent, the goal is "it's gone").
  */
 export async function deleteAssessmentLead(
   leadId: string
@@ -550,7 +550,7 @@ export type IncompleteFollowUpDraft = {
 };
 
 /**
- * Placeholder for a future abandoned-lead follow-up email. DISABLED by default —
+ * Placeholder for a future abandoned-lead follow-up email. DISABLED by default, 
  * returns a draft only and never sends. Do not enable until follow-up timing and
  * consent handling are explicitly configured.
  */

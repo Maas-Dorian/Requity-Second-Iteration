@@ -175,7 +175,7 @@ class BrevoService {
               
               <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <h3 style="color: #ff6a00; margin-top: 0;">📚 Your Ebook is Attached</h3>
-                <p style="margin-bottom: 10px; font-weight: bold;">"Why Most Agents Lose 70% of Their Leads—And How to Fix It Immediately" by Mike Gandolfo</p>
+                <p style="margin-bottom: 10px; font-weight: bold;">"Why Most Agents Lose 70% of Their Leads, And How to Fix It Immediately" by Mike Gandolfo</p>
                 <p style="margin-bottom: 0; color: #666; font-size: 14px;">📎 Check your email attachments to download the PDF</p>
               </div>
               

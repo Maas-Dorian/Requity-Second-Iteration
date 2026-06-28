@@ -12,7 +12,7 @@ export const agentSurveyQuestions: AgentSurveyQuestion[] = [
     question: "Your approach to client relationships is:",
     options: [
       { value: "A", text: "Leading with vision and decisive action" },
-      { value: "B", text: "Facilitating collaborative decision‑making" },
+      { value: "B", text: "Facilitating collaborative decision-making" },
       { value: "C", text: "Prioritizing emotional connection" },
       { value: "D", text: "Focusing on practical outcomes" }
     ]
@@ -29,7 +29,7 @@ export const agentSurveyQuestions: AgentSurveyQuestion[] = [
   {
     question: "Under negotiation pressure, you:",
     options: [
-      { value: "A", text: "Seek step‑by‑step guidance" },
+      { value: "A", text: "Seek step-by-step guidance" },
       { value: "B", text: "Push for immediate solutions" },
       { value: "C", text: "Withdraw to reassess" },
       { value: "D", text: "Prioritize harmony" }
@@ -40,15 +40,15 @@ export const agentSurveyQuestions: AgentSurveyQuestion[] = [
     options: [
       { value: "A", text: "A visionary who inspires action" },
       { value: "B", text: "A trusted advisor who listens" },
-      { value: "C", text: "A creative problem‑solver" },
-      { value: "D", text: "A results‑driven strategist" }
+      { value: "C", text: "A creative problem-solver" },
+      { value: "D", text: "A results-driven strategist" }
     ]
   },
   {
     question: "When a deal stalls, you first:",
     options: [
       { value: "A", text: "Analyze all options methodically" },
-      { value: "B", text: "Challenge objections head‑on" },
+      { value: "B", text: "Challenge objections head-on" },
       { value: "C", text: "Suggest pausing to rethink" },
       { value: "D", text: "Offer concessions to rebuild rapport" }
     ]
@@ -70,7 +70,7 @@ export const agentSurveyQuestions: AgentSurveyQuestion[] = [
     options: [
       { value: "A", text: "Turn complexity into opportunity" },
       { value: "B", text: "Make transactions exciting" },
-      { value: "C", text: "Exude confidence in high‑stakes deals" },
+      { value: "C", text: "Exude confidence in high-stakes deals" },
       { value: "D", text: "Deliver flawless execution" },
       { value: "E", text: "Build security" },
       { value: "F", text: "Reveal unexpected insights" },
@@ -97,8 +97,8 @@ export const agentSurveyQuestions: AgentSurveyQuestion[] = [
       { value: "B", text: "Brainstorm creative solutions" },
       { value: "C", text: "Yield to maintain trust" },
       { value: "D", text: "Table the discussion" },
-      { value: "E", text: "Propose middle‑ground offers" },
-      { value: "F", text: "Present data‑driven arguments" },
+      { value: "E", text: "Propose middle-ground offers" },
+      { value: "F", text: "Present data-driven arguments" },
       { value: "G", text: "Control the conversation" },
       { value: "H", text: "Share stories to build rapport" }
     ]
@@ -161,11 +161,11 @@ export const agentSurveyQuestions: AgentSurveyQuestion[] = [
     question: "Your negotiation strength is:",
     options: [
       { value: "A", text: "Applying pressure" },
-      { value: "B", text: "Finding win‑wins" },
+      { value: "B", text: "Finding win-wins" },
       { value: "C", text: "Making concessions" },
       { value: "D", text: "Information gathering" },
       { value: "E", text: "Quick compromises" },
-      { value: "F", text: "Fact‑based arguments" },
+      { value: "F", text: "Fact-based arguments" },
       { value: "G", text: "Decisive action" },
       { value: "H", text: "Emotional connection" }
     ]

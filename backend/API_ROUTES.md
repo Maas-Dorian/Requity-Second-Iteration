@@ -24,7 +24,7 @@ profile; in production a missing/invalid token is rejected.
 
 ### POST `/api/auth/bootstrap-agent` (protected)
 
-Creates/updates the caller's profile (`role='agent'`) and agent row. Idempotent —
+Creates/updates the caller's profile (`role='agent'`) and agent row. Idempotent, 
 safe to call after every sign-in. Never downgrades an existing reviewer/admin.
 
 - **Auth:** requires `Authorization: Bearer <access_token>` (401 otherwise).
@@ -127,9 +127,9 @@ If a client enters their contact info and starts the assessment but never
 finishes, REQUITY still captures their name/email/phone as a **lead** so
 reviewers can follow up. Flow:
 
-1. `POST /api/assessment-leads/start` — creates the lead when the assessment begins.
-2. `POST /api/assessment-leads/progress` — updates answered count / partial answers (debounced).
-3. Completion — `POST /api/client-assessment/submit` converts the same lead to
+1. `POST /api/assessment-leads/start`, creates the lead when the assessment begins.
+2. `POST /api/assessment-leads/progress`, updates answered count / partial answers (debounced).
+3. Completion, `POST /api/client-assessment/submit` converts the same lead to
    `completed` server-side (or call `POST /api/assessment-leads/complete` directly).
 4. Reviewers view leads at `GET /api/reviewer/assessment-leads` and update them at
    `POST /api/reviewer/assessment-leads/update`.
@@ -269,7 +269,7 @@ Aggregated agent dashboard payload.
 Lightweight per-day assessment analytics for the "Assessment activity" chart.
 Same data as `weeklyActivity` above, exposed standalone for explicit ranges. The
 dashboard itself reads `weeklyActivity` from `/api/dashboard/agent`, so it makes a
-single request — this route is for custom/standalone use.
+single request, this route is for custom/standalone use.
 
 - **Auth:** `requireAgent` (agent or admin). Normal agents only see their own
   analytics; admins may pass `?agentId=` to target a specific agent.
@@ -302,7 +302,7 @@ session (admins may target an agent via `?agentId=`).
 
 QR generation is **Vercel-safe**: it uses only the pure-JS `qrcode` package
 (PNG via `pngjs`). No `canvas`, no `sharp`, no Node native image dependencies.
-Only the public link is encoded — the Supabase service-role key is never exposed.
+Only the public link is encoded, the Supabase service-role key is never exposed.
 
 - **Query:** `format` (`dataUrl` default, or `png`), `agentId` (required for admins), `frontendUrl` (optional)
 - **Response (`format=dataUrl`)**
@@ -366,6 +366,6 @@ Approve a reviewer match and assign the client to the chosen agent.
 - **Response:** `{ "matchId": "uuid", "clientId": "uuid", "agentId": "uuid", "notified": true, "emailed": true }`
 - **Effect:** client assigned to agent (shown with the **REQUITY Client Match** badge), exact reviewer-match notification created.
 - **Tables touched:** `match_recommendations` (insert), `clients` (update assign), `agents` (read), `messages` (insert), `email_events` (insert)
-- **Notification created:** `reviewer_match_received` — body:
+- **Notification created:** `reviewer_match_received`, body:
   > You've received a client match from REQUITY! If you have any issues message requity@support.com. Thank you for working with us.
 - **Brevo email:** yes (reviewer match email; recorded in `email_events`)

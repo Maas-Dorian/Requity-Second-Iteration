@@ -1,4 +1,4 @@
-# REQUITY — End-to-End QA & Bug-Fix Report
+# REQUITY, End-to-End QA & Bug-Fix Report
 
 Date: 2026-06-16
 Scope: Full live-app audit after login (auth, agent assessment, dashboard, client
@@ -6,9 +6,9 @@ flow, reviewer portal, API routes, schema, ESM/Vercel runtime, error handling).
 
 ---
 
-## TL;DR — Root causes & fixes
+## TL;DR, Root causes & fixes
 
-1. **Agent assessment submit failure (the reported bug). — CONFIRMED root cause.**
+1. **Agent assessment submit failure (the reported bug)., CONFIRMED root cause.**
    **Database schema drift.** The live Supabase project was created from an older
    `schema.sql`, so: (a) the `agents` table was missing the dimension columns the
    submit writes (`interaction_style`, `focus`, `stress_response`,
@@ -19,7 +19,7 @@ flow, reviewer portal, API routes, schema, ESM/Vercel runtime, error handling).
    assessment page showed the real error card. The application code path is correct
    against the committed schema.
    **Fix:** consolidated one idempotent migration that adds every missing
-   column/table/enum value in place and re-asserts RLS —
+   column/table/enum value in place and re-asserts RLS, 
    `backend/supabase/migrations/0001_align_live_schema.sql`. (This supersedes and
    replaces the earlier ad-hoc `backend/supabase/migration_reconcile.sql`, which
    was removed.) Must be run once in Supabase (see "Remaining manual steps").
@@ -29,7 +29,7 @@ flow, reviewer portal, API routes, schema, ESM/Vercel runtime, error handling).
    link) but never redirected, which read as “didn’t redirect correctly.”
    **Fix:** after a confirmed save, `agent/script.js` now shows the archetype
    briefly and then redirects to `dashboard.html`. The manual link remains as a
-   fallback. No fake success — the redirect only fires after the API returns 200.
+   fallback. No fake success, the redirect only fires after the API returns 200.
 
 3. **Leftover debug harness calling a dead localhost endpoint.**
    The previous debugging session left `reqDebug()` POSTing every API call to
@@ -59,7 +59,7 @@ flow, reviewer portal, API routes, schema, ESM/Vercel runtime, error handling).
 
 ## Area-by-area audit
 
-### 1. Auth / session persistence — PASS (no code changes needed)
+### 1. Auth / session persistence, PASS (no code changes needed)
 - One session key (`requity_session`) used everywhere; `getAccessToken()` refreshes
   near expiry and only clears on a hard refresh failure (network errors keep the
   session). `requireAgentSession` / `requireReviewerSession` return
@@ -70,24 +70,24 @@ flow, reviewer portal, API routes, schema, ESM/Vercel runtime, error handling).
 - 401 → session cleared + redirect to login. 500/network → retry/error overlay
   shown, session preserved. Wrong role → reviewer switch panel / access-denied.
 
-### 2. Agent assessment flow — FIXED
+### 2. Agent assessment flow, FIXED
 - Frontend selectors/handlers verified (`#agent-options`, `#agent-next`, etc.).
 - Submit posts `{ answers, result }` with the bearer token; the server recomputes
   the archetype authoritatively and writes to the **authenticated** agent row
   (body-provided ids are ignored), sets `archetype_completed_at`, and inserts an
-  `assessments` row. No silent catches — failures show the real message.
+  `assessments` row. No silent catches, failures show the real message.
 - Added the dashboard redirect after success. `me.ts` exposes
   `archetypeCompletedAt`, so the dashboard recognizes completion.
 - **Requires the migration** if the live DB is missing the dimension columns.
 
-### 3. Agent dashboard — PASS
+### 3. Agent dashboard, PASS
 - Hard auth gate; redirects to `assessment.html` until the archetype is complete.
 - QR loads a real server-generated PNG; copy-link, copy-QR, and download-QR work
   with “not ready yet” guards. Lead counts, recent clients, weekly activity chart,
   and messages all render live data with clean empty/error states. Password reset
   uses the real Supabase recovery endpoint. Sign-out works.
 
-### 4. Client landing & client assessment — PASS (minor footer fix)
+### 4. Client landing & client assessment, PASS (minor footer fix)
 - Landing CTAs and the decorative preview all navigate to the real
   `assessment.html` (the “demo” animations are marketing visuals, not fake
   features). Footer links fixed.
@@ -97,13 +97,13 @@ flow, reviewer portal, API routes, schema, ESM/Vercel runtime, error handling).
   `reviewer` → reviewer queue) is correct. Refresh mid-assessment reuses a cached
   lead id within 24h.
 
-### 5. Reviewer portal — PASS
+### 5. Reviewer portal, PASS
 - `requireReviewerSession` gate: reviewers/admins allowed; agent-only accounts see
   “This account does not have reviewer access.” Queue, incomplete leads, approve,
   and status/notes updates all use live API calls with the bearer token. Empty and
   error states are clean (no sample data).
 
-### 6. API routes — PASS
+### 6. API routes, PASS
 - All routes import shared helpers via `.js` and wrap logic in `runHandler`
   (CORS + OPTIONS + uniform JSON errors) or an equivalent crash-proof try/catch
   (`auth/me`). Method handling, JSON body parsing, payload-size limits, and auth
@@ -111,32 +111,32 @@ flow, reviewer portal, API routes, schema, ESM/Vercel runtime, error handling).
   shapes match the frontend (`{ queue }`, `{ messages }`, `{ leads }`,
   `{ qrCodeDataUrl, … }`, dashboard payload, etc.).
 
-### 7. Supabase / database — MIGRATION ADDED
+### 7. Supabase / database, MIGRATION ADDED
 - Verified frontend/backend field names against `schema.sql` (snake_case in DB;
   `me.ts` exposes camelCase aliases like `displayName`/`archetypeCompletedAt`).
 - Added `0001_align_live_schema.sql` to repair drift safely (idempotent
   `ADD COLUMN IF NOT EXISTS`, `CREATE TABLE IF NOT EXISTS`, enum-value guards).
 
-### 8. Console & network errors — PASS
+### 8. Console & network errors, PASS
 - Removed the blocked localhost debug POST. API errors now surface the server’s
   real `error`/`code`. Static assets load via relative paths; `config.js` has an
   `onerror` guard. No JS exceptions or broken script paths found.
 
-### 9. ESM / Vercel runtime — PASS
+### 9. ESM / Vercel runtime, PASS
 - `"type": "module"`; every relative import in `api/**` and `backend/lib/**`
   uses `.js`. No CommonJS `require(` in shipped code. `scripts/generate-config.js`
   is ESM. `*.legacy.ts` (the only files with extensionless imports) are **excluded**
   by `tsconfig.json` and are not deployed as functions. `tsc --noEmit` is clean.
 
-### 10. Error handling — PASS
+### 10. Error handling, PASS
 - User-facing messages for save failure, expired session, dashboard load failure,
   reviewer access denied, and empty states. No blank pages, redirect loops, or
   fake success.
 
-### 11. Debug helpers — DONE
+### 11. Debug helpers, DONE
 - `localStorage.setItem('requity_debug','1')` enables safe console logging only.
 
-### 12 / 13. Verification — DONE (see below)
+### 12 / 13. Verification, DONE (see below)
 
 ---
 

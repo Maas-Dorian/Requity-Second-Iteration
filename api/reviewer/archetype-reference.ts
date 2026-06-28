@@ -10,7 +10,7 @@ const ROUTE = "reviewer/archetype-reference";
  * GET /api/reviewer/archetype-reference
  * Requires reviewer/admin auth. Returns the canonical approved archetype
  * reference (16 client + 16 agent) with summaries, key traits, and compatible
- * types. Pure canonical data — no Supabase reads, no client/agent records.
+ * types. Pure canonical data, no Supabase reads, no client/agent records.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {

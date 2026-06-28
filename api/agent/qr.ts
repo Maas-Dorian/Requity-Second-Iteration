@@ -19,7 +19,7 @@ const ROUTE = "agent/qr";
 /**
  * GET /api/agent/qr
  * Requires agent auth. Returns the signed-in agent's QR code for their public
- * assessment link (source `qr` — these clients attach directly to the agent and
+ * assessment link (source `qr`, these clients attach directly to the agent and
  * never enter the reviewer queue). Admins may target an agent via ?agentId=.
  *
  * Query:
@@ -33,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   await runHandler(req, res, async () => {
     ensureMethod(req, "GET");
 
-    // Identity comes from the authenticated session — NOT a required agentId
+    // Identity comes from the authenticated session, NOT a required agentId
     // query param. An admin may optionally pass ?agentId= to view another agent;
     // otherwise we use the caller's own agent row (agents AND admins can have one).
     const profile = await requireAgent(req);

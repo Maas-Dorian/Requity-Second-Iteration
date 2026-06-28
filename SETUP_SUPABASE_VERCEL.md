@@ -1,17 +1,17 @@
-# REQUITY — Supabase + Vercel Setup (beginner friendly)
+# REQUITY, Supabase + Vercel Setup (beginner friendly)
 
 This guide takes you from nothing to a live REQUITY deployment. No prior Supabase
 or Vercel experience required. Follow the steps in order.
 
 Related docs:
-- `DEPLOYMENT_CHECKLIST.md` — the verification checklist (use after this guide).
-- `FIRST_LIVE_TEST.md` — a click-by-click first end-to-end test.
-- `backend/SEED_REVIEWER_ADMIN.md` — how to make the first reviewer/admin.
-- `backend/SEED_INTERNAL_USERS.md` — seed the internal team (admins for both portals).
+- `DEPLOYMENT_CHECKLIST.md`, the verification checklist (use after this guide).
+- `FIRST_LIVE_TEST.md`, a click-by-click first end-to-end test.
+- `backend/SEED_REVIEWER_ADMIN.md`, how to make the first reviewer/admin.
+- `backend/SEED_INTERNAL_USERS.md`, seed the internal team (admins for both portals).
 
 ---
 
-## Part A — Create the Supabase project
+## Part A, Create the Supabase project
 
 ### 1. Create the project
 1. Go to https://supabase.com → sign in → **New project**.
@@ -48,19 +48,19 @@ Related docs:
 
 > The script is written for a **fresh** project and is safe to re-run on the same
 > project (it won't duplicate policies/triggers/indexes). If you ran an older
-> version before, re-running will NOT add new columns — start a fresh project or
+> version before, re-running will NOT add new columns, start a fresh project or
 > apply the missing columns manually. See the header comment in the SQL file.
 
 ---
 
-## Part B — Deploy to Vercel
+## Part B, Deploy to Vercel
 
 ### 5. Create the Vercel project
 1. Push this repo to GitHub (or GitLab/Bitbucket).
 2. Go to https://vercel.com → **Add New… → Project** → import your repo.
 3. Framework preset: **Other** (this is a static frontend + `/api` functions).
 4. Leave build settings as default. Click **Deploy** once to create the project
-   (it's fine if the first deploy has no env vars yet — you add them next).
+   (it's fine if the first deploy has no env vars yet, you add them next).
 
 ### 6. Add environment variables
 In Vercel → your project → **Settings → Environment Variables**, add the
@@ -74,7 +74,7 @@ following (see `.env.example` for the full list). Set them for **Production**
 | `SUPABASE_ANON_KEY` | your anon public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | your service_role secret key |
 | `VERCEL_FRONTEND_URL` | your deployed URL, e.g. `https://requity.vercel.app` |
-| `BREVO_API_KEY` | *(optional)* Brevo key — omit to run email in test mode |
+| `BREVO_API_KEY` | *(optional)* Brevo key, omit to run email in test mode |
 | `BREVO_SENDER_EMAIL` | *(optional)* a verified Brevo sender |
 | `BREVO_SENDER_NAME` | *(optional)* e.g. `REQUITY` |
 
@@ -120,7 +120,7 @@ Open these URLs (replace the host with your deployment):
 
 ---
 
-## Part C — First accounts and tests
+## Part C, First accounts and tests
 
 > **Portals:** agents use **`/agent/login.html`**, reviewers/admins use
 > **`/reviewer/login.html`**. Agent accounts cannot access the reviewer dashboard;
@@ -138,7 +138,7 @@ Open these URLs (replace the host with your deployment):
    "Start getting referrals now" links here).
 2. **Create account** with full name + email + password (phone optional).
 3. You're routed to `agent/assessment.html` to take the agent assessment (it
-   starts directly with the questions — no duplicate contact step). On completion
+   starts directly with the questions, no duplicate contact step). On completion
    you're routed to the agent dashboard. Behind the scenes this created a
    `profiles` row (`role=agent`) and an `agents` row, and saved your archetype.
 
@@ -159,21 +159,21 @@ The internal team (`rocco@`, `tussa@`, `mike@requityapp.com`) should be `admin`
 accounts with an `agents` row, so they can use **both** the agent dashboard and
 the reviewer portal. Run `npm run seed:internal-users` (with the service-role env
 vars set) or follow the SQL in `backend/SEED_INTERNAL_USERS.md`. Initial password
-`requityslaunch26` — change it after first login. The service role key stays
+`requityslaunch26`, change it after first login. The service role key stays
 server-side; these credentials are never hardcoded in the frontend.
 
 ### 12. Test the QR / agent-link client flow
 1. On the agent dashboard, copy the **client assessment link** (or QR link).
 2. Open it in a private window, complete the assessment.
 3. The client appears in the agent's **Client Assessments** (stays with the
-   agent — QR clients are not routed to the reviewer queue).
+   agent, QR clients are not routed to the reviewer queue).
 
 ### 13. Test the reviewer flow
 1. Sign in at `reviewer/login.html` (the reviewer portal) with the reviewer/admin
    account.
 2. You're routed to `reviewer/index.html`. Confirm the reviewer queue and the
    **Incomplete Assessments** section load. (An `agent` account is rejected here.)
-3. Approve a match — the agent receives the "REQUITY Client Match" badge +
+3. Approve a match, the agent receives the "REQUITY Client Match" badge +
    notification.
 
 ### 14. Test the incomplete assessment lead flow

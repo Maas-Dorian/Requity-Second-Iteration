@@ -27,6 +27,33 @@ function has(...keys: string[]): boolean {
   return read(...keys) !== undefined;
 }
 
+/**
+ * The production public origin. All user-facing share/QR/email links must use
+ * this unless a VALID custom production origin is configured.
+ */
+export const PRODUCTION_SITE_URL = "https://www.requityapp.com";
+
+/**
+ * Origins that must NEVER be used for generated user-facing links:
+ *   - the deleted preview deployment (old *.vercel.app host)
+ *   - any localhost / loopback address
+ * If one of these is found in env (e.g. a stale VERCEL_FRONTEND_URL), we ignore
+ * it and fall back to the production domain so links never point at a dead host.
+ */
+const UNUSABLE_ORIGIN = /(requity-second-iteration\.vercel\.app|localhost|127\.0\.0\.1)/i;
+
+/** True when `value` is a usable public origin (not empty, not dead/preview/localhost). */
+export function isUsablePublicOrigin(value: string | null | undefined): boolean {
+  const v = (value ?? "").trim();
+  return v.length > 0 && !UNUSABLE_ORIGIN.test(v);
+}
+
+/** Resolve any candidate origin to a clean, production-safe value (no trailing slash). */
+export function normalizePublicOrigin(value: string | null | undefined): string {
+  const v = (value ?? "").trim();
+  return (isUsablePublicOrigin(v) ? v : PRODUCTION_SITE_URL).replace(/\/$/, "");
+}
+
 // --- Non-throwing readers (safe for handlers/health endpoints) -------------
 
 /** Read an env var (with optional fallbacks). Returns null when unset. Never throws. */
@@ -56,7 +83,7 @@ export function getRequiredEnvStatus(): {
 
 /**
  * Booleans-only snapshot of the Brevo/email config. Safe to return from the
- * email health endpoint — never includes the key or sender values themselves.
+ * email health endpoint, never includes the key or sender values themselves.
  *
  * `canSendConfigured` is true when an API key is present AND a sender email is
  * resolvable. The sender email/name fall back to project-approved defaults
@@ -70,7 +97,7 @@ export function getEmailConfigStatus(): {
   hasPublicSiteUrl: boolean;
   hasReviewNotificationEmail: boolean;
   canSendConfigured: boolean;
-  /** Safe to expose — a public, non-secret site origin used in email CTAs. */
+  /** Safe to expose, a public, non-secret site origin used in email CTAs. */
   publicSiteUrl: string;
 } {
   const hasBrevoApiKey = has("BREVO_API_KEY");
@@ -107,7 +134,7 @@ export const SERVER_REQUIRED_ENV = [
   "SUPABASE_SERVICE_ROLE_KEY",
 ] as const;
 
-/** Optional integrations — warned about, never fatal. */
+/** Optional integrations, warned about, never fatal. */
 export const OPTIONAL_ENV = ["BREVO_API_KEY"] as const;
 
 /** Public values that are SAFE to expose to the browser. */
@@ -128,7 +155,7 @@ export type EnvReport = {
   isProduction: boolean;
   hasSupabaseUrl: boolean;
   hasSupabaseAnonKey: boolean;
-  /** Server-side only signal — presence boolean, never the value. */
+  /** Server-side only signal, presence boolean, never the value. */
   hasSupabaseServiceRoleKey: boolean;
   hasBrevoApiKey: boolean;
   hasFrontendUrl: boolean;
@@ -136,7 +163,7 @@ export type EnvReport = {
 
 /**
  * Booleans-only snapshot of which env vars are configured. Safe to return from
- * health endpoints — it never includes any secret value.
+ * health endpoints, it never includes any secret value.
  */
 export function getEnv(): EnvReport {
   return {
@@ -176,7 +203,7 @@ export function requireServerEnv(): { supabaseUrl: string; supabaseServiceRoleKe
 export function requireProductionEnv(): { ok: boolean; missing: string[]; warnings: string[] } {
   const missing = PRODUCTION_REQUIRED_ENV.filter((k) => !has(k));
   const warnings = OPTIONAL_ENV.filter((k) => !has(k)).map(
-    (k) => `${k} is not set — related features run in a degraded/test mode.`
+    (k) => `${k} is not set, related features run in a degraded/test mode.`
   );
 
   if (isProduction()) {
@@ -202,7 +229,7 @@ export function assertNoFrontendSecrets(): void {
   for (const secret of NEVER_FRONTEND_ENV) {
     for (const prefix of ["NEXT_PUBLIC_", "VITE_"]) {
       const key = prefix + secret;
-      if (has(key)) problems.push(`${key} exposes a secret to the browser — remove it.`);
+      if (has(key)) problems.push(`${key} exposes a secret to the browser, remove it.`);
     }
   }
 
@@ -213,10 +240,10 @@ export function assertNoFrontendSecrets(): void {
     if (!value) continue;
     if (!name.startsWith("NEXT_PUBLIC_") && !name.startsWith("VITE_")) continue;
     if (serviceRole && value.trim() === serviceRole) {
-      problems.push(`${name} contains the Supabase service role key — never expose it.`);
+      problems.push(`${name} contains the Supabase service role key, never expose it.`);
     }
     if (brevo && value.trim() === brevo) {
-      problems.push(`${name} contains the Brevo API key — never expose it.`);
+      problems.push(`${name} contains the Brevo API key, never expose it.`);
     }
   }
 
@@ -272,10 +299,17 @@ export const env = {
    * The clean-link rewrite must be served from this origin (see vercel.json).
    */
   get publicSiteUrl(): string {
-    return (
-      read("PUBLIC_SITE_URL", "NEXT_PUBLIC_SITE_URL") ??
-      read("VERCEL_FRONTEND_URL", "NEXT_PUBLIC_FRONTEND_URL", "VITE_FRONTEND_URL") ??
-      "https://www.requityapp.com"
+    // A stale VERCEL_FRONTEND_URL pointing at the deleted preview deployment (or
+    // a localhost value) is ignored here so share/QR/email links are always the
+    // live production domain.
+    return normalizePublicOrigin(
+      read(
+        "PUBLIC_SITE_URL",
+        "NEXT_PUBLIC_SITE_URL",
+        "VERCEL_FRONTEND_URL",
+        "NEXT_PUBLIC_FRONTEND_URL",
+        "VITE_FRONTEND_URL"
+      )
     );
   },
 };

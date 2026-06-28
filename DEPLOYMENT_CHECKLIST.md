@@ -25,8 +25,8 @@ Production hardening + Vercel deployment guide for the secure API layer.
 ### Public (safe for the browser)
 | Variable | Notes |
 | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Public project URL — **required for browser auth** (sign in/up) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key (RLS-gated) — **required for browser auth** |
+| `NEXT_PUBLIC_SUPABASE_URL` | Public project URL, **required for browser auth** (sign in/up) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key (RLS-gated), **required for browser auth** |
 
 > The frontend should set `apiBaseUrl` (e.g. `/api`) in `frontend/shared/config.js`
 > or `window.REQUITY_CONFIG`. When set, all **data** traffic goes through the secure
@@ -72,7 +72,7 @@ to a `profiles` row (`role` = `agent` | `reviewer` | `admin`); agents also get a
 
 **Portals (entry points):**
 - Agent portal: **`/agent/login.html`** (sign in / create account).
-- Reviewer portal: **`/reviewer/login.html`** (sign in only — no public sign-up).
+- Reviewer portal: **`/reviewer/login.html`** (sign in only, no public sign-up).
 - Role-aware redirects: agents → `agent/dashboard.html`; reviewers/admins →
   `reviewer/index.html`. **Agent accounts cannot access the reviewer dashboard.**
   Each login page detects a mismatched role and offers a one-click switch to the
@@ -84,7 +84,7 @@ to a `profiles` row (`role` = `agent` | `reviewer` | `admin`); agents also get a
 2. Frontend auth needs `supabaseUrl` + `supabaseAnonKey` in
    `frontend/shared/config.js` **even when `apiBaseUrl` is set**, because the
    browser talks to Supabase Auth directly. Real Supabase credentials are
-   required — there is no demo mode.
+   required, there is no demo mode.
 3. Agent flow (self-serve): the agent landing CTA "Start getting referrals now"
    links to `agent/login.html` → "Create account" (full name, email, password,
    optional phone only) → `signUpAgent()` creates the auth user, then
@@ -95,7 +95,7 @@ to a `profiles` row (`role` = `agent` | `reviewer` | `admin`); agents also get a
    archetype to the agent row via `POST /api/agent-assessment/submit`. Reviewer-only
    accounts are offered the reviewer portal.
 4. Reviewer portal: reviewers/admins sign in at **`/reviewer/login.html`** (a
-   dedicated sign-in screen — no public sign-up). Only `reviewer`/`admin` roles
+   dedicated sign-in screen, no public sign-up). Only `reviewer`/`admin` roles
    can open `reviewer/index.html`; everyone else is redirected to
    `reviewer/login.html` (or shown an access-restricted screen for wrong roles).
    The first reviewer/admin must be **promoted in Supabase** after creating an
@@ -128,7 +128,7 @@ on conflict (id) do update set role = excluded.role;
 4. Verify: `select email, role from public.profiles where role in ('reviewer','admin');`
 
 > See `backend/SEED_REVIEWER_ADMIN.md` for the full step-by-step. Never expose the
-> service role key to do this — use the Supabase SQL editor.
+> service role key to do this, use the Supabase SQL editor.
 
 ### Seed the internal REQUITY team (admins with agent rows)
 The standing internal accounts must reach **both** the agent dashboard and the
@@ -136,7 +136,7 @@ reviewer portal:
 
 - Accounts: `rocco@requityapp.com`, `tussa@requityapp.com`, `mike@requityapp.com`
 - Role: `admin`, each with an `agents` row (so they pass agent + reviewer checks).
-- Initial password: `requityslaunch26` — **change after first login**.
+- Initial password: `requityslaunch26`, **change after first login**.
 - Run `npm run seed:internal-users` (service-role env vars required) **or** follow
   the SQL in `backend/SEED_INTERNAL_USERS.md`. The script is idempotent. The
   service role key stays server-side only; never hardcode these credentials in
@@ -185,48 +185,48 @@ A submission is valid if it includes **either** an `assessmentToken`/`token`
       with `ok:true` when no key is set.
 
 ### Auth
-- [ ] **Agent sign-up** — create an account at `agent/login.html`; a `profiles`
+- [ ] **Agent sign-up**, create an account at `agent/login.html`; a `profiles`
       row (`role=agent`) and an `agents` row are created; redirected to the dashboard.
-- [ ] **Agent sign-in** — signing in routes an agent to `agent/dashboard.html`.
-- [ ] **Dashboard loads own data** — `GET /api/auth/me` returns the agent;
+- [ ] **Agent sign-in**, signing in routes an agent to `agent/dashboard.html`.
+- [ ] **Dashboard loads own data**, `GET /api/auth/me` returns the agent;
       dashboard data uses that `agent.id` (no hardcoded id).
-- [ ] **Reviewer login** — `reviewer/login.html` loads; a reviewer/admin sign-in
+- [ ] **Reviewer login**, `reviewer/login.html` loads; a reviewer/admin sign-in
       redirects to `reviewer/index.html`; an `agent` sees "This account does not
       have reviewer access." with a button to the Agent Dashboard.
-- [ ] **Agent login role switch** — a reviewer/admin signing in at
+- [ ] **Agent login role switch**, a reviewer/admin signing in at
       `agent/login.html` sees "This account has reviewer access." with a button to
       the Reviewer Portal (instead of landing in the agent dashboard).
-- [ ] **Cross-portal links** — the agent landing shows a discreet "Reviewer
+- [ ] **Cross-portal links**, the agent landing shows a discreet "Reviewer
       Portal" link; the reviewer login shows an "Agent Portal" link.
-- [ ] **Unauthenticated reviewer redirect** — opening `reviewer/index.html` with
+- [ ] **Unauthenticated reviewer redirect**, opening `reviewer/index.html` with
       no session redirects to `reviewer/login.html` (no demo bypass).
-- [ ] **Unauthenticated agent redirect** — opening `agent/dashboard.html` with no
+- [ ] **Unauthenticated agent redirect**, opening `agent/dashboard.html` with no
       session redirects to `agent/login.html` (no demo bypass).
-- [ ] **Root URL** — opening `/` redirects to `/client/index.html`.
-- [ ] **Agent cannot access reviewer** — an `agent` opening `reviewer/index.html`
+- [ ] **Root URL**, opening `/` redirects to `/client/index.html`.
+- [ ] **Agent cannot access reviewer**, an `agent` opening `reviewer/index.html`
       sees the "Access restricted" screen and no reviewer data loads.
-- [ ] **Reviewer/admin promotion** — after running the `update public.profiles
+- [ ] **Reviewer/admin promotion**, after running the `update public.profiles
       set role='reviewer'…` snippet, `GET /api/auth/me` for that user returns
       `role: "reviewer"` and they can open the reviewer dashboard.
-- [ ] **Reviewer/admin access** — a `reviewer`/`admin` can open `reviewer/index.html`
+- [ ] **Reviewer/admin access**, a `reviewer`/`admin` can open `reviewer/index.html`
       and load `GET /api/reviewer/assessment-leads` and `/api/reviewer/matches`.
-- [ ] **Unauthenticated rejection** — with `NODE_ENV=production` and no token,
+- [ ] **Unauthenticated rejection**, with `NODE_ENV=production` and no token,
       `GET /api/auth/me`, `/api/dashboard/agent`, and `/api/reviewer/*` return 401.
 
 ### Assessments & matching
-- [ ] **Client QR submission** — `source=qr` with `agentToken`/`agentId`
+- [ ] **Client QR submission**, `source=qr` with `agentToken`/`agentId`
       attaches the client to the agent; no reviewer queue entry; agent gets a
       completion notification + email.
-- [ ] **Client agent_link submission** — `source=agent_link` with
+- [ ] **Client agent_link submission**, `source=agent_link` with
       `agentToken`/`agentId` behaves the same as QR.
-- [ ] **Client reviewer submission** — `source=reviewer` with
+- [ ] **Client reviewer submission**, `source=reviewer` with
       `assessmentToken`/`token` places the client in the reviewer queue.
-- [ ] **Invalid submission** — no token and no agent reference → `400`.
-- [ ] **Agent assessment submission** — `POST /api/agent-assessment/submit`
+- [ ] **Invalid submission**, no token and no agent reference → `400`.
+- [ ] **Agent assessment submission**, `POST /api/agent-assessment/submit`
       computes + saves the archetype and creates a notification.
-- [ ] **Dashboard load** — `GET /api/dashboard/agent` requires agent auth;
+- [ ] **Dashboard load**, `GET /api/dashboard/agent` requires agent auth;
       rejects with 401 when no token in production.
-- [ ] **Assessment activity analytics** — the dashboard "Assessment activity"
+- [ ] **Assessment activity analytics**, the dashboard "Assessment activity"
       chart shows **real** last-7-days counts from `assessment_leads` (embedded as
       `weeklyActivity` in `GET /api/dashboard/agent`; also at
       `GET /api/dashboard/agent-activity`, `days` default 7 / max 30). Start +
@@ -234,27 +234,27 @@ A submission is valid if it includes **either** an `assessmentToken`/`token`
       data it shows seven zero days + "No assessment activity yet."; if analytics
       fails the chart shows "Assessment activity could not be loaded." while the
       rest of the dashboard still loads. No polling / no real-time subscriptions.
-- [ ] **Agent QR code** — `GET /api/agent/qr` requires agent auth. The QR encodes
+- [ ] **Agent QR code**, `GET /api/agent/qr` requires agent auth. The QR encodes
       the agent's public assessment link (`source=qr`), so scanning clients attach
       directly to the agent and do **not** enter the reviewer queue. `format=dataUrl`
       returns `{ qrCodeDataUrl, assessmentLink, qrLink }`; `format=png` returns a PNG
-      download. QR generation is Vercel-safe (`qrcode` only — no `canvas`/`sharp`).
-- [ ] **Messages load** — `GET /api/messages/list` requires agent auth, and the
+      download. QR generation is Vercel-safe (`qrcode` only, no `canvas`/`sharp`).
+- [ ] **Messages load**, `GET /api/messages/list` requires agent auth, and the
       agent dashboard **Messages** tab renders the agent's notifications (e.g. the
       REQUITY Client Match message after a reviewer approval).
-- [ ] **Reviewer approve match** — `POST /api/reviewer/approve-match` requires
+- [ ] **Reviewer approve match**, `POST /api/reviewer/approve-match` requires
       reviewer/admin auth; assigns client (REQUITY Client Match badge), creates
       the exact notification, sends + records the Brevo email.
-- [ ] **Incomplete lead capture** — starting an assessment creates an
+- [ ] **Incomplete lead capture**, starting an assessment creates an
       `assessment_leads` row (`POST /api/assessment-leads/start`); answering
       questions updates it (`/progress`); completing the assessment converts it to
       `completed`. Abandoned leads stay incomplete.
-- [ ] **Reviewer incomplete leads** — `GET /api/reviewer/assessment-leads`
+- [ ] **Reviewer incomplete leads**, `GET /api/reviewer/assessment-leads`
       requires reviewer/admin auth; the reviewer "Incomplete Assessments" section
       lists not-completed leads first; Mark Followed Up / Abandoned / Add Note work.
-- [ ] **Brevo email send** — confirm an `email_events` row with `status=sent`.
-- [ ] **Rate limiting** — rapid repeated public submissions return `429`.
-- [ ] **No demo mode** — there is no demo bypass anywhere. Protected routes reject
+- [ ] **Brevo email send**, confirm an `email_events` row with `status=sent`.
+- [ ] **Rate limiting**, rapid repeated public submissions return `429`.
+- [ ] **No demo mode**, there is no demo bypass anywhere. Protected routes reject
       missing/invalid auth with 401 and wrong-role with 403; dashboards require a
       real Supabase session; failed data loads show an error/empty state (never
       sample data).

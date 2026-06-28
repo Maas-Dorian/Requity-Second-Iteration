@@ -304,7 +304,7 @@ const archetypeDefinitions: Record<string, ClientArchetypeDefinition> = {
     buyerProfile: {
       motivations: ["Seeks unique, standout properties with design flair", "Motivated by being first to act and securing great deals", "Prefers fast, decisive processes"],
       communication: ["Use direct, concise communication", "Present clear, actionable options (no more than 2-3 at a time)", "Highlight opportunities for quick wins"],
-      stressReduction: ["Under stress, wants to 'fight' through obstacles—may push for fast answers", "Reduce stress by being responsive, assertive, and solution-focused", "Avoid delays and indecision"],
+      stressReduction: ["Under stress, wants to 'fight' through obstacles, may push for fast answers", "Reduce stress by being responsive, assertive, and solution-focused", "Avoid delays and indecision"],
     },
     sellerProfile: {
       motivations: ["Wants to set the pace and outshine the competition", "Motivated by a fast, high-impact sale", "Prefers bold marketing and decisive negotiations"],
@@ -364,7 +364,7 @@ const archetypeDefinitions: Record<string, ClientArchetypeDefinition> = {
     buyerProfile: {
       motivations: ["Seeks the best value and a straightforward transaction", "Motivated by efficiency and results", "Prefers clear, actionable choices"],
       communication: ["Use concise, data-driven updates", "Present options with pros/cons and bottom-line impact", "Be direct and decisive"],
-      stressReduction: ["Under stress, takes charge—may push for fast resolution", "Reduce stress by being responsive and solution-focused", "Avoid delays and indecision"],
+      stressReduction: ["Under stress, takes charge, may push for fast resolution", "Reduce stress by being responsive and solution-focused", "Avoid delays and indecision"],
     },
     sellerProfile: {
       motivations: ["Wants a fast, profitable sale", "Motivated by strong negotiation and clear outcomes", "Prefers data-backed marketing and offers"],
@@ -589,7 +589,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Analyze demographic trends and future development potential",
       ],
       avoid:
-        "Oversimplifying trade-offs, which increases regret likelihood or rushing to decisions—harms accuracy and fosters regret",
+        "Oversimplifying trade-offs, which increases regret likelihood or rushing to decisions, harms accuracy and fosters regret",
     },
     seller: {
       approaches: [
@@ -599,7 +599,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Create strategic positioning that maximizes competitive advantages",
       ],
       avoid:
-        "Ad hoc adjustments—breaks the illusion of control or incomplete briefs that erode confidence in planning",
+        "Ad hoc adjustments, breaks the illusion of control or incomplete briefs that erode confidence in planning",
     },
     simultaneous: {
       approaches: [
@@ -609,7 +609,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Provide comprehensive analytical frameworks to reduce uncertainty",
       ],
       avoid:
-        "Mixing too many variables at once—causes cognitive overload or vagueness in objectives—leads to decision inertia",
+        "Mixing too many variables at once, causes cognitive overload or vagueness in objectives, leads to decision inertia",
     },
     communication: {
       recommended: [
@@ -635,7 +635,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Emphasize accessibility features and inclusive neighborhood amenities",
       ],
       avoid:
-        "Patronizing tones—trigger learned helplessness or skipping steps—creates uncertainty and perceived abandonment",
+        "Patronizing tones, trigger learned helplessness or skipping steps, creates uncertainty and perceived abandonment",
     },
     seller: {
       approaches: [
@@ -645,7 +645,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Support sellers in creating opportunities for first-time buyers",
       ],
       avoid:
-        "Elite jargon—excludes or intimidates potential buyers or one-size-fits-all proposals—ignore unique needs",
+        "Elite jargon, excludes or intimidates potential buyers or one-size-fits-all proposals, ignore unique needs",
     },
     simultaneous: {
       approaches: [
@@ -655,7 +655,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Connect clients with community support networks and resources",
       ],
       avoid:
-        "Assuming prior knowledge—leads to confusion and stress or focusing solely on transactions—neglects human element",
+        "Assuming prior knowledge, leads to confusion and stress or focusing solely on transactions, neglects human element",
     },
     communication: {
       recommended: [
@@ -665,7 +665,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Patient explanation of complex processes and available resources",
       ],
       avoid: [
-        "Rapid bulletins without context—create anxiety",
+        "Rapid bulletins without context, create anxiety",
         "Dismissing emotional concerns as irrelevant",
         "Using technical jargon without clear explanations",
         "Making assumptions about knowledge or experience level",
@@ -681,7 +681,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Encourage vision boarding and personal space customization planning",
       ],
       avoid:
-        "Rigid property specifications that limit creative potential or traditional, uninspiring home tours—stifles imagination",
+        "Rigid property specifications that limit creative potential or traditional, uninspiring home tours, stifles imagination",
     },
     seller: {
       approaches: [
@@ -691,7 +691,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Target creative buyers through inspiring visual campaigns",
       ],
       avoid:
-        "Generic listing descriptions lacking personality or rushed marketing—misses creative buyer connection",
+        "Generic listing descriptions lacking personality or rushed marketing, misses creative buyer connection",
     },
     simultaneous: {
       approaches: [
@@ -701,7 +701,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Structure deals to maximize creative potential in both properties",
       ],
       avoid:
-        "Rigid processes that constrain creative expression or micromanagement—reduces autonomy satisfaction",
+        "Rigid processes that constrain creative expression or micromanagement, reduces autonomy satisfaction",
     },
     communication: {
       recommended: [
@@ -727,7 +727,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Provide competitive market intelligence for strategic advantage",
       ],
       avoid:
-        "Indecisive responses that undermine leadership confidence or analysis paralysis—frustrates action orientation",
+        "Indecisive responses that undermine leadership confidence or analysis paralysis, frustrates action orientation",
     },
     seller: {
       approaches: [
@@ -737,7 +737,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Execute decisive marketing campaigns with immediate impact focus",
       ],
       avoid:
-        "Passive marketing approaches that lack urgency or hesitant negotiation—reduces competitive positioning",
+        "Passive marketing approaches that lack urgency or hesitant negotiation, reduces competitive positioning",
     },
     simultaneous: {
       approaches: [
@@ -773,7 +773,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Offer systematic comparison tools with visual design elements",
       ],
       avoid:
-        "Overwhelming with too many options simultaneously or rushing aesthetic decisions—causes analysis paralysis",
+        "Overwhelming with too many options simultaneously or rushing aesthetic decisions, causes analysis paralysis",
     },
     seller: {
       approaches: [
@@ -783,7 +783,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Coordinate group consultations for strategic decision-making",
       ],
       avoid:
-        "Making unilateral decisions without group input or neglecting aesthetic presentation—reduces market appeal",
+        "Making unilateral decisions without group input or neglecting aesthetic presentation, reduces market appeal",
     },
     simultaneous: {
       approaches: [
@@ -793,7 +793,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Structure deals to preserve design integrity and group harmony",
       ],
       avoid:
-        "Rushing aesthetic decisions under time pressure or conflicting design directions—creates stress and confusion",
+        "Rushing aesthetic decisions under time pressure or conflicting design directions, creates stress and confusion",
     },
     communication: {
       recommended: [
@@ -819,7 +819,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Schedule stress-free exploration time without pressure",
       ],
       avoid:
-        "High-pressure decision deadlines or overwhelming with technical details—triggers withdrawal response",
+        "High-pressure decision deadlines or overwhelming with technical details, triggers withdrawal response",
     },
     seller: {
       approaches: [
@@ -829,7 +829,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Provide gentle guidance with supportive market positioning",
       ],
       avoid:
-        "Aggressive marketing tactics or rushed listing decisions—conflicts with exploration mindset",
+        "Aggressive marketing tactics or rushed listing decisions, conflicts with exploration mindset",
     },
     simultaneous: {
       approaches: [
@@ -864,7 +864,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Create detailed neighborhood guides with lifestyle considerations",
         "Present multiple backup options to reduce decision anxiety",
       ],
-      avoid: "High-pressure decision deadlines or limited options—triggers flight response",
+      avoid: "High-pressure decision deadlines or limited options, triggers flight response",
     },
     seller: {
       approaches: [
@@ -874,7 +874,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Create marketing campaigns that attract serious, qualified buyers",
       ],
       avoid:
-        "Rushing market entry or aggressive pricing without flexibility—increases stress and uncertainty",
+        "Rushing market entry or aggressive pricing without flexibility, increases stress and uncertainty",
     },
     simultaneous: {
       approaches: [
@@ -883,7 +883,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Structure deals with multiple exit strategies and safety nets",
         "Offer comprehensive project management with stress reduction focus",
       ],
-      avoid: "Rigid timelines without flexibility or high-risk strategies—triggers avoidance behavior",
+      avoid: "Rigid timelines without flexibility or high-risk strategies, triggers avoidance behavior",
     },
     communication: {
       recommended: [
@@ -909,7 +909,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Schedule regular check-ins with encouragement and reassurance",
       ],
       avoid:
-        "Overwhelming with too much information or rushing collaborative decisions—creates stress and withdrawal",
+        "Overwhelming with too much information or rushing collaborative decisions, creates stress and withdrawal",
     },
     seller: {
       approaches: [
@@ -919,7 +919,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Create marketing that emphasizes community and support",
       ],
       avoid:
-        "Aggressive marketing tactics or individual decision-making—conflicts with collaborative support needs",
+        "Aggressive marketing tactics or individual decision-making, conflicts with collaborative support needs",
     },
     simultaneous: {
       approaches: [
@@ -929,7 +929,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Offer emotional support and reassurance during challenging moments",
       ],
       avoid:
-        "High-pressure coordination or individual responsibility—triggers overwhelm and support-seeking",
+        "High-pressure coordination or individual responsibility, triggers overwhelm and support-seeking",
     },
     communication: {
       recommended: [
@@ -955,7 +955,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Create inclusive exploration experiences that honor all perspectives",
       ],
       avoid:
-        "Individual decision-making that excludes stakeholders or high-pressure tactics—conflicts with collaborative values",
+        "Individual decision-making that excludes stakeholders or high-pressure tactics, conflicts with collaborative values",
     },
     seller: {
       approaches: [
@@ -965,7 +965,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Provide comprehensive support throughout the selling process",
       ],
       avoid:
-        "Aggressive or exclusive marketing approaches or individual decision-making—undermines collaborative principles",
+        "Aggressive or exclusive marketing approaches or individual decision-making, undermines collaborative principles",
     },
     simultaneous: {
       approaches: [
@@ -975,7 +975,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Offer comprehensive guidance that preserves relationships",
       ],
       avoid:
-        "Competitive approaches that create winners/losers or individual focus—conflicts with advocacy values",
+        "Competitive approaches that create winners/losers or individual focus, conflicts with advocacy values",
     },
     communication: {
       recommended: [
@@ -1001,7 +1001,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Offer visual inspiration boards to spark creative decision-making",
       ],
       avoid:
-        "High-pressure decision deadlines or overwhelming with too many technical details—triggers analysis paralysis",
+        "High-pressure decision deadlines or overwhelming with too many technical details, triggers analysis paralysis",
     },
     seller: {
       approaches: [
@@ -1011,7 +1011,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Provide comprehensive market analysis with realistic timelines",
       ],
       avoid:
-        "Rushing aesthetic decisions or aggressive marketing tactics—conflicts with thoughtful creative process",
+        "Rushing aesthetic decisions or aggressive marketing tactics, conflicts with thoughtful creative process",
     },
     simultaneous: {
       approaches: [
@@ -1046,7 +1046,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Offer stress-free exploration time with gentle guidance",
         "Schedule private viewing sessions for uninterrupted creative contemplation",
       ],
-      avoid: "High-pressure deadlines or overwhelming technical details—triggers flight response",
+      avoid: "High-pressure deadlines or overwhelming technical details, triggers flight response",
     },
     seller: {
       approaches: [
@@ -1055,7 +1055,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Provide gentle guidance with supportive market positioning",
         "Create marketing campaigns that attract design-conscious buyers",
       ],
-      avoid: "Aggressive marketing tactics or rushed decisions—conflicts with exploration mindset",
+      avoid: "Aggressive marketing tactics or rushed decisions, conflicts with exploration mindset",
     },
     simultaneous: {
       approaches: [
@@ -1100,7 +1100,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Create marketing emphasizing community and creative lifestyle",
       ],
       avoid:
-        "Aggressive tactics or individual decision-making—conflicts with collaborative creative values",
+        "Aggressive tactics or individual decision-making, conflicts with collaborative creative values",
     },
     simultaneous: {
       approaches: [
@@ -1110,7 +1110,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Offer emotional support and design affirmation during challenging moments",
       ],
       avoid:
-        "High-pressure coordination or individual creative responsibility—triggers overwhelm",
+        "High-pressure coordination or individual creative responsibility, triggers overwhelm",
     },
     communication: {
       recommended: [
@@ -1145,7 +1145,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Create marketing emphasizing systematic approach and reliability",
       ],
       avoid:
-        "Disorganized approaches or individual decision-making—conflicts with collaborative planning needs",
+        "Disorganized approaches or individual decision-making, conflicts with collaborative planning needs",
     },
     simultaneous: {
       approaches: [
@@ -1154,7 +1154,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Structure deals with clear planning and collaborative oversight",
         "Offer comprehensive organization support during complex coordination",
       ],
-      avoid: "Chaotic coordination or individual planning responsibility—triggers overwhelm",
+      avoid: "Chaotic coordination or individual planning responsibility, triggers overwhelm",
     },
     communication: {
       recommended: [
@@ -1179,7 +1179,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Create harmony-focused virtual staging with feng shui principles",
         "Offer meditation spaces and wellness-oriented property features",
       ],
-      avoid: "High-pressure tactics or competitive bidding scenarios—creates anxiety and conflict",
+      avoid: "High-pressure tactics or competitive bidding scenarios, creates anxiety and conflict",
     },
     seller: {
       approaches: [
@@ -1189,7 +1189,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Create inclusive marketing that appeals to diverse buyers",
       ],
       avoid:
-        "Aggressive pricing strategies or confrontational negotiations—disrupts emotional balance",
+        "Aggressive pricing strategies or confrontational negotiations, disrupts emotional balance",
     },
     simultaneous: {
       approaches: [
@@ -1198,7 +1198,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Use collaborative decision-making processes for complex situations",
         "Offer emotional support and stress-reduction techniques",
       ],
-      avoid: "Rushed processes or conflict-heavy negotiations—overwhelms harmony-seeking nature",
+      avoid: "Rushed processes or conflict-heavy negotiations, overwhelms harmony-seeking nature",
     },
     communication: {
       recommended: [
@@ -1224,7 +1224,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Offer exclusive access to high-performing properties",
       ],
       avoid:
-        "Lengthy deliberation periods—triggers impatience or indecisive processes—undermines action orientation",
+        "Lengthy deliberation periods, triggers impatience or indecisive processes, undermines action orientation",
     },
     seller: {
       approaches: [
@@ -1234,7 +1234,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Create competitive environments to drive multiple offers",
       ],
       avoid:
-        "Passive marketing approaches or unclear performance metrics—reduces confidence in results",
+        "Passive marketing approaches or unclear performance metrics, reduces confidence in results",
     },
     simultaneous: {
       approaches: [
@@ -1243,7 +1243,7 @@ export const CLIENT_GUIDELINES: Record<string, ArchetypeGuidelines> = {
         "Implement backup strategies for maximum deal security",
         "Provide competitive advantage through strategic timing",
       ],
-      avoid: "Unclear coordination or delayed responses—frustrates results-oriented expectations",
+      avoid: "Unclear coordination or delayed responses, frustrates results-oriented expectations",
     },
     communication: {
       recommended: [
@@ -1478,7 +1478,7 @@ export const agentArchetypeMatrix: Record<string, string> = {
 /**
  * Score agent survey answers (1-indexed map of "A".."H") into the approved
  * agent archetype. Always returns an approved agent name (defaults to
- * "The Collaborator" only if a dimension has no votes — never an invalid name).
+ * "The Collaborator" only if a dimension has no votes, never an invalid name).
  */
 export function getAgentArchetypeFromAnswers(answers: Record<string | number, string>): {
   archetype: string;
@@ -1600,7 +1600,7 @@ export function getOrientationDisplayName(orientation: string | null | undefined
   switch (orientation) {
     case "Driver": return "Driver";
     case "Collaborator": return "Collaborator";
-    default: return orientation || "—";
+    default: return orientation || ", ";
   }
 }
 
@@ -1608,7 +1608,7 @@ export function getStyleDisplayName(style: string | null | undefined): string {
   switch (style) {
     case "Design-Focused": return "Design-Focused";
     case "Practical": return "Practical";
-    default: return style || "—";
+    default: return style || ", ";
   }
 }
 
@@ -1618,7 +1618,7 @@ export function getStressResponseDisplayName(stress: string | null | undefined):
     case "Fight": return "Fight";
     case "Flight": return "Flight";
     case "Fawn": return "Fawn";
-    default: return stress || "—";
+    default: return stress || ", ";
   }
 }
 
@@ -1672,7 +1672,7 @@ export const AGENT_ARCHETYPE_DETAILS: Record<string, AgentArchetypeDetail> = Obj
 );
 
 // ---------------------------------------------------------------------------
-// Archetype reference (reviewer page) — canonical, approved data only.
+// Archetype reference (reviewer page), canonical, approved data only.
 // ---------------------------------------------------------------------------
 
 export interface ArchetypeReferenceItem {

@@ -1,4 +1,4 @@
-# REQUITY — Deploy Ready Report
+# REQUITY, Deploy Ready Report
 
 Status snapshot for the **first real deployment** to Supabase + Vercel.
 Generated from a structure + typecheck review. No product behavior or UI changed.
@@ -18,7 +18,7 @@ accounts), `backend/API_ROUTES.md` (API reference).
 - [x] Root `tsconfig.json` (typechecks `api/**` + `backend/lib/**` + `backend/emails/**`).
 - [x] `tsc --noEmit` passes for both root and `backend/tsconfig.json`.
 - [x] Static frontend served from repo root (`agent/`, `client/`, `reviewer/`,
-      `frontend/shared/`) — no build step required (Vercel "Other" preset).
+      `frontend/shared/`), no build step required (Vercel "Other" preset).
 
 **Vercel-compatible `api/` routes (20 functions)**
 - [x] Health: `api/health.ts`, `api/health/supabase.ts`, `api/health/brevo.ts`
@@ -31,15 +31,15 @@ accounts), `backend/API_ROUTES.md` (API reference).
 - [x] Shared HTTP helpers: `api/_lib/http.ts`
 
 **Database**
-- [x] `backend/supabase/schema.sql` — fresh-project ready, re-run safe
+- [x] `backend/supabase/schema.sql`, fresh-project ready, re-run safe
       (`create extension if not exists pgcrypto`, idempotent enum `DO` blocks,
       `create table if not exists`, `create index if not exists`,
       `drop policy/trigger if exists`), RLS enabled with production policies, and
       the `public.requity_role()` helper.
 
 **Config / safety**
-- [x] `.env.example` (root) — server-only vs public sections, secret warnings.
-- [x] `frontend/shared/config.example.js` — public-only values, demo example,
+- [x] `.env.example` (root), server-only vs public sections, secret warnings.
+- [x] `frontend/shared/config.example.js`, public-only values, demo example,
       "never commit real keys" + "service role never in frontend" warnings.
 - [x] `.gitignore` ignores `frontend/shared/config.js` (verified: no committed
       `config.js` exists in the repo).
@@ -65,9 +65,9 @@ the frontend config below, plus running the SQL schema once.
 
 ### Exact Supabase env vars needed
 From Supabase → **Settings → API**:
-- `SUPABASE_URL` — Project URL
-- `SUPABASE_ANON_KEY` — anon `public` key
-- `SUPABASE_SERVICE_ROLE_KEY` — `service_role` `secret` key (**server-only**)
+- `SUPABASE_URL`, Project URL
+- `SUPABASE_ANON_KEY`, anon `public` key
+- `SUPABASE_SERVICE_ROLE_KEY`, `service_role` `secret` key (**server-only**)
 
 ### Exact Vercel env vars needed
 **Server-side only (secrets):**
@@ -142,7 +142,7 @@ window.REQUITY_CONFIG = {
   best-effort limiter. It resets on cold starts and is not shared across Vercel
   instances. Swap for Upstash Redis / a Supabase-backed limiter for real abuse
   protection at scale.
-- **Do not commit `frontend/shared/config.js`** — it is gitignored. Only
+- **Do not commit `frontend/shared/config.js`**, it is gitignored. Only
   `config.example.js` (blank) belongs in git. Real keys live in the deployed
   `config.js` / env vars.
 - **Old schema projects:** `schema.sql` guards prevent errors and duplicates on
@@ -152,11 +152,11 @@ window.REQUITY_CONFIG = {
 - **No demo mode:** real Supabase credentials are required everywhere. Protected
   API routes reject unauthenticated calls (401) and wrong roles (403), and the
   agent/reviewer dashboards require a real Supabase Auth session. Missing config
-  is treated as setup incomplete — verify with the health endpoints.
+  is treated as setup incomplete, verify with the health endpoints.
 - **Reviewer dashboard is live-only:** the reviewer matching queue no longer
   shows any demo/sample data and there is no "Run Demo" tour. The queue is
   populated only from `GET /api/reviewer/matches` and renders one of three
-  states — live matches, a clean empty state ("No pending matches yet."), or a
+  states, live matches, a clean empty state ("No pending matches yet."), or a
   clean error state ("We couldn't load reviewer matches. Please try again.").
   Approvals (and the optional Auto run) call `POST /api/reviewer/approve-match`;
   no client-side scheduling is simulated. The **Incomplete Assessments** section
@@ -165,7 +165,7 @@ window.REQUITY_CONFIG = {
   on the agent dashboard is powered by real last-7-days counts from
   `assessment_leads` (started/completed per day), computed server-side via
   `backend/lib/analytics.ts` (`getAgentAssessmentActivity`). It is embedded in
-  `GET /api/dashboard/agent` as `weeklyActivity` (single request — no polling, no
+  `GET /api/dashboard/agent` as `weeklyActivity` (single request, no polling, no
   real-time subscriptions) and also available standalone at
   `GET /api/dashboard/agent-activity`. With no data it shows seven zero days and
   "No assessment activity yet."; if the analytics query fails the chart shows
@@ -175,7 +175,7 @@ window.REQUITY_CONFIG = {
   are seeded as `role = admin` with an `agents` row, so they pass both reviewer
   and agent-dashboard checks. Normal agents are still blocked from the reviewer
   portal; reviewer-only accounts (no agent row) are never forced into the agent
-  dashboard. Initial password `requityslaunch26` — change after first login. The
+  dashboard. Initial password `requityslaunch26`, change after first login. The
   service role key stays server-side; nothing is hardcoded in the frontend.
 - **Single sign-up, then assessment:** the agent landing CTAs go to
   `agent/login.html`. New agents provide only full name / email / password /
@@ -184,7 +184,7 @@ window.REQUITY_CONFIG = {
   visitors are redirected to login) and saves the archetype + `archetype_completed_at`
   directly to the agent's row via `POST /api/agent-assessment/submit`. The agent
   dashboard is gated on a completed archetype.
-- **Visible features are live, empty, or disabled — never fake:** the agent
+- **Visible features are live, empty, or disabled, never fake:** the agent
   dashboard "Send password reset" button calls the real Supabase recovery email;
   the unimplemented "email reset" and "manage connection" toast buttons were
   removed. The client assessment only shows its confirmation page after a real
@@ -199,4 +199,4 @@ window.REQUITY_CONFIG = {
 - `frontend/shared/config.js` committed: **none** (correctly gitignored)
 
 **Overall: READY for first deployment** once the Supabase project, env vars, and
-`config.js` are populated with real values per sections 2–3.
+`config.js` are populated with real values per sections 2 to 3.

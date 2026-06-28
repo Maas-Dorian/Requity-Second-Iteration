@@ -43,7 +43,7 @@ export type AgentInput = {
   phone?: string | null;
   brokerage?: string | null;
   licenseNumber?: string | null;
-  /** ToS acceptance — recorded only when a NEW profile row is created. */
+  /** ToS acceptance, recorded only when a NEW profile row is created. */
   termsAccepted?: boolean;
   termsVersion?: string | null;
 };
@@ -104,7 +104,7 @@ async function ensureAgentProfile(input: AgentInput): Promise<ProfileRecord> {
   if (existing) {
     // Refresh email/full_name if newly provided. Upgrade the role to "agent"
     // when it is missing or still the default "client" (agent signup/self-heal),
-    // but NEVER downgrade a reviewer/admin — those are intentional roles.
+    // but NEVER downgrade a reviewer/admin, those are intentional roles.
     const patch: Record<string, unknown> = {};
     if (input.email && input.email !== existing.email) patch.email = input.email;
     if (input.fullName && input.fullName !== existing.full_name) patch.full_name = input.fullName;

@@ -157,7 +157,7 @@
                         
                         <div class="detail-row mb-3">
                             <span class="detail-label">Selected real estate agent:</span>
-                            <strong class="text-blue text-large" id="decision-selected-agent">—</strong>
+                            <strong class="text-blue text-large" id="decision-selected-agent">, </strong>
                         </div>
 
                         <div id="decision-actions" class="action-stack">
@@ -271,7 +271,7 @@
     window.__reviewerGate = (function () {
         var API = window.RequityAPI;
         var cfg = window.REQUITY_CONFIG || {};
-        // No API/config means setup is incomplete — send to the reviewer sign in.
+        // No API/config means setup is incomplete, send to the reviewer sign in.
         if (!API || !cfg.apiBaseUrl) {
             window.location.href = REVIEWER_LOGIN_URL;
             return Promise.resolve({ ok: false, reason: 'no_config' });
@@ -422,7 +422,7 @@
 
         function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
         // A lead is "incomplete" only if started-but-not-submitted. Completed,
-        // abandoned, and otherwise-finished leads must never appear here — they
+        // abandoned, and otherwise-finished leads must never appear here, they
         // live in Up for Review or Paired Clients.
         function leadHasCompletedAssessment(l) { return Boolean(l && (l.completed_at || l.status === 'completed')); }
         function leadIsIncomplete(l) {
@@ -430,7 +430,7 @@
             var s = (l && l.status) || '';
             return s === 'started' || s === 'in_progress' || s === 'followed_up';
         }
-        function fmtDate(s) { if (!s) return '—'; try { var d = new Date(s); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return s; } }
+        function fmtDate(s) { if (!s) return ', '; try { var d = new Date(s); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return s; } }
         function sourceLabel(s) { return s === 'qr' ? 'QR' : (s === 'agent_link' ? 'Agent Link' : 'Reviewer'); }
         function statusLabel(s) { return ({ started: 'Started', in_progress: 'In Progress', abandoned: 'Abandoned', followed_up: 'Followed Up', completed: 'Completed' })[s] || s; }
         function transactionText(l) {

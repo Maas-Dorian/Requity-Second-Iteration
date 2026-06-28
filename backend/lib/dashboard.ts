@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
-import { env } from "./env.js";
+import { env, isUsablePublicOrigin } from "./env.js";
 import { getAgentNotifications, type NotificationRecord } from "./messages.js";
 import { getAgentAssessmentActivity, type AgentAssessmentActivity } from "./analytics.js";
 import { isMissingTableError, updateWithSchemaFallback } from "./supabaseWrite.js";
@@ -180,7 +180,7 @@ export type AgentDashboard = {
   };
   /**
    * Real last-7-days assessment activity for the "Assessment activity" chart.
-   * Null when the analytics query fails — the rest of the dashboard still loads
+   * Null when the analytics query fails, the rest of the dashboard still loads
    * and the chart shows a clean error state.
    */
   weeklyActivity: AgentAssessmentActivity | null;
@@ -235,7 +235,7 @@ export type AgentDashboard = {
  *  - assessmentLink: shareable link (source `agent_link`)
  *  - qrLink: link encoded in the QR code (source `qr`)
  *
- * Preference order (Part 5 — slug first, token fallback):
+ * Preference order (Part 5, slug first, token fallback):
  *   1. When a branded `slug` exists, use the clean URL on the public origin:
  *        https://www.requityapp.com/<slug>            (agent_link)
  *        https://www.requityapp.com/<slug>?source=qr  (qr)
@@ -250,14 +250,20 @@ export function buildAgentAssessmentLinks(opts: {
   slug?: string | null;
   frontendUrl?: string;
 }): { assessmentLink: string; qrLink: string } {
+  // Share/QR links must ALWAYS be the live production origin. An explicit
+  // frontendUrl override is honored only when it is itself a usable production
+  // origin (never localhost and never the deleted preview deployment); otherwise
+  // we use the sanitized public site URL.
+  const base = (
+    isUsablePublicOrigin(opts.frontendUrl) ? opts.frontendUrl! : env.publicSiteUrl
+  ).replace(/\/$/, "");
+
   if (opts.slug) {
-    const publicBase = env.publicSiteUrl.replace(/\/$/, "");
     return {
-      assessmentLink: `${publicBase}/${opts.slug}`,
-      qrLink: `${publicBase}/${opts.slug}?source=qr`,
+      assessmentLink: `${base}/${opts.slug}`,
+      qrLink: `${base}/${opts.slug}?source=qr`,
     };
   }
-  const base = (opts.frontendUrl || env.frontendUrl).replace(/\/$/, "");
   const t = opts.token ?? "";
   return {
     assessmentLink: t ? `${base}/client/assessment.html?agent=${t}&source=agent_link` : "",
@@ -328,7 +334,7 @@ export async function getAgentDashboard(
     }
   }
 
-  // Messages are optional too — never let a missing table break the dashboard.
+  // Messages are optional too, never let a missing table break the dashboard.
   let messages: NotificationRecord[] = [];
   try {
     messages = await getAgentNotifications(agentId, { limit: 50 });
@@ -426,7 +432,7 @@ export async function getAgentDashboard(
     (c.transaction_intent ? String(c.transaction_intent) : null);
 
   // Matches: clients matched/assigned to this agent (all clients in `list` are
-  // assigned to this agent). Live data only — never fabricated.
+  // assigned to this agent). Live data only, never fabricated.
   const matches = list.map((c) => ({
     id: c.id,
     name: c.full_name,

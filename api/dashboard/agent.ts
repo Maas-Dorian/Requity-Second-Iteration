@@ -21,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   await runHandler(req, res, async () => {
     ensureMethod(req, "GET");
 
-    // Identity comes from the authenticated session — agentId is NOT required.
+    // Identity comes from the authenticated session, agentId is NOT required.
     // Admins may optionally pass ?agentId= to view another agent.
     const profile = await requireAgent(req);
     const overrideId = getQueryParam(req, "agentId");

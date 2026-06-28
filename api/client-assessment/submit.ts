@@ -31,7 +31,7 @@ const ROUTE = "client-assessment/submit";
  * POST /api/client-assessment/submit
  * Body: { assessmentToken?|token?, source, contact:{fullName,email?,phone?,dateOfBirth?}, answers, result?, agentId?, agentToken? }
  *
- * Public route — validated + rate limited. Valid when it includes either an
+ * Public route, validated + rate limited. Valid when it includes either an
  * assessmentToken/token OR an agentToken/agentId. Source-specific rule:
  *   - qr / agent_link -> require agentToken or agentId; attach to that agent;
  *     no reviewer queue item.
@@ -82,7 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         );
       }
     }
-    // source === "client": no extra reference required — a fresh assessment is
+    // source === "client": no extra reference required, a fresh assessment is
     // created and routed to the REQUITY reviewer queue.
 
     const contactRaw = requireObject(body, "contact");
@@ -134,7 +134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               ? transactionIntentOther
               : null;
 
-    // Validate a city/market string (2–120 chars). Metadata only — never scored.
+    // Validate a city/market string (2 to 120 chars). Metadata only, never scored.
     const cityField = (key: string): string =>
       (optionalString(body, key) ?? "").trim();
     const isValidCity = (v: string): boolean => v.length >= 2 && v.length <= 120;
@@ -142,7 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       logValidationFailure(ROUTE, "invalid_market_city", {});
       throw new HttpError(
         400,
-        "Please enter the city or market (2–120 characters)."
+        "Please enter the city or market (2 to 120 characters)."
       );
     };
 

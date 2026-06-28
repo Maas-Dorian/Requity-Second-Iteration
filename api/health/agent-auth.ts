@@ -6,7 +6,7 @@ import { getSupabaseAdmin, SupabaseConfigError } from "../../backend/lib/supabas
  * GET /api/health/agent-auth
  *
  * Safe diagnostic for the agent auth/profile/agent table flow. Returns BOOLEANS
- * ONLY — never rows, emails, tokens, keys, or any PII. Verifies the service-role
+ * ONLY, never rows, emails, tokens, keys, or any PII. Verifies the service-role
  * client can read profiles + agents and that the columns the auth flow depends
  * on are present (so schema drift is caught before it breaks sign-in).
  */

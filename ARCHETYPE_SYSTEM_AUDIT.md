@@ -1,7 +1,7 @@
 # REQUITY Archetype System Audit
 
 This document records the canonical archetype system after the consolidation work.
-There are **two separate systems** — Client archetypes and Agent archetypes — that
+There are **two separate systems**, Client archetypes and Agent archetypes, that
 intentionally share two names (`The Producer`, `The Supporter`) kept apart by context.
 Never mix client copy into agent explanations.
 
@@ -12,9 +12,9 @@ Never mix client copy into agent explanations.
 
 ### Required exports (all present)
 
-- `surveyQuestions` — client survey questions
-- `assignArchetype` — client scoring → `ArchetypeResult`
-- `getArchetypeGuidelines` — client guidelines by approved name
+- `surveyQuestions`, client survey questions
+- `assignArchetype`, client scoring → `ArchetypeResult`
+- `getArchetypeGuidelines`, client guidelines by approved name
 - `getArchetypeDisplayName`, `getOrientationDisplayName`, `getStyleDisplayName`, `getStressResponseDisplayName`
 - `agentSurveyQuestions`, `agentAnswerMapping`, `agentArchetypeMatrix`
 - `getAgentArchetypeFromAnswers`, `getCompatibleClientTypes`
@@ -104,20 +104,20 @@ The Encourager, The Coordinator, The Producer, The Adjuster, The Collaborator.
 
 ## Exact details included
 
-- **`CLIENT_ARCHETYPE_DETAILS`** — for all 16 client archetypes: `summary`,
+- **`CLIENT_ARCHETYPE_DETAILS`**, for all 16 client archetypes: `summary`,
   `buyerProfile { motivations, communication, stressReduction }`, and
   `sellerProfile { motivations, communication, stressReduction }`. Wording is the
   approved source copy, verbatim.
-- **`CLIENT_GUIDELINES`** — for all 16 client archetypes: `buyer.approaches`,
+- **`CLIENT_GUIDELINES`**, for all 16 client archetypes: `buyer.approaches`,
   `buyer.avoid`, `seller.approaches`, `seller.avoid`, `simultaneous.approaches`,
   `simultaneous.avoid`, `communication.recommended`, `communication.avoid`. Wording
   is the approved source copy, verbatim. (The supplied "The Coordinator" guideline
   block was excluded from CLIENT_GUIDELINES because "The Coordinator" is an agent
   archetype, not an approved client archetype.)
-- **`AGENT_ARCHETYPE_DETAILS`** — for all 16 agent archetypes: `name`, `summary`,
+- **`AGENT_ARCHETYPE_DETAILS`**, for all 16 agent archetypes: `name`, `summary`,
   `strengths`, `workingStyle`, `idealClients` (from the approved compatibility map).
   Agent detail copy is concise and derived from the agent name, interaction style,
-  focus, stress response, negotiation style, and compatible client types — it never
+  focus, stress response, negotiation style, and compatible client types, it never
   reuses client archetype copy.
 
 ## Removed invalid / non-approved archetypes
@@ -129,7 +129,7 @@ The Encourager, The Coordinator, The Producer, The Adjuster, The Collaborator.
 | The Agent Producer | `backend/lib/matching.ts`, `backend/src/matching.ts`, `agent/dashboard.html` | Renamed to approved `The Producer` |
 | The Planner | `reviewer/index.html` static reference | Replaced with approved client archetypes |
 | The Trusted Advisor | `reviewer/index.html` static reference (listed as agent) | Replaced with approved agent archetypes |
-| The Strategist (listed under agents) | `reviewer/index.html` static reference | Replaced — `The Strategist` is a client archetype |
+| The Strategist (listed under agents) | `reviewer/index.html` static reference | Replaced, `The Strategist` is a client archetype |
 | Unknown Agent Type | only `backend/src/agent-survey-questions.legacy.ts` (excluded from build, not user-facing) | Left in legacy file only |
 | The Commander / The Innovator / The Diplomat | not found in any user-facing path | n/a |
 
@@ -163,22 +163,22 @@ archetype).
   `window.__requityRenderAgentArchetype`). Modal shows: name, summary, strengths,
   working style, and ideal client fit, plus a "Retake assessment" link.
 - Reviewer match fit cards show agent archetype names via `backend/lib/reviewerMatches.ts`
-  (`buildMatchReason`, ranking) — approved names only.
+  (`buildMatchReason`, ranking), approved names only.
 
 ## Files changed
 
-- `backend/lib/archetypes.ts` — **new** canonical module.
-- `backend/lib/index.ts` — re-export the canonical module.
-- `backend/lib/matching.ts` — renamed `The Agent Supporter`→`The Supporter`,
+- `backend/lib/archetypes.ts`, **new** canonical module.
+- `backend/lib/index.ts`, re-export the canonical module.
+- `backend/lib/matching.ts`, renamed `The Agent Supporter`→`The Supporter`,
   `The Agent Producer`→`The Producer` (in `agentArchetypeMap` and `primaryMatchPercentages`).
-- `backend/lib/agentAssessments.ts` — removed `Relationship-Fit Agent` fallback → `The Collaborator`.
-- `backend/src/matching.ts` — same agent renames (legacy, not compiled; aligned for consistency).
-- `agent/script.js` — removed `Relationship-Fit Agent` fallback → `The Collaborator`.
-- `agent/dashboard.html` — renamed modal keys to `supporter`/`producer`, removed the
+- `backend/lib/agentAssessments.ts`, removed `Relationship-Fit Agent` fallback → `The Collaborator`.
+- `backend/src/matching.ts`, same agent renames (legacy, not compiled; aligned for consistency).
+- `agent/script.js`, removed `Relationship-Fit Agent` fallback → `The Collaborator`.
+- `agent/dashboard.html`, renamed modal keys to `supporter`/`producer`, removed the
   `relationship-fit agent` entry, added `AGENT_COMPATIBILITY` + `AGENT_WORKING_STYLE`,
   added Working style + Ideal client fit modal sections, added the invalid-archetype guard.
-- `reviewer/index.html` — replaced invalid names in the static archetype reference.
-- `ARCHETYPE_SYSTEM_AUDIT.md` — this document.
+- `reviewer/index.html`, replaced invalid names in the static archetype reference.
+- `ARCHETYPE_SYSTEM_AUDIT.md`, this document.
 
 ## Tests run
 

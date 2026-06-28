@@ -21,7 +21,7 @@ function logSafe(code: string, message: string, env: EnvStatus, area?: string): 
 }
 
 /**
- * GET /api/auth/me — Protected (Authorization: Bearer <access_token>, no cookies).
+ * GET /api/auth/me, Protected (Authorization: Bearer <access_token>, no cookies).
  *
  * Crash-proof: the entire body is wrapped so the function ALWAYS returns JSON,
  * never a Vercel FUNCTION_INVOCATION_FAILED page. Env is read via non-throwing
@@ -178,7 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       needsBootstrap: !profile,
     });
   } catch (err) {
-    // Absolute last resort — guarantee JSON instead of a runtime crash page.
+    // Absolute last resort, guarantee JSON instead of a runtime crash page.
     try {
       console.error(`[${ROUTE}] unexpected error:`, err instanceof Error ? err.message : "unknown");
       if (!res.headersSent) {

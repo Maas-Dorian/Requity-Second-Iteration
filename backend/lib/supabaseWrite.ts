@@ -14,7 +14,7 @@ import { getSupabaseAdmin } from "./supabaseAdmin.js";
  *   These helpers detect that specific failure, drop ONLY the unknown
  *   (non-required) column, and retry. The columns that DO exist still save, so
  *   the core data (archetype, contact, status) always persists even before the
- *   alignment migration is run. Required columns are never dropped — if one of
+ *   alignment migration is run. Required columns are never dropped, if one of
  *   those is missing we throw a clear DbWriteError so the API can report it.
  *
  *   This is additive and non-destructive: it never invents data and never hides

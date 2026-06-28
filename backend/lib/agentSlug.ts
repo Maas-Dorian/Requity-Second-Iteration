@@ -7,7 +7,7 @@ import { getSupabaseAdmin } from "./supabaseAdmin.js";
  * public_assessment_token:
  *   https://www.requityapp.com/<name>-requityapp-relational-assessment
  *
- * The slug is derived ONLY from the agent's display name — never the id, profile
+ * The slug is derived ONLY from the agent's display name, never the id, profile
  * id, email, or token. It is stored on agents.public_slug and resolved
  * server-side to the correct agent. The raw token link still works for
  * backward compatibility (old links + QR codes).
@@ -73,7 +73,7 @@ export async function generateUniqueAgentSlug(
       .select("id")
       .eq("public_slug", candidate)
       .maybeSingle();
-    if (error) return candidate; // column/table drift — can't dedupe, use as-is
+    if (error) return candidate; // column/table drift, can't dedupe, use as-is
     if (!data || (selfAgentId && data.id === selfAgentId)) return candidate;
   }
   // Pathological fallback (1000 same-named agents): guarantee uniqueness.
@@ -107,7 +107,7 @@ export async function ensureAgentSlug(
     .from("agents")
     .update({ public_slug: slug })
     .eq("id", agentId);
-  if (updateError) return null; // couldn't persist (drift) — caller falls back to token
+  if (updateError) return null; // couldn't persist (drift), caller falls back to token
   return slug;
 }
 
@@ -134,7 +134,7 @@ export async function getPublicAgentByReference(ref: {
 }): Promise<{ displayName: string | null; publicSlug: string | null; marketCity: string | null } | null> {
   const supabase = getSupabaseAdmin();
   // select("*") tolerates schema drift (e.g. market_city/public_slug not yet
-  // migrated) — a narrow column list would error on a missing column.
+  // migrated), a narrow column list would error on a missing column.
   let query = supabase.from("agents").select("*");
   if (ref.slug) query = query.eq("public_slug", ref.slug);
   else if (ref.token) query = query.eq("public_assessment_token", ref.token);

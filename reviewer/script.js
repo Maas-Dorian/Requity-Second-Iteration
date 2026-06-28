@@ -1,4 +1,4 @@
-/* REQUITY Reviewer JS — live data only.
+/* REQUITY Reviewer JS, live data only.
  *
  * The reviewer matching queue is populated exclusively from the secure
  * /api/reviewer/matches endpoint (reviewer/admin auth required). There is no
@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Debug logging (frontend) — only when explicitly enabled. No tokens or
+    // Debug logging (frontend), only when explicitly enabled. No tokens or
     // private payloads are ever logged.
     function reviewerDebug(name, payload) {
         if (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1') {
@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return {
                 agentId: agent.id || null,
                 name: agent.name || 'Unknown agent',
-                archetype: agent.archetype || '—',
+                archetype: agent.archetype || ', ',
                 fit: (r && typeof r.score === 'number') ? r.score : null,
                 label: (r && r.label) || '',
                 reason: (r && r.reason) || '',
@@ -139,10 +139,10 @@ document.addEventListener('DOMContentLoaded', () => {
             email: c.email || '',
             phone: c.phone || '',
             birthday: c.date_of_birth || '',
-            archetype: c.archetype || '—',
-            orientation: c.orientation || '—',
-            style: c.style || '—',
-            stressResponse: c.stress_response || '—',
+            archetype: c.archetype || ', ',
+            orientation: c.orientation || ', ',
+            style: c.style || ', ',
+            stressResponse: c.stress_response || ', ',
             transaction: transactionText(c),
             market: marketText(c),
             buyingMarket: cityOrNull(c.buying_market_city),
@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elFitsList.innerHTML = '<div class="leads-empty">' + fitsMsg + '</div>';
             elDecisionActions.classList.add('hidden');
             elDecisionSuccess.classList.add('hidden');
-            elDecisionAgent.textContent = '—';
+            elDecisionAgent.textContent = ', ';
             return;
         }
 
@@ -399,7 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Decision panel
         elDecisionActions.classList.remove('hidden');
         elDecisionSuccess.classList.add('hidden');
-        elDecisionAgent.textContent = state.selectedAgentName || '—';
+        elDecisionAgent.textContent = state.selectedAgentName || ', ';
     }
 
     function updateSummary() {
@@ -417,10 +417,10 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSummary();
     }
 
-    // Live "Paired Clients" — real matched/assigned pairings only. Clean empty
+    // Live "Paired Clients", real matched/assigned pairings only. Clean empty
     // state when there are none. Never fabricated.
     function fmtPairedDate(s) {
-        if (!s) return '—';
+        if (!s) return ', ';
         try {
             var d = new Date(s);
             return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });

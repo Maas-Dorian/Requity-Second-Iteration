@@ -41,7 +41,7 @@ header.scrolled { box-shadow: var(--shadow-sm); border-bottom-color: var(--blue-
 .main-nav { display: flex; align-items: center; gap: 32px; }
 .main-nav a:not(.btn) { font-weight: 500; color: var(--secondary-text); transition: color 0.2s; }
 .main-nav a:not(.btn):hover { color: var(--primary-blue); }
-/* Subtle, discreet reviewer portal entry — stays visible on mobile. */
+/* Subtle, discreet reviewer portal entry, stays visible on mobile. */
 .reviewer-portal-link { font-size: 0.9rem; opacity: 0.85; }
 @media (max-width: 640px) { .main-nav a.reviewer-portal-link { display: inline-flex !important; opacity: 1; } }
 .hero-section { padding-top: 160px; }

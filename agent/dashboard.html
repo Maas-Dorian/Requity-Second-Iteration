@@ -397,7 +397,7 @@
     }
     .archetype-viewmore:hover { color: var(--deep-blue); }
 
-    /* Archetype explanation modal — reuses the dashboard card look. */
+    /* Archetype explanation modal, reuses the dashboard card look. */
     .archetype-modal-overlay {
       position: fixed;
       inset: 0;
@@ -1013,18 +1013,18 @@
     .detail-card .report-list { margin-bottom: 0; }
     .detail-card .report-avoid,
     .detail-card .report-text { margin-bottom: 0; }
-    /* Positive / recommended guidance — green, never red. */
+    /* Positive / recommended guidance, green, never red. */
     .detail-card-positive { background: rgba(19,115,51,0.06); border-color: rgba(19,115,51,0.25); border-left-color: #137333; }
     .detail-card-positive .detail-card-label { color: #137333; }
-    /* Avoid / cautions — red but soft and professional. */
+    /* Avoid / cautions, red but soft and professional. */
     .detail-card-warning { background: rgba(179,38,30,0.05); border-color: rgba(179,38,30,0.25); border-left-color: #B3261E; }
     .detail-card-warning .detail-card-label { color: #B3261E; }
     .detail-card-warning .report-avoid,
     .detail-card-warning .report-list li { color: #8C1D18; }
-    /* Neutral info — light blue/gray. */
+    /* Neutral info, light blue/gray. */
     .detail-card-neutral { background: var(--soft-blue); border-color: var(--blue-border); border-left-color: var(--primary-blue); }
     .detail-card-neutral .detail-card-label { color: var(--primary-blue); }
-    /* Appreciation / expectations — soft orange accent. */
+    /* Appreciation / expectations, soft orange accent. */
     .detail-card-accent { background: rgba(255,117,0,0.06); border-color: rgba(255,117,0,0.25); border-left-color: var(--accent-orange); }
     .detail-card-accent .detail-card-label { color: var(--accent-orange); }
     .detail-card-section-title {
@@ -1507,7 +1507,7 @@
           <article class="settings-card card">
             <h3>Account email</h3>
             <p>The login email connected to your REQUITY agent account. To change it, contact the REQUITY team.</p>
-            <div class="settings-field" id="settings-account-email">—</div>
+            <div class="settings-field" id="settings-account-email">, </div>
           </article>
           <article class="settings-card card">
             <h3>Market</h3>
@@ -1806,7 +1806,7 @@
       if (qrRetryBtn) qrRetryBtn.addEventListener('click', loadAgentQr);
       // IMPORTANT: do NOT load the QR here. The auth block calls this AFTER
       // requireAgentSession() resolves, so the access token is validated/refreshed
-      // exactly once — avoiding a single-use refresh-token race between two
+      // exactly once, avoiding a single-use refresh-token race between two
       // concurrent getAccessToken() calls on page load.
       setQrState('loading');
       window.__requityLoadAgentQr = loadAgentQr;
@@ -1832,7 +1832,7 @@
         passwordResetBtn.addEventListener('click', async () => {
           const api = window.RequityAPI;
           const email = (document.getElementById('settings-account-email')?.textContent || '').trim();
-          if (!email || email === '—') { showToast('No account email available.'); return; }
+          if (!email || email === ', ') { showToast('No account email available.'); return; }
           if (!api || !api.sendPasswordReset) { showToast('Password reset is unavailable right now.'); return; }
           passwordResetBtn.disabled = true;
           const original = passwordResetBtn.textContent;
@@ -1899,7 +1899,7 @@
         return;
       }
       // Safe guard debug log (no tokens/PII). Only when requity_debug === '1'.
-      // A valid session is NEVER redirected to login — only a definitive
+      // A valid session is NEVER redirected to login, only a definitive
       // no_session (401) is. needs_setup/error show an in-place message.
       var guardRedirectingToLogin = !session.ok && session.reason === 'no_session';
       if (API.__debug) {
@@ -1918,14 +1918,14 @@
 
       if (!session.ok) {
         // Transient/server error: do NOT redirect (avoids a login loop). The
-        // session may still be initializing/refreshing — never bounce to login
+        // session may still be initializing/refreshing, never bounce to login
         // on a server error.
         if (session.reason === 'error') {
           showAuthError("We couldn't verify your account. Please try again.");
           return;
         }
         // Valid session but the profile/agent row couldn't be provisioned. This
-        // is a setup problem, not an auth failure — show a clear error and let
+        // is a setup problem, not an auth failure, show a clear error and let
         // the agent retry. Never bounce a signed-in user to the login page.
         if (session.reason === 'needs_setup') {
           showAuthError("We couldn't finish setting up your agent profile. Please retry.");
@@ -1947,7 +1947,7 @@
 
       // No onboarding redirect: an authenticated agent ALWAYS sees the dashboard.
       // When they have no archetype yet, __requityRenderAgentArchetype shows the
-      // "Discover your Agent Archetype" button / onboarding state in place — we
+      // "Discover your Agent Archetype" button / onboarding state in place, we
       // never bounce them to the assessment or login page from here.
 
       // Auth is fully resolved (token validated/refreshed by requireAgentSession).
@@ -1979,7 +1979,7 @@
         const acctEmail = document.getElementById('settings-account-email');
         if (acctEmail && me.agent.email) acctEmail.textContent = me.agent.email;
         // Show the archetype pill + "View more" (or the Discover button) based on
-        // the saved backend archetype + completion — never on UI state.
+        // the saved backend archetype + completion, never on UI state.
         if (typeof window.__requityRenderAgentArchetype === 'function') {
           window.__requityRenderAgentArchetype(me.agent);
         }
@@ -2167,7 +2167,7 @@
           [{ label: 'Approaches to Avoid', items: g ? g.communication && g.communication.avoid : null }]
         );
 
-        // Appreciation Style (only when supplied — never fabricated)
+        // Appreciation Style (only when supplied, never fabricated)
         const appreciation = (r.appreciationStyle)
           ? '<div class="report-section"><div class="detail-card-section-title">Client\'s Appreciation Style</div>' +
               detailBlock('accent', '', '<p class="report-text">' + esc(r.appreciationStyle) + '</p>') + '</div>'
@@ -2232,7 +2232,7 @@
         const current = clientPipelineStatus(c);
         const isReviewer = c.source === 'requity_reviewer';
         const badge = isReviewer ? '<span class="requity-match-badge">REQUITY Client Match</span>' : '';
-        const sourceText = isReviewer ? 'Received from REQUITY reviewer' : 'QR code client — stays in dashboard';
+        const sourceText = isReviewer ? 'Received from REQUITY reviewer' : 'QR code client, stays in dashboard';
         const closedAt = (current === 'closed' && c.close_date)
           ? '<div><span>Closed date</span><strong>' + esc(new Date(c.close_date).toLocaleDateString()) + '</strong></div>'
           : '';
@@ -2713,7 +2713,7 @@
       /**
        * Show the archetype pill + "View more" whenever the agent HAS an
        * archetype; otherwise show the Discover button. The single rule is
-       * Boolean(agent.archetype) — archetype_completed_at is NOT required.
+       * Boolean(agent.archetype), archetype_completed_at is NOT required.
        * Accepts the agent object from /api/auth/me or /api/dashboard/agent.
        */
       window.__requityRenderAgentArchetype = function (agent) {

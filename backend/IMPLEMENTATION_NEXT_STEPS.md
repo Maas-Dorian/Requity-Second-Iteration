@@ -1,4 +1,4 @@
-# REQUITY Implementation — Next Steps
+# REQUITY Implementation, Next Steps
 
 This document explains how the backend foundation, matching, notifications, and
 email connect together, and what to configure when deploying to Vercel +
@@ -14,7 +14,7 @@ frontend/shared/api.js    →  reviewerMatches / matching            → Brevo
 ```
 
 The static frontend talks to `frontend/shared/api.js`, which calls the secure
-`/api` routes (`apiBaseUrl`). Real Supabase credentials are required — there is
+`/api` routes (`apiBaseUrl`). Real Supabase credentials are required, there is
 no demo mode. The TypeScript modules in `backend/lib` are the authoritative,
 Supabase-ready service layer used by the API routes.
 
@@ -60,7 +60,7 @@ never fails. Every send is recorded in `email_events` through
 
 ## Where matching logic lives
 
-`backend/lib/matching.ts` — the archetype maps and the weighted score:
+`backend/lib/matching.ts`, the archetype maps and the weighted score:
 
 - 30% orientation fit, 25% style/focus fit, 25% stress-response fit,
   10% negotiation fit, 10% perceived-value fit.
@@ -78,7 +78,7 @@ The frontend mirror lives in `frontend/shared/api.js` (`calculateClientArchetype
 
 ## Where notification logic lives
 
-`backend/lib/messages.ts` — `createNotification`, `getAgentNotifications`,
+`backend/lib/messages.ts`, `createNotification`, `getAgentNotifications`,
 `markNotificationRead`. Notification types:
 
 - `client_link_opened`
@@ -118,21 +118,21 @@ intentionally enters them on the contact step and starts the assessment.
 
 Flow and the route that drives each step:
 
-1. **Start** — when the client clicks "Continue to Assessment", the frontend
+1. **Start**, when the client clicks "Continue to Assessment", the frontend
    (`client/assessment-script.js` → `RequityAPI.startAssessmentLead`) calls
    `POST /api/assessment-leads/start`. This creates an `assessment_leads` row with
    `status='started'` and the contact info. The `leadId` is kept in memory and
    `localStorage` so a refresh/return reuses the same lead.
-2. **Progress** — after each answer (debounced ~1.2s),
+2. **Progress**, after each answer (debounced ~1.2s),
    `RequityAPI.updateAssessmentLeadProgress` calls
    `POST /api/assessment-leads/progress`, updating `answered_count`,
    `partial_answers`, `last_activity_at`, and moving status to `in_progress`.
-3. **Complete** — on final submit, the frontend includes `leadId` in
+3. **Complete**, on final submit, the frontend includes `leadId` in
    `client-assessment/submit`. The server
    (`clientAssessments.submitClientAssessmentWithContact`) calls
    `completeAssessmentLead(...)`, setting `status='completed'`, `completed_at`, and
    `archetype`. (A standalone `POST /api/assessment-leads/complete` also exists.)
-4. **Abandon** — if the client never completes, the lead simply stays
+4. **Abandon**, if the client never completes, the lead simply stays
    `started`/`in_progress`. There is no job that flips it to `abandoned`
    automatically; reviewers mark it `abandoned` (or a future cron can, based on
    `last_activity_at`).

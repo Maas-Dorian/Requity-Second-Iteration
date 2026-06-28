@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function needsBuyingMarket() { return selectedGoal === 'buying' || selectedGoal === 'both'; }
     function needsSellingMarket() { return selectedGoal === 'selling' || selectedGoal === 'both'; }
     function otherIntentText() { return otherIntentInput ? otherIntentInput.value.trim() : ''; }
-    // City/market values. Metadata only — never included in archetype scoring.
+    // City/market values. Metadata only, never included in archetype scoring.
     function cityText(el) { return el ? el.value.trim() : ''; }
     function cityValid(v) { return v.length >= 2 && v.length <= 120; }
     function buyingMarketText() { return cityText(buyingMarketInput); }
@@ -607,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // Branded clean slug link (preferred). Defaults to source `agent_link`;
         // a `?source=qr` on the clean URL preserves QR attribution. The agent is
-        // resolved server-side from the slug — no raw token in the URL.
+        // resolved server-side from the slug, no raw token in the URL.
         if (agentSlug) {
             // If the slug did not resolve to a real agent, fall back to the
             // reviewer queue so the submission is never orphaned.
@@ -716,7 +716,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Demo automation has been removed. The form and assessment now work manually.
     // Scroll-based page animations are handled on the landing page.
     // The "start a new assessment" restart control was intentionally removed from
-    // the completion screen — a submitted client assessment is final and the
+    // the completion screen, a submitted client assessment is final and the
     // completion view should not encourage starting over.
 
 

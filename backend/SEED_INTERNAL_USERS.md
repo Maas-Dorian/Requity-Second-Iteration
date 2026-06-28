@@ -10,7 +10,7 @@ in `public.profiles` **and** an `public.agents` row.
 | `tussa@requityapp.com` | `admin` | yes | ✅ | ✅ |
 | `mike@requityapp.com` | `admin` | yes | ✅ | ✅ |
 
-- **Initial password:** `requityslaunch26` — **change it after first login**
+- **Initial password:** `requityslaunch26`, **change it after first login**
   (Settings → "Send password reset" on the agent dashboard, or Supabase recovery).
 - Admins pass reviewer/admin checks and, because they have an agent row, also
   pass agent-dashboard checks. Normal agents are still blocked from the reviewer
@@ -23,7 +23,7 @@ in `public.profiles` **and** an `public.agents` row.
 
 ---
 
-## Option A — Seed script (recommended)
+## Option A, Seed script (recommended)
 
 Requires the service-role env vars. From the repo root:
 
@@ -44,13 +44,13 @@ The script (`backend/scripts/seed-internal-users.ts`):
 - upserts `public.profiles` with `role = 'admin'`, `email`, and `full_name`
   (derived from the email prefix),
 - ensures a `public.agents` row exists with a `public_assessment_token`,
-- is **idempotent** — re-running does not duplicate users or rows.
+- is **idempotent**, re-running does not duplicate users or rows.
 
 Optional: override the initial password with `INTERNAL_SEED_PASSWORD=... npm run seed:internal-users`.
 
 ---
 
-## Option B — Supabase Dashboard + SQL (no script)
+## Option B, Supabase Dashboard + SQL (no script)
 
 1. **Create the auth users.** Supabase Dashboard → Authentication → Users →
    "Add user" for each of the three emails. Set the password to

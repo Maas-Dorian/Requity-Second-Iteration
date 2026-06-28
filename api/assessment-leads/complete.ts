@@ -19,7 +19,7 @@ const ROUTE = "assessment-leads/complete";
 
 /**
  * POST /api/assessment-leads/complete
- * Public route — marks an incomplete lead as completed. Normally called server-
+ * Public route, marks an incomplete lead as completed. Normally called server-
  * side by client-assessment/submit, but exposed for direct use too.
  * Body: { leadId? , clientAssessmentId?, email?, source?, archetype?, answeredCount? }
  * Returns: { leadId, status } or { matched:false }

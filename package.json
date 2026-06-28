@@ -6,7 +6,9 @@
   "description": "REQUITY platform: static frontend + secure Vercel API routes over Supabase.",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "node scripts/generate-config.js && tsc --noEmit",
+    "check:dashes": "node scripts/check-no-cross-dashes.js",
+    "check:domain": "node scripts/check-no-old-domain.js",
+    "build": "node scripts/check-no-cross-dashes.js && node scripts/check-no-old-domain.js && node scripts/generate-config.js && tsc --noEmit",
     "seed:internal-users": "tsx backend/scripts/seed-internal-users.ts"
   },
   "dependencies": {

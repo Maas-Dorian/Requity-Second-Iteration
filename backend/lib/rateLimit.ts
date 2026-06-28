@@ -6,7 +6,7 @@
  * not shared across cold starts or regions, so this is best-effort only.
  *
  * PRODUCTION: replace the store with a shared backend, e.g.
- *   - Upstash Redis (recommended for Vercel) — atomic INCR + EXPIRE, or
+ *   - Upstash Redis (recommended for Vercel), atomic INCR + EXPIRE, or
  *   - a Supabase table with a SQL upsert + window check.
  * Keep this same `checkRateLimit` signature so callers don't change.
  */
