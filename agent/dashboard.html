@@ -1400,8 +1400,8 @@
            REQUITY can match them by proximity. Populated/toggled by JS. -->
       <section class="market-profile-card" id="market-profile-card" hidden>
         <div class="market-profile-head">
-          <h3>Complete your market profile</h3>
-          <p>Tell us where you work so REQUITY can match you with nearby clients.</p>
+          <h3>Add your market</h3>
+          <p>Add your market so REQUITY can match you with local clients. You will not appear as a match until your market is saved.</p>
         </div>
         <div class="market-profile-grid">
           <label class="market-profile-field">
@@ -2868,6 +2868,11 @@
         var pill = document.getElementById('archetype-pill');
         var discover = document.getElementById('discover-archetype-action');
         if (!agent) return;
+
+        // Location is required for matching: prompt EVERY agent (not just
+        // assessment-exempt ones) to add a market when one is missing. The card
+        // hides itself once a usable market is on file.
+        maybeShowMarketProfileCard(agent);
         var archetype = agent.archetype || (agent.assessment_summary && agent.assessment_summary.archetype) || null;
         // Simplest rule: the presence of an archetype alone hides the Discover
         // button and shows the pill + View more. archetype_completed_at is NOT
@@ -2890,8 +2895,7 @@
           if (api && api.__debug) {
             api.__debug('dashboard:archetype-state', 'resolutions-bypass', { assessmentDisabled: true });
           }
-          // Assessment-exempt agents still need a market for proximity matching.
-          maybeShowMarketProfileCard(agent);
+          // Market card already handled at the top (location required for matching).
           return;
         }
 

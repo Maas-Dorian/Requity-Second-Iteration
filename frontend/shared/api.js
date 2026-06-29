@@ -614,6 +614,7 @@
     if (f.state) qs.push("state=" + encodeURIComponent(f.state));
     if (f.status) qs.push("status=" + encodeURIComponent(f.status));
     if (f.transaction) qs.push("transaction=" + encodeURIComponent(f.transaction));
+    if (f.eligibility) qs.push("eligibility=" + encodeURIComponent(f.eligibility));
     if (f.limit) qs.push("limit=" + encodeURIComponent(f.limit));
     if (f.offset) qs.push("offset=" + encodeURIComponent(f.offset));
     var data = (await apiGet("/reviewer/locations" + (qs.length ? "?" + qs.join("&") : ""))) || {};
@@ -621,13 +622,19 @@
       markets: data.markets || [],
       clients: data.clients || [],
       agents: data.agents || [],
-      total: data.total || { marketCount: 0, clientCount: 0, agentCount: 0 },
+      total: data.total || {
+        marketCount: 0, clientCount: 0, agentCount: 0,
+        agentsMissingLocation: 0, clientsMissingLocation: 0, noLocalMatch: 0,
+      },
     };
   }
 
   /**
-   * Reviewer: top suggested agents for a queued client/lead (proximity-aware).
-   * params: { clientId?, leadId?, limit? }. Returns an array of suggestions.
+   * Reviewer: location-aware agent suggestions for a queued client/lead.
+   * params: { clientId?, leadId?, limit? }. Returns the full eligibility result:
+   * { clientLocationStatus, eligibleAgents, suggestions, excludedAgents,
+   *   message, suggestedActions }. Only location-eligible agents are returned;
+   * agents with missing location or out of range are summarized as counts only.
    */
   async function fetchReviewerMatchSuggestions(params) {
     var p = params || {};
@@ -636,7 +643,15 @@
     if (p.leadId) qs.push("leadId=" + encodeURIComponent(p.leadId));
     if (p.limit) qs.push("limit=" + encodeURIComponent(p.limit));
     var data = (await apiGet("/reviewer/match-suggestions" + (qs.length ? "?" + qs.join("&") : ""))) || {};
-    return (data && data.suggestions) || [];
+    var eligible = data.eligibleAgents || data.suggestions || [];
+    return {
+      clientLocationStatus: data.clientLocationStatus || "missing",
+      eligibleAgents: eligible,
+      suggestions: eligible,
+      excludedAgents: data.excludedAgents || { missingLocation: 0, outOfRange: 0, incompleteProfile: 0 },
+      message: data.message || null,
+      suggestedActions: data.suggestedActions || [],
+    };
   }
 
   /**

@@ -174,7 +174,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function mapQueueItem(item) {
         const c = (item && item.client) || {};
         const rankings = (item && Array.isArray(item.rankings)) ? item.rankings : [];
-        const fits = rankings.map(function (r, i) {
+        // Location is REQUIRED: only agents flagged eligible are shown as matches.
+        // Ineligible agents (missing location, out of range, etc.) are never shown
+        // as a recommendation or auto-paired; they are summarized via matchSummary.
+        const eligibleRankings = rankings.filter(function (r) { return r && r.eligible !== false; });
+        const fits = eligibleRankings.map(function (r, i) {
             const agent = (r && r.agent) || {};
             return {
                 agentId: agent.id || null,
@@ -188,10 +192,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 total: (r && typeof r.totalScore === 'number') ? r.totalScore : null,
                 locationScore: (r && typeof r.locationScore === 'number') ? r.locationScore : null,
                 distanceMiles: (r && r.distanceMiles != null) ? r.distanceMiles : null,
+                limitedFit: !!(r && r.limitedFit),
+                warning: (r && r.locationWarning) || null,
                 top: i === 0
             };
         });
+        const matchSummary = (c && c.matchSummary) || null;
         return {
+            matchSummary: matchSummary,
             id: c.id,
             clientId: c.id,
             name: c.full_name || 'Unknown client',
@@ -344,6 +352,29 @@ document.addEventListener('DOMContentLoaded', () => {
             '</div>';
     }
 
+    // Clear, reviewer-facing "no eligible local match" guidance + next actions
+    // (Part 7). Falls back to a neutral message when no summary is present.
+    function noEligibleMatchHtml(summary) {
+        var msg = (summary && summary.message)
+            ? summary.message
+            : 'No eligible agents found in this market.';
+        var actions = (summary && summary.suggestedActions) || [];
+        var actionsHtml = actions.length
+            ? '<ul class="loc-actions">' + actions.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul>'
+            : '';
+        var exParts = [];
+        if (summary) {
+            var missing = summary.missingLocationCount || (summary.excludedAgents && summary.excludedAgents.missingLocation) || 0;
+            var outOfRange = summary.outOfRangeCount || (summary.excludedAgents && summary.excludedAgents.outOfRange) || 0;
+            var incomplete = summary.incompleteProfileCount || (summary.excludedAgents && summary.excludedAgents.incompleteProfile) || 0;
+            if (missing) exParts.push(missing + ' missing location');
+            if (outOfRange) exParts.push(outOfRange + ' out of range');
+            if (incomplete) exParts.push(incomplete + ' incomplete profile');
+        }
+        var exHtml = exParts.length ? '<div class="loc-row-sub" style="margin-top:0.4rem;">Excluded agents: ' + esc(exParts.join(' · ')) + '</div>' : '';
+        return '<div class="leads-empty"><strong>' + esc(msg) + '</strong>' + actionsHtml + exHtml + '</div>';
+    }
+
     function recomputeCounts() {
         state.counts.pending = clients.length;
         state.counts.fits = clients.reduce(function (sum, c) { return sum + (c.fits ? c.fits.length : 0); }, 0);
@@ -431,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render Fits
         elFitsList.innerHTML = '';
         if (!client.fits.length) {
-            elFitsList.innerHTML = '<div class="leads-empty">No recommended real estate agent matches are available for this client yet.</div>';
+            elFitsList.innerHTML = noEligibleMatchHtml(client.matchSummary);
         } else {
             client.fits.forEach(function (fit, idx) {
                 const isTop = fit.top ? 'top-match' : '';
@@ -442,6 +473,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const distHtml = (fit.distanceMiles != null)
                     ? '<span class="badge badge-source">' + fit.distanceMiles + ' mi</span>'
                     : (fit.locationScore != null ? '<span class="badge badge-source">Loc ' + fit.locationScore + '</span>' : '');
+                const limitedHtml = fit.limitedFit ? '<span class="badge badge-source">Limited fit</span>' : '';
+                const warnHtml = fit.warning ? '<div class="loc-row-warning">' + esc(fit.warning) + '</div>' : '';
                 const labelHtml = fit.label
                     ? '<div class="mb-2"><span class="detail-label">Fit:</span> <span class="helper-text" style="color:var(--text-primary)">' + esc(fit.label) + '</span></div>'
                     : '';
@@ -455,10 +488,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 '<h3 class="fit-name">' + esc(fit.name) + '</h3>' +
                                 '<div class="fit-meta">Agent Archetype: <strong class="text-blue">' + esc(fit.archetype) + '</strong></div>' +
                             '</div>' +
-                            '<div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">' + badgeHtml + pctHtml + totalHtml + distHtml + '</div>' +
+                            '<div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">' + badgeHtml + pctHtml + totalHtml + distHtml + limitedHtml + '</div>' +
                         '</div>' +
                         labelHtml +
                         reasonHtml +
+                        warnHtml +
                         '<button class="btn btn-outline" onclick="selectGuide(\'' + esc(fit.agentId) + '\')">Select Agent</button>' +
                     '</div>';
                 elFitsList.insertAdjacentHTML('beforeend', html);
@@ -513,7 +547,12 @@ document.addEventListener('DOMContentLoaded', () => {
         var fit = (typeof p.score === 'number' && p.score > 0)
             ? (p.label ? (p.label + ' · ' + p.score + '%') : (p.score + '%'))
             : (p.label || null);
-        return '<div class="lead-top">' +
+        // Part 12: existing pairings whose agent has no usable location are flagged
+        // for review rather than deleted, so reviewers can fix the agent market.
+        var reviewWarning = (p.agentHasLocation === false)
+            ? '<div class="loc-row-warning">This recommendation needs location review. The paired agent has no market on file.</div>'
+            : '';
+        return reviewWarning + '<div class="lead-top">' +
                 '<div><div class="lead-name">' + esc(p.clientName || 'Unknown client') + '</div>' +
                 '<div class="lead-contact">' + esc(p.clientEmail || 'no email') +
                     (p.clientArchetype ? (' &middot; ' + esc(p.clientArchetype)) : '') + '</div></div>' +

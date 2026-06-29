@@ -788,6 +788,9 @@ body.demo-active {
     background: #F8FAFD;
 }
 .loc-suggestion-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.3rem 0; font-size: 0.78rem; color: var(--text-secondary, #4A607C); }
+.loc-actions { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: 0.8rem; color: var(--text-secondary, #4A607C); text-align: left; }
+.loc-actions li { margin: 0.15rem 0; }
+.loc-row-warning { font-size: 0.8rem; color: #9a5b00; margin-top: 0.25rem; }
 
 /* Mobile fit pass */
 * { max-width: 100%; }

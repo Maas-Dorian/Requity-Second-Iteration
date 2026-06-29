@@ -211,6 +211,13 @@
                         <option value="both">Buying and Selling</option>
                         <option value="other">Other</option>
                     </select>
+                    <select id="loc-eligibility" class="leads-select" aria-label="Filter by match eligibility">
+                        <option value="">All match states</option>
+                        <option value="eligible">Eligible local matches</option>
+                        <option value="no_local">No eligible local match</option>
+                        <option value="missing_client">Missing client location</option>
+                        <option value="agents_missing">Agents missing location</option>
+                    </select>
                 </div>
                 <div id="loc-summary" class="helper-text mb-3"></div>
                 <div id="loc-markets" class="locations-markets"></div>
@@ -713,6 +720,7 @@
         var stateEl = document.getElementById('loc-state');
         var statusEl = document.getElementById('loc-status');
         var transactionEl = document.getElementById('loc-transaction');
+        var eligibilityEl = document.getElementById('loc-eligibility');
         var summaryEl = document.getElementById('loc-summary');
 
         var loaded = false;
@@ -733,6 +741,7 @@
                 state: (stateEl && stateEl.value || '').trim() || null,
                 status: (statusEl && statusEl.value) || null,
                 transaction: (transactionEl && transactionEl.value) || null,
+                eligibility: (eligibilityEl && eligibilityEl.value) || null,
                 limit: 50
             };
         }
@@ -743,16 +752,30 @@
             return '<span class="status-pill status-' + v + '">' + esc(label) + '</span>';
         }
 
+        // A clear per-client match-eligibility badge for the Locations tab (Part 8).
+        function matchStatusBadge(s) {
+            var map = {
+                eligible: { label: 'Eligible local match', cls: 'status-active' },
+                no_local: { label: 'No eligible local match', cls: 'status-potential' },
+                missing: { label: 'Missing location', cls: 'status-potential' },
+                paired: { label: 'Paired', cls: 'status-active' },
+                closed: { label: 'Closed', cls: 'status-closed' }
+            };
+            var m = map[s] || map.no_local;
+            return '<span class="status-pill ' + m.cls + '">' + esc(m.label) + '</span>';
+        }
+
         function clientRowHtml(c) {
-            var dist = '';
+            var side = c.requiredSideLabel && c.requiredSideLabel !== 'General' ? (' &middot; Needs: ' + esc(c.requiredSideLabel)) : '';
             return '<div class="loc-row" data-row-kind="' + esc(c.rowKind) + '" data-row-id="' + esc(c.id || '') + '">' +
                 '<div class="loc-row-main">' +
                     '<strong>' + esc(c.name || 'Unknown client') + '</strong>' +
                     '<span class="loc-row-sub">' + esc(c.transactionIntentLabel || 'Not specified') +
                         (c.archetype ? (' &middot; ' + esc(c.archetype)) : '') +
+                        side +
                         (c.agentName ? (' &middot; Agent: ' + esc(c.agentName)) : '') + '</span>' +
                 '</div>' +
-                '<div class="loc-row-side">' + statusPill(c.status) +
+                '<div class="loc-row-side">' + matchStatusBadge(c.matchStatus) + statusPill(c.status) +
                     '<button type="button" class="btn btn-outline btn-sm loc-suggest" data-kind="' + esc(c.rowKind) + '" data-id="' + esc(c.id || '') + '">Suggest agents</button>' +
                 '</div>' +
                 '<div class="loc-suggestions" hidden></div>' +
@@ -777,8 +800,9 @@
                     '<span class="market-card-title">' + esc(m.label) + '</span>' +
                     '<span class="market-card-counts">' +
                         '<span>Clients ' + (m.clientCount || 0) + '</span>' +
-                        '<span>Agents ' + (m.agentCount || 0) + '</span>' +
+                        '<span>Eligible agents ' + (m.agentCount || 0) + '</span>' +
                         '<span>Unmatched ' + (m.unmatchedClientCount || 0) + '</span>' +
+                        '<span>No local match ' + (m.noLocalMatchCount || 0) + '</span>' +
                         '<span>Active ' + (m.pairedCount || 0) + '</span>' +
                         '<span>Closed ' + (m.closedCount || 0) + '</span>' +
                     '</span>' +
@@ -790,6 +814,28 @@
                     (agentsHere.length ? agentsHere.map(agentRowHtml).join('') : '<div class="leads-empty">No agents loaded for this market.</div>') +
                 '</div>' +
             '</div>';
+        }
+
+        // Small excluded-agents summary line under suggestions (Parts 7 and 9).
+        function excludedHtml(ex) {
+            ex = ex || {};
+            var parts = [];
+            if (ex.missingLocation) parts.push(ex.missingLocation + ' missing location');
+            if (ex.outOfRange) parts.push(ex.outOfRange + ' out of range');
+            if (ex.incompleteProfile) parts.push(ex.incompleteProfile + ' incomplete profile');
+            if (!parts.length) return '';
+            return '<div class="loc-row-sub" style="margin-top:0.4rem;">Excluded agents: ' + esc(parts.join(' · ')) + '</div>';
+        }
+
+        // Clear no-eligible-match guidance with suggested next actions (Part 7).
+        function noMatchHtml(result) {
+            result = result || {};
+            var msg = result.message || 'No eligible agents found in this market.';
+            var actions = (result.suggestedActions || []);
+            var actionsHtml = actions.length
+                ? '<ul class="loc-actions">' + actions.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul>'
+                : '';
+            return '<div class="leads-empty"><strong>' + esc(msg) + '</strong>' + actionsHtml + '</div>' + excludedHtml(result.excludedAgents);
         }
 
         function bindSuggest(scope) {
@@ -804,13 +850,28 @@
                     box.innerHTML = '<div class="leads-empty">Finding nearby matches…</div>';
                     btn.disabled = true;
                     var params = kind === 'lead' ? { leadId: id } : { clientId: id };
-                    Promise.resolve(window.RequityAPI.fetchReviewerMatchSuggestions(params)).then(function (list) {
-                        if (!list || !list.length) { box.innerHTML = '<div class="leads-empty">No agent suggestions available.</div>'; btn.disabled = false; return; }
+                    Promise.resolve(window.RequityAPI.fetchReviewerMatchSuggestions(params)).then(function (result) {
+                        result = result || {};
+                        var list = result.eligibleAgents || result.suggestions || [];
+                        var excluded = result.excludedAgents || {};
+                        dbg('reviewer:match-eligibility', {
+                            leadId: kind === 'lead' ? id : null,
+                            eligibleCount: list.length,
+                            missingLocationCount: excluded.missingLocation || 0,
+                            outOfRangeCount: excluded.outOfRange || 0
+                        });
+                        if (!list.length) {
+                            box.innerHTML = noMatchHtml(result);
+                            btn.disabled = false;
+                            return;
+                        }
                         list.forEach(function (s) {
                             dbg('matching:location-score', { leadId: kind === 'lead' ? id : null, agentId: s.agentId, locationScore: s.locationScore, distanceMiles: s.distanceMiles });
                         });
                         box.innerHTML = list.map(function (s) {
                             var d = (s.distanceMiles != null) ? (s.distanceMiles + ' mi') : 'Distance N/A';
+                            var limited = s.limitedFit ? '<span class="badge badge-source">Limited fit</span>' : '';
+                            var warn = s.warning ? ('<div class="loc-row-sub">' + esc(s.warning) + '</div>') : '';
                             return '<div class="loc-suggestion">' +
                                 '<div><strong>' + esc(s.agentName || 'Agent') + '</strong> ' +
                                     '<span class="loc-row-sub">' + esc(s.agentArchetype || '') +
@@ -819,11 +880,13 @@
                                     '<span class="badge badge-internal">Total ' + s.totalScore + '%</span>' +
                                     '<span class="badge badge-source">Fit ' + s.compatibilityScore + '%</span>' +
                                     '<span class="badge badge-source">Location ' + s.locationScore + '</span>' +
+                                    limited +
                                     '<span>' + esc(d) + '</span>' +
                                 '</div>' +
                                 '<div class="loc-row-sub">' + esc(s.matchReason || '') + '</div>' +
+                                warn +
                             '</div>';
-                        }).join('');
+                        }).join('') + excludedHtml(excluded);
                         btn.disabled = false;
                     }).catch(function () {
                         box.innerHTML = '<div class="leads-empty">Could not load suggestions.</div>';
@@ -839,7 +902,11 @@
             var markets = result.markets || [];
             if (summaryEl) {
                 var t = result.total || {};
-                summaryEl.textContent = (t.marketCount || markets.length) + ' markets · ' + (t.clientCount || 0) + ' clients · ' + (t.agentCount || 0) + ' agents';
+                var line = (t.marketCount || markets.length) + ' markets · ' + (t.clientCount || 0) + ' clients · ' + (t.agentCount || 0) + ' eligible agents';
+                if (t.agentsMissingLocation) line += ' · ' + t.agentsMissingLocation + ' agents missing location (excluded)';
+                if (t.noLocalMatch) line += ' · ' + t.noLocalMatch + ' clients with no local match';
+                if (t.clientsMissingLocation) line += ' · ' + t.clientsMissingLocation + ' clients missing location';
+                summaryEl.textContent = line;
             }
             if (!markets.length) {
                 marketsEl.innerHTML = '<div class="leads-empty">No markets match these filters yet.</div>';
@@ -895,6 +962,7 @@
         if (stateEl) stateEl.addEventListener('input', debouncedLoad);
         if (statusEl) statusEl.addEventListener('change', loadInner);
         if (transactionEl) transactionEl.addEventListener('change', loadInner);
+        if (eligibilityEl) eligibilityEl.addEventListener('change', loadInner);
     })();
     </script>
 </body>

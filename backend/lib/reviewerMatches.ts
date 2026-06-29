@@ -21,13 +21,16 @@ import {
 } from "./dashboard.js";
 import {
   geocode,
-  scoreLocationFit,
   combineMatchScore,
-  buildLocationMatchReason,
   normalizeCityState,
   normalizeState,
+  hasUsableAgentLocation,
+  hasUsableClientLocation,
+  evaluateLocationEligibility,
+  evaluateClientLocation,
   type LocationParty,
-  type LocationScoreResult,
+  type ClientMarketSide,
+  type LocationEligibility,
 } from "./location.js";
 
 /**
@@ -82,12 +85,20 @@ export type RankedAgent = MatchResult & {
   locationScore: number;
   /** Distance in miles to the client market, when both have coordinates. */
   distanceMiles: number | null;
-  /** Blended total (70% compatibility, 25% location, 5% availability). */
+  /** Blended total (70% compatibility, 25% location, 5% availability). 0 when ineligible. */
   totalScore: number;
   /** Reviewer-facing one-line explanation of the match. */
   matchReason: string;
   /** True when the client market is outside the agent's service radius. */
   outsideRadius: boolean;
+  /** True only when the agent is eligible for an automatic location-based match. */
+  eligible: boolean;
+  /** Short reason describing the location eligibility outcome. */
+  locationReason: string;
+  /** Optional reviewer-facing warning (e.g. covers only one side of a both-client). */
+  locationWarning: string | null;
+  /** True when the agent covers only one side of a buying-and-selling client. */
+  limitedFit: boolean;
 };
 
 // --- Location-aware ranking -------------------------------------------------
@@ -118,46 +129,58 @@ async function marketParty(
   return party;
 }
 
-/** The client market(s) relevant to scoring, chosen by transaction intent. */
-async function clientMarketParties(row: any, memo: Map<string, LocationParty>): Promise<LocationParty[]> {
+/** The client market side(s) relevant to scoring, chosen by transaction intent. */
+async function clientMarketSides(row: any, memo: Map<string, LocationParty>): Promise<ClientMarketSide[]> {
   const intent = row.transaction_intent ?? null;
-  const out: LocationParty[] = [];
+  const out: ClientMarketSide[] = [];
   const buy = await marketParty(row.buying_market_city, row.buying_market_state, row.buying_latitude, row.buying_longitude, memo);
   const sell = await marketParty(row.selling_market_city, row.selling_market_state, row.selling_latitude, row.selling_longitude, memo);
   const fallback = await marketParty(row.market_city, row.market_state, row.latitude, row.longitude, memo);
-  if (intent === "buying" && buy) out.push(buy);
-  else if (intent === "selling" && sell) out.push(sell);
+  if (intent === "buying" && buy) out.push({ side: "buying", party: buy });
+  else if (intent === "selling" && sell) out.push({ side: "selling", party: sell });
   else if (intent === "both") {
-    if (buy) out.push(buy);
-    if (sell) out.push(sell);
-  } else if (fallback) out.push(fallback);
+    if (buy) out.push({ side: "buying", party: buy });
+    if (sell) out.push({ side: "selling", party: sell });
+  } else if (fallback) out.push({ side: "general", party: fallback });
   // Last-resort fallback so we never lose a client with only one market filled.
   if (!out.length) {
-    for (const p of [buy, sell, fallback]) if (p) { out.push(p); break; }
+    const candidates: Array<[ClientMarketSide["side"], LocationParty | null]> = [
+      ["buying", buy],
+      ["selling", sell],
+      ["general", fallback],
+    ];
+    for (const [side, p] of candidates) if (p) { out.push({ side, party: p }); break; }
   }
   return out;
 }
 
-/**
- * Score a client's market(s) against an agent. For "Buying and Selling" we use
- * the LOWER of the two location scores so a top match requires BOTH markets to
- * be within reach (one side outside the radius lowers the overall fit).
- */
-function clientAgentLocation(markets: LocationParty[], agent: LocationParty, radius: number | null): LocationScoreResult {
-  if (!markets.length) return scoreLocationFit({}, agent, radius);
-  let chosen = scoreLocationFit(markets[0], agent, radius);
-  for (let i = 1; i < markets.length; i++) {
-    const s = scoreLocationFit(markets[i], agent, radius);
-    if (s.score < chosen.score) chosen = s;
+/** Reviewer-facing one-line reason for any eligibility outcome (eligible or not). */
+function buildEligibilityReason(compatibilityScore: number, elig: LocationEligibility): string {
+  const personality =
+    compatibilityScore >= 90 ? "Strong personality fit" :
+    compatibilityScore >= 75 ? "Good personality fit" :
+    "Moderate personality fit";
+  if (elig.reason === "Agent location missing") return "Agent location missing. Not eligible for a location-based match.";
+  if (elig.reason === "Client location missing") return "Client location missing. Add a buying or selling market to match.";
+  if (!elig.eligible) {
+    if (elig.reason === "Outside agent service range") {
+      const d = elig.distanceMiles != null ? ` (about ${elig.distanceMiles} miles away)` : "";
+      return `${personality}, but outside the agent service range${d}.`;
+    }
+    if (elig.warning) return `${personality}. ${elig.warning}`;
+    return `${personality}, ${elig.reason.toLowerCase()}.`;
   }
-  return chosen;
+  const base = `${personality} and ${elig.reason.toLowerCase()}`;
+  return elig.warning ? `${base}. ${elig.warning}` : base;
 }
 
 /**
- * Location-aware ranking of agent rows for a client/lead row. Personality
- * compatibility is computed first (never replaced); location + availability
- * re-rank agents whose compatibility is similar. Sorted: inside-radius first,
- * then blended total desc, then location score desc.
+ * Location-required ranking of agent rows for a client/lead row. Personality
+ * compatibility is computed first (never replaced). Location is REQUIRED:
+ * agents without a usable location, agents outside the service range, and all
+ * agents when the client has no usable location are marked NOT eligible
+ * (totalScore 0) and sorted last. Eligible agents are sorted: full fit before
+ * limited fit, then blended total desc, then location score desc.
  */
 export async function rankAgentsForClientLocationAware(
   clientRow: any,
@@ -166,13 +189,16 @@ export async function rankAgentsForClientLocationAware(
   const client = toClientProfile(clientRow);
   const personalityRanked = rankProfiles(client, (agentRows ?? []).map(toAgentProfile));
   const memo = new Map<string, LocationParty>();
-  const markets = await clientMarketParties(clientRow, memo);
+  const sides = await clientMarketSides(clientRow, memo);
+  const clientLoc = evaluateClientLocation(clientRow);
+  if (!clientLoc.complete) console.log("MATCH_CLIENT_LOCATION_MISSING", { requiredSide: clientLoc.requiredSide });
 
   const enriched: RankedAgent[] = [];
   for (const match of personalityRanked) {
     const agentRow = (agentRows ?? []).find((a) => a.id === match.agent.id);
     const radius =
       agentRow && typeof agentRow.service_radius_miles === "number" ? agentRow.service_radius_miles : null;
+    const agentHasLocation = hasUsableAgentLocation(agentRow);
     const agentParty =
       (await marketParty(
         agentRow?.market_city,
@@ -181,32 +207,122 @@ export async function rankAgentsForClientLocationAware(
         agentRow?.longitude,
         memo
       )) ?? {};
-    const loc = clientAgentLocation(markets, agentParty, radius);
-    const totalScore = combineMatchScore(match.score, loc.score, 100);
-    const matchReason = buildLocationMatchReason(match.score, loc);
-    console.log("MATCH_LOCATION_SCORE_CALCULATED", {
-      hasClientMarket: markets.length > 0,
-      locationScore: loc.score,
-      distanceMiles: loc.distanceMiles,
-      outsideRadius: loc.outsideRadius,
+
+    const elig: LocationEligibility = clientLoc.complete
+      ? evaluateLocationEligibility(sides, agentParty, radius, agentHasLocation)
+      : { eligible: false, locationScore: 0, distanceMiles: null, reason: "Client location missing" };
+
+    const totalScore = elig.eligible ? combineMatchScore(match.score, elig.locationScore, 100) : 0;
+    const matchReason = buildEligibilityReason(match.score, elig);
+
+    if (!agentHasLocation) {
+      console.log("MATCH_AGENT_EXCLUDED_LOCATION_MISSING", { agentId: agentRow?.id ?? null });
+    } else if (clientLoc.complete && !elig.eligible && elig.reason === "Outside agent service range") {
+      console.log("MATCH_AGENT_EXCLUDED_OUT_OF_RANGE", { agentId: agentRow?.id ?? null, distanceMiles: elig.distanceMiles });
+    }
+    console.log("MATCH_LOCATION_ELIGIBILITY_RESULT", {
+      agentId: agentRow?.id ?? null,
+      eligible: elig.eligible,
+      locationScore: elig.locationScore,
+      distanceMiles: elig.distanceMiles,
+      reason: elig.reason,
     });
+
     enriched.push({
       ...match,
       agentRow,
-      locationScore: loc.score,
-      distanceMiles: loc.distanceMiles,
+      locationScore: elig.locationScore,
+      distanceMiles: elig.distanceMiles,
       totalScore,
       matchReason,
-      outsideRadius: loc.outsideRadius,
+      outsideRadius: !elig.eligible && elig.reason === "Outside agent service range",
+      eligible: elig.eligible,
+      locationReason: elig.reason,
+      locationWarning: elig.warning ?? null,
+      limitedFit: Boolean(elig.limitedFit),
     });
   }
 
   enriched.sort((a, b) => {
-    if (a.outsideRadius !== b.outsideRadius) return a.outsideRadius ? 1 : -1;
+    if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
+    const al = a.limitedFit ? 1 : 0;
+    const bl = b.limitedFit ? 1 : 0;
+    if (al !== bl) return al - bl;
     if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
     return b.locationScore - a.locationScore;
   });
   return enriched;
+}
+
+export type ReviewerMatchEligibilitySummary = {
+  clientLocationStatus: "complete" | "missing";
+  eligibleCount: number;
+  missingLocationCount: number;
+  outOfRangeCount: number;
+  incompleteProfileCount: number;
+  limitedFitCount: number;
+  message: string | null;
+  suggestedActions: string[];
+};
+
+/**
+ * Summarize why (or why not) a client has location-eligible agents, with a clear
+ * reviewer message and suggested next actions (Parts 7 and 9). Pure: derives
+ * everything from the already-ranked agents.
+ */
+export function summarizeMatchEligibility(clientRow: any, ranked: RankedAgent[]): ReviewerMatchEligibilitySummary {
+  const clientLoc = evaluateClientLocation(clientRow);
+  const clientHasLocation = clientLoc.complete && hasUsableClientLocation(clientRow);
+
+  let eligibleCount = 0;
+  let missingLocationCount = 0;
+  let outOfRangeCount = 0;
+  let incompleteProfileCount = 0;
+  let limitedFitCount = 0;
+  for (const r of ranked) {
+    if (r.eligible) {
+      eligibleCount += 1;
+      if (r.limitedFit) limitedFitCount += 1;
+      continue;
+    }
+    if (r.locationReason === "Agent location missing") missingLocationCount += 1;
+    else if (r.locationReason === "Outside agent service range") outOfRangeCount += 1;
+    else if (r.locationReason !== "Client location missing") incompleteProfileCount += 1;
+  }
+
+  let message: string | null = null;
+  const suggestedActions: string[] = [];
+  const intentBoth = (clientRow?.transaction_intent ?? "") === "both";
+
+  if (!clientHasLocation) {
+    message = "This client needs a buying or selling market before REQUITY can recommend a location-based match.";
+    suggestedActions.push("Update client market", "Manually review personality matches");
+  } else if (eligibleCount > 0) {
+    message = null;
+  } else if (intentBoth) {
+    message = "No eligible agent currently covers both the buying and selling markets.";
+    suggestedActions.push("Expand search radius", "View same-state agents", "Manually review personality matches");
+  } else if (outOfRangeCount > 0 && missingLocationCount === 0 && incompleteProfileCount === 0) {
+    message = "Agents exist in nearby markets, but none are within the selected service range.";
+    suggestedActions.push("Expand search radius", "View same-state agents", "Manually review personality matches");
+  } else if (missingLocationCount > 0 && outOfRangeCount === 0 && incompleteProfileCount === 0) {
+    message = "Some agents are missing market information and were excluded from matching.";
+    suggestedActions.push("Add agent market", "Manually review personality matches");
+  } else {
+    message = "No eligible agents found in this market.";
+    suggestedActions.push("Add agent market", "Expand search radius", "Manually review personality matches");
+  }
+
+  return {
+    clientLocationStatus: clientHasLocation ? "complete" : "missing",
+    eligibleCount,
+    missingLocationCount,
+    outOfRangeCount,
+    incompleteProfileCount,
+    limitedFitCount,
+    message,
+    suggestedActions,
+  };
 }
 
 /** Rank all available agents for a reviewer-queue client by id (location-aware). */
@@ -295,6 +411,7 @@ export async function listReviewerQueue(): Promise<ReviewerQueueItem[]> {
       enriched.rowKind = "client";
       enriched.pipelineStatus = reviewerPipelineStatus(client);
       enriched.pipelineLabel = pipelineStatusLabel(enriched.pipelineStatus);
+      enriched.matchSummary = summarizeMatchEligibility(client, rankings);
       queue.push({ client: enriched, rankings });
     }
   } catch (error) {
@@ -406,6 +523,7 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
     leadClient.rowKind = "lead";
     leadClient.pipelineStatus = reviewerPipelineStatus({ pipeline_status: lead.pipeline_status });
     leadClient.pipelineLabel = pipelineStatusLabel(leadClient.pipelineStatus);
+    leadClient.matchSummary = summarizeMatchEligibility(rankRow, ranked);
     items.push({ client: leadClient, rankings: ranked });
   }
   return items;
@@ -432,6 +550,8 @@ export type PairedClientItem = {
   pipelineStatus: PipelineStatus;
   pipelineLabel: string;
   matchedAt: string | null;
+  /** Part 12: false when the paired agent has no usable location (needs review). */
+  agentHasLocation: boolean;
 };
 
 function cleanText(value: unknown): string | null {
@@ -490,6 +610,7 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
         pipelineStatus: reviewerPipelineStatus(client),
         pipelineLabel: pipelineStatusLabel(reviewerPipelineStatus(client)),
         matchedAt: row.reviewed_at ?? row.created_at ?? null,
+        agentHasLocation: hasUsableAgentLocation(agent),
       });
     }
   } catch (error) {
@@ -529,6 +650,7 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
         pipelineStatus: reviewerPipelineStatus(client),
         pipelineLabel: pipelineStatusLabel(reviewerPipelineStatus(client)),
         matchedAt: client.updated_at ?? client.created_at ?? null,
+        agentHasLocation: hasUsableAgentLocation(agent),
       });
     }
   } catch (error) {
@@ -719,7 +841,11 @@ export type ReviewerMarket = {
   unmatchedClientCount: number;
   pairedCount: number;
   closedCount: number;
+  /** Clients in this market with no eligible local agent. */
+  noLocalMatchCount: number;
 };
+
+export type ClientMatchStatus = "eligible" | "no_local" | "missing" | "paired" | "closed";
 
 export type ReviewerLocationClient = {
   id: string | null;
@@ -736,6 +862,10 @@ export type ReviewerLocationClient = {
   statusLabel: string;
   assigned: boolean;
   agentName: string | null;
+  /** Location-eligibility status for the Locations tab (Part 8). */
+  matchStatus: ClientMatchStatus;
+  /** Required market side label: Buying, Selling, Buying and Selling, General. */
+  requiredSideLabel: string;
 };
 
 export type ReviewerLocationAgent = {
@@ -753,7 +883,17 @@ export type ReviewerLocationsResult = {
   markets: ReviewerMarket[];
   clients: ReviewerLocationClient[];
   agents: ReviewerLocationAgent[];
-  total: { marketCount: number; clientCount: number; agentCount: number };
+  total: {
+    marketCount: number;
+    clientCount: number;
+    agentCount: number;
+    /** Agents excluded from matching because they have no usable market. */
+    agentsMissingLocation: number;
+    /** Clients with no usable buying/selling/general market. */
+    clientsMissingLocation: number;
+    /** Clients with a location but no eligible local agent. */
+    noLocalMatch: number;
+  };
 };
 
 export type ReviewerLocationFilters = {
@@ -762,6 +902,8 @@ export type ReviewerLocationFilters = {
   state?: string | null;
   status?: string | null;
   transaction?: string | null;
+  /** Part 8: eligible | no_local | missing_client | agents_missing. */
+  eligibility?: string | null;
   limit?: number;
   offset?: number;
 };
@@ -823,6 +965,7 @@ export async function listReviewerLocations(
   const stateFilter = (filters.state ?? "").trim();
   const statusFilter = (filters.status ?? "").trim();
   const transactionFilter = (filters.transaction ?? "").trim();
+  const eligibilityFilter = (filters.eligibility ?? "").trim();
   const stateAbbr = stateFilter ? (normalizeState(stateFilter) ?? stateFilter.toUpperCase()) : null;
 
   // --- Load bounded source data ------------------------------------------
@@ -871,14 +1014,104 @@ export async function listReviewerLocations(
     console.error("[reviewerMatches] locations agents load failed:", error);
   }
 
-  // --- Normalize + filter clients ----------------------------------------
   const markets = new Map<string, ReviewerMarket & { _city: string | null; _state: string | null }>();
+
+  const makeMarket = (
+    normalized: string,
+    city: string | null,
+    state: string | null
+  ): ReviewerMarket & { _city: string | null; _state: string | null } => ({
+    city,
+    state: state ? state.toUpperCase() : null,
+    normalized,
+    label: prettyMarketLabel(normalized),
+    clientCount: 0,
+    agentCount: 0,
+    unmatchedClientCount: 0,
+    pairedCount: 0,
+    closedCount: 0,
+    noLocalMatchCount: 0,
+    _city: city,
+    _state: state,
+  });
+
+  // --- Agents first: needed to know which markets have an eligible agent ---
+  // Agents without a usable location are NEVER eligible for matching, so they are
+  // excluded from the per-market lists and counted separately (Part 8).
+  const agentResults: ReviewerLocationAgent[] = [];
+  const marketsWithEligibleAgent = new Set<string>();
+  let agentsMissingLocation = 0;
+
+  for (const a of agentRowsRaw) {
+    if (!hasUsableAgentLocation(a)) {
+      agentsMissingLocation += 1;
+      continue;
+    }
+    const normalized = a.location_normalized ?? normalizeCityState(a.market_city, a.market_state);
+    const stateUpper = (a.market_state ? normalizeState(a.market_state) : normalized ? (normalized.split(",")[1] ?? "").trim().toUpperCase() : null) || null;
+    const item: ReviewerLocationAgent = {
+      id: a.id ?? null,
+      name: cleanText(a.display_name),
+      email: cleanText(a.email),
+      archetype: cleanText(a.archetype),
+      market: normalized ? prettyMarketLabel(normalized) : cleanText(a.market_city),
+      marketNormalized: normalized,
+      state: stateUpper,
+      serviceRadiusMiles: typeof a.service_radius_miles === "number" ? a.service_radius_miles : null,
+    };
+
+    if (normalized) marketsWithEligibleAgent.add(normalized);
+
+    if (stateAbbr && (item.state ?? "").toUpperCase() !== String(stateAbbr).toUpperCase()) continue;
+    if (cityFilter && !(item.marketNormalized ?? "").toLowerCase().includes(cityFilter)) continue;
+    if (q) {
+      const hay = `${item.name ?? ""} ${item.email ?? ""} ${item.market ?? ""}`.toLowerCase();
+      if (!hay.includes(q)) continue;
+    }
+
+    agentResults.push(item);
+    if (normalized) {
+      const entry = markets.get(normalized) ?? makeMarket(normalized, item.market, item.state);
+      entry.agentCount += 1;
+      markets.set(normalized, entry);
+    }
+  }
+
+  const hasAgentInMarket = (n: string | null): boolean => Boolean(n && marketsWithEligibleAgent.has(n));
+
+  // --- Clients: classify match status using the eligible-agent markets ----
   const clientResults: ReviewerLocationClient[] = [];
+  let clientsMissingLocation = 0;
+  let noLocalMatch = 0;
 
   for (const row of clientRows) {
     const market = primaryClientMarket(row);
     const status = reviewerPipelineStatus(row);
     const assigned = Boolean(row.assigned_agent_id) || row.status === "assigned";
+    const clientLoc = evaluateClientLocation(row);
+    const requiredSideLabel =
+      clientLoc.requiredSide === "buying" ? "Buying" :
+      clientLoc.requiredSide === "selling" ? "Selling" :
+      clientLoc.requiredSide === "both" ? "Buying and Selling" : "General";
+
+    // Match status (Part 8): closed/paired by pipeline; otherwise location-driven.
+    let matchStatus: ClientMatchStatus;
+    if (status === "closed") matchStatus = "closed";
+    else if (assigned) matchStatus = "paired";
+    else if (!hasUsableClientLocation(row)) matchStatus = "missing";
+    else {
+      const intent = (row.transaction_intent ?? "").toString();
+      let eligible: boolean;
+      if (intent === "both") {
+        const buyNorm = normalizeCityState(row.buying_market_city, row.buying_market_state);
+        const sellNorm = normalizeCityState(row.selling_market_city, row.selling_market_state);
+        eligible = hasAgentInMarket(buyNorm) && hasAgentInMarket(sellNorm);
+      } else {
+        eligible = hasAgentInMarket(market.normalized);
+      }
+      matchStatus = eligible ? "eligible" : "no_local";
+    }
+
     const item: ReviewerLocationClient = {
       id: row.id ?? null,
       rowKind: row.__rowKind === "lead" ? "lead" : "client",
@@ -894,6 +1127,8 @@ export async function listReviewerLocations(
       statusLabel: pipelineStatusLabel(status),
       assigned,
       agentName: cleanText(row.agents?.display_name),
+      matchStatus,
+      requiredSideLabel,
     };
 
     // Filters.
@@ -905,74 +1140,26 @@ export async function listReviewerLocations(
       const hay = `${item.name ?? ""} ${item.email ?? ""} ${item.market ?? ""}`.toLowerCase();
       if (!hay.includes(q)) continue;
     }
+    // Match-eligibility filter (Part 8). agents_missing is agent-focused and does
+    // not narrow the client list.
+    if (eligibilityFilter === "eligible" && matchStatus !== "eligible") continue;
+    if (eligibilityFilter === "no_local" && matchStatus !== "no_local") continue;
+    if (eligibilityFilter === "missing_client" && matchStatus !== "missing") continue;
 
     clientResults.push(item);
+    if (matchStatus === "missing") clientsMissingLocation += 1;
+    if (matchStatus === "no_local") noLocalMatch += 1;
 
     // Market aggregation (only when we have a normalized market).
     if (market.normalized) {
       const key = market.normalized;
-      const entry =
-        markets.get(key) ??
-        {
-          city: market.city,
-          state: market.state ? market.state.toUpperCase() : null,
-          normalized: key,
-          label: prettyMarketLabel(key),
-          clientCount: 0,
-          agentCount: 0,
-          unmatchedClientCount: 0,
-          pairedCount: 0,
-          closedCount: 0,
-          _city: market.city,
-          _state: market.state,
-        };
+      const entry = markets.get(key) ?? makeMarket(key, market.city, market.state);
       entry.clientCount += 1;
       if (status === "closed") entry.closedCount += 1;
       else if (assigned) entry.pairedCount += 1;
       else entry.unmatchedClientCount += 1;
+      if (matchStatus === "no_local") entry.noLocalMatchCount += 1;
       markets.set(key, entry);
-    }
-  }
-
-  // --- Normalize + filter agents -----------------------------------------
-  const agentResults: ReviewerLocationAgent[] = [];
-  for (const a of agentRowsRaw) {
-    const normalized = a.location_normalized ?? normalizeCityState(a.market_city, a.market_state);
-    const stateUpper = (a.market_state ? normalizeState(a.market_state) : normalized ? (normalized.split(",")[1] ?? "").trim().toUpperCase() : null) || null;
-    const item: ReviewerLocationAgent = {
-      id: a.id ?? null,
-      name: cleanText(a.display_name),
-      email: cleanText(a.email),
-      archetype: cleanText(a.archetype),
-      market: normalized ? prettyMarketLabel(normalized) : cleanText(a.market_city),
-      marketNormalized: normalized,
-      state: stateUpper,
-      serviceRadiusMiles: typeof a.service_radius_miles === "number" ? a.service_radius_miles : null,
-    };
-
-    if (stateAbbr && (item.state ?? "").toUpperCase() !== String(stateAbbr).toUpperCase()) continue;
-    if (cityFilter && !(item.marketNormalized ?? "").toLowerCase().includes(cityFilter)) continue;
-    if (q) {
-      const hay = `${item.name ?? ""} ${item.email ?? ""} ${item.market ?? ""}`.toLowerCase();
-      if (!hay.includes(q)) continue;
-    }
-
-    agentResults.push(item);
-    if (normalized && markets.has(normalized)) markets.get(normalized)!.agentCount += 1;
-    else if (normalized) {
-      markets.set(normalized, {
-        city: item.market,
-        state: item.state,
-        normalized,
-        label: prettyMarketLabel(normalized),
-        clientCount: 0,
-        agentCount: 1,
-        unmatchedClientCount: 0,
-        pairedCount: 0,
-        closedCount: 0,
-        _city: item.market,
-        _state: item.state,
-      });
     }
   }
 
@@ -986,9 +1173,13 @@ export async function listReviewerLocations(
     state: stateAbbr,
     status: statusFilter || null,
     transaction: transactionFilter || null,
+    eligibility: eligibilityFilter || null,
     marketCount: allMarkets.length,
     clientCount: clientResults.length,
     agentCount: agentResults.length,
+    agentsMissingLocation,
+    clientsMissingLocation,
+    noLocalMatch,
   });
 
   return {
@@ -999,6 +1190,9 @@ export async function listReviewerLocations(
       marketCount: allMarkets.length,
       clientCount: clientResults.length,
       agentCount: agentResults.length,
+      agentsMissingLocation,
+      clientsMissingLocation,
+      noLocalMatch,
     },
   };
 }
@@ -1023,6 +1217,20 @@ export type ReviewerMatchSuggestion = {
   label: string;
   matchReason: string;
   outsideRadius: boolean;
+  eligible: boolean;
+  limitedFit: boolean;
+  warning: string | null;
+};
+
+export type ReviewerMatchSuggestionsResult = {
+  ok: true;
+  clientLocationStatus: "complete" | "missing";
+  eligibleAgents: ReviewerMatchSuggestion[];
+  /** Backward-compatible alias of eligibleAgents (only location-eligible agents). */
+  suggestions: ReviewerMatchSuggestion[];
+  excludedAgents: { missingLocation: number; outOfRange: number; incompleteProfile: number };
+  message: string | null;
+  suggestedActions: string[];
 };
 
 /**
@@ -1034,9 +1242,19 @@ export async function getReviewerMatchSuggestions(params: {
   clientId?: string | null;
   leadId?: string | null;
   limit?: number;
-}): Promise<{ ok: true; suggestions: ReviewerMatchSuggestion[] }> {
+}): Promise<ReviewerMatchSuggestionsResult> {
   const supabase = getSupabaseAdmin();
   const limit = Math.min(Math.max(params.limit ?? 8, 1), 20);
+
+  const emptyResult: ReviewerMatchSuggestionsResult = {
+    ok: true,
+    clientLocationStatus: "missing",
+    eligibleAgents: [],
+    suggestions: [],
+    excludedAgents: { missingLocation: 0, outOfRange: 0, incompleteProfile: 0 },
+    message: "This client needs a buying or selling market before REQUITY can recommend a location-based match.",
+    suggestedActions: ["Update client market", "Manually review personality matches"],
+  };
 
   let rankRow: any = null;
   if (params.clientId) {
@@ -1062,12 +1280,13 @@ export async function getReviewerMatchSuggestions(params: {
       };
     }
   }
-  if (!rankRow) return { ok: true, suggestions: [] };
+  if (!rankRow) return emptyResult;
 
   const { data: agentRows } = await supabase.from("agents").select("*").not("archetype", "is", null);
   const ranked = await rankAgentsForClientLocationAware(rankRow, agentRows ?? []);
+  const summary = summarizeMatchEligibility(rankRow, ranked);
 
-  const suggestions: ReviewerMatchSuggestion[] = ranked.slice(0, limit).map((r) => {
+  const toSuggestion = (r: RankedAgent): ReviewerMatchSuggestion => {
     const a = r.agentRow ?? {};
     return {
       agentId: a.id ?? r.agent.id ?? null,
@@ -1084,8 +1303,35 @@ export async function getReviewerMatchSuggestions(params: {
       label: r.label,
       matchReason: r.matchReason,
       outsideRadius: r.outsideRadius,
+      eligible: r.eligible,
+      limitedFit: r.limitedFit,
+      warning: r.locationWarning,
     };
-  });
+  };
 
-  return { ok: true, suggestions };
+  // Only location-eligible agents are recommended. Ineligible agents (missing
+  // location, out of range, etc.) are summarized as counts, never shown as a match.
+  const eligibleAgents = ranked.filter((r) => r.eligible).slice(0, limit).map(toSuggestion);
+
+  if (summary.eligibleCount === 0) {
+    console.log("MATCH_NO_ELIGIBLE_LOCAL_AGENT", {
+      clientLocationStatus: summary.clientLocationStatus,
+      missingLocationCount: summary.missingLocationCount,
+      outOfRangeCount: summary.outOfRangeCount,
+    });
+  }
+
+  return {
+    ok: true,
+    clientLocationStatus: summary.clientLocationStatus,
+    eligibleAgents,
+    suggestions: eligibleAgents,
+    excludedAgents: {
+      missingLocation: summary.missingLocationCount,
+      outOfRange: summary.outOfRangeCount,
+      incompleteProfile: summary.incompleteProfileCount,
+    },
+    message: summary.message,
+    suggestedActions: summary.suggestedActions,
+  };
 }

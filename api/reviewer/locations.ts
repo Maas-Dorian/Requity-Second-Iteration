@@ -36,6 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         state: getQueryParam(req, "state") ?? null,
         status: getQueryParam(req, "status") ?? null,
         transaction: getQueryParam(req, "transaction") ?? null,
+        eligibility: getQueryParam(req, "eligibility") ?? null,
         limit: Number.isFinite(limit) ? limit : undefined,
         offset: Number.isFinite(offset) ? offset : undefined,
       });

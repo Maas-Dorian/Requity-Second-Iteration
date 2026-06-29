@@ -436,6 +436,178 @@ export function combineMatchScore(
   return Math.round(compatibilityScore * 0.7 + locationScore * 0.25 + availabilityScore * 0.05);
 }
 
+// --- Match eligibility (location is REQUIRED) -------------------------------
+
+/** Agent default service radius (miles) when none is configured. */
+export const DEFAULT_SERVICE_RADIUS_MILES = 50;
+
+/**
+ * True when an agent row has a usable location for matching: coordinates, OR a
+ * city + state, OR a normalized location key. Agents without any of these are
+ * NOT eligible for automatic match recommendations. Location is never inferred
+ * from email, name, or source.
+ */
+export function hasUsableAgentLocation(agent: any): boolean {
+  if (!agent) return false;
+  return Boolean(
+    (agent.latitude != null && agent.longitude != null) ||
+      (cleanPart(agent.market_city) && cleanPart(agent.market_state)) ||
+      cleanPart(agent.location_normalized)
+  );
+}
+
+/**
+ * True when a client/lead row has at least one usable market (buying, selling,
+ * or general) by coordinates, city + state, or a normalized location key.
+ */
+export function hasUsableClientLocation(row: any): boolean {
+  if (!row) return false;
+  return Boolean(
+    (row.buying_latitude != null && row.buying_longitude != null) ||
+      (row.selling_latitude != null && row.selling_longitude != null) ||
+      (row.latitude != null && row.longitude != null) ||
+      (cleanPart(row.buying_market_city) && cleanPart(row.buying_market_state)) ||
+      (cleanPart(row.selling_market_city) && cleanPart(row.selling_market_state)) ||
+      (cleanPart(row.market_city) && cleanPart(row.market_state)) ||
+      cleanPart(row.location_normalized)
+  );
+}
+
+export type LocationEligibility = {
+  eligible: boolean;
+  locationScore: number; // 0-100
+  distanceMiles: number | null;
+  reason: string;
+  warning?: string;
+  /** True when the agent covers only one side of a buying-and-selling client. */
+  limitedFit?: boolean;
+};
+
+export type ClientMarketSide = { side: "buying" | "selling" | "general"; party: LocationParty };
+
+function effectiveRadius(radius: number | null | undefined): number {
+  return typeof radius === "number" && radius > 0 ? radius : DEFAULT_SERVICE_RADIUS_MILES;
+}
+
+function phraseToReason(phrase: string): string {
+  switch (phrase) {
+    case "same market": return "Same market";
+    case "within 10 miles": return "Within 10 miles";
+    case "within 25 miles": return "Within 25 miles";
+    case "within 50 miles": return "Within 50 miles";
+    case "within 100 miles": return "Within 100 miles";
+    case "same state": return "Same state";
+    default: return phrase ? phrase.charAt(0).toUpperCase() + phrase.slice(1) : "Eligible";
+  }
+}
+
+/** A single client market is in range when it is the same market or inside the radius. */
+function sideInRange(loc: LocationScoreResult, radius: number): boolean {
+  if (loc.phrase === "same market") return true;
+  if (loc.distanceMiles != null) return !loc.outsideRadius && loc.distanceMiles <= radius;
+  return false; // no coordinates and not an exact market match: not a strong fit
+}
+
+/**
+ * Decide whether an agent is eligible for an automatic location-based match to a
+ * client's market(s), with the score, distance, and a reviewer-facing reason.
+ * Location is REQUIRED: an agent (or client) without a usable location is never
+ * eligible.
+ *
+ * For a buying-and-selling client the agent must be within range of BOTH markets
+ * to be a strong (best) match. Covering only one side returns eligible = true
+ * with limitedFit + a warning so the reviewer knows it is not the best match.
+ */
+export function evaluateLocationEligibility(
+  markets: ClientMarketSide[],
+  agent: LocationParty,
+  radius: number | null | undefined,
+  agentHasLocation: boolean
+): LocationEligibility {
+  if (!agentHasLocation) {
+    return { eligible: false, locationScore: 0, distanceMiles: null, reason: "Agent location missing" };
+  }
+  if (!markets.length) {
+    return { eligible: false, locationScore: 0, distanceMiles: null, reason: "Client location missing" };
+  }
+  const eff = effectiveRadius(radius);
+  const results = markets.map((m) => {
+    const loc = scoreLocationFit(m.party, agent, eff);
+    return { side: m.side, loc, inRange: sideInRange(loc, eff) };
+  });
+  const inRangeCount = results.filter((r) => r.inRange).length;
+
+  // Buying-and-selling (two markets): require both sides in range for a best match.
+  if (results.length >= 2) {
+    if (inRangeCount === 0) {
+      const nearest = results.reduce((a, b) =>
+        (b.loc.distanceMiles ?? Infinity) < (a.loc.distanceMiles ?? Infinity) ? b : a
+      );
+      return { eligible: false, locationScore: 0, distanceMiles: nearest.loc.distanceMiles, reason: "Outside agent service range" };
+    }
+    if (inRangeCount < results.length) {
+      const covered = results.find((r) => r.inRange)!;
+      const sideWord = covered.side === "selling" ? "selling" : "buying";
+      return {
+        eligible: true,
+        limitedFit: true,
+        locationScore: Math.round(covered.loc.score * 0.6),
+        distanceMiles: covered.loc.distanceMiles,
+        reason: "Covers one market only",
+        warning: `This agent is only in range for the ${sideWord} side.`,
+      };
+    }
+    const worst = results.reduce((a, b) => (b.loc.score < a.loc.score ? b : a));
+    return { eligible: true, locationScore: worst.loc.score, distanceMiles: worst.loc.distanceMiles, reason: phraseToReason(worst.loc.phrase) };
+  }
+
+  // Single market.
+  const only = results[0];
+  if (only.inRange) {
+    return { eligible: true, locationScore: only.loc.score, distanceMiles: only.loc.distanceMiles, reason: phraseToReason(only.loc.phrase) };
+  }
+  if (only.loc.distanceMiles != null) {
+    return { eligible: false, locationScore: 0, distanceMiles: only.loc.distanceMiles, reason: "Outside agent service range" };
+  }
+  if (only.loc.phrase === "same state") {
+    return { eligible: false, locationScore: 40, distanceMiles: null, reason: "Same state only", warning: "Same state, but the city does not match and no coordinates are available." };
+  }
+  return { eligible: false, locationScore: 0, distanceMiles: null, reason: "Outside agent service range" };
+}
+
+export type ClientLocationStatus = {
+  complete: boolean;
+  requiredSide: "buying" | "selling" | "both" | "general";
+  message: string | null;
+};
+
+function marketUsable(city: any, state: any, lat: any, lon: any): boolean {
+  return Boolean((lat != null && lon != null) || (cleanPart(city) && cleanPart(state)));
+}
+
+/**
+ * Required-location check for a client/lead by transaction intent (Part 3).
+ * Buying needs a buying market, selling needs a selling market, buying-and-
+ * selling needs both, other needs a general market. A general market is accepted
+ * as a fallback so a single filled market is never lost.
+ */
+export function evaluateClientLocation(row: any): ClientLocationStatus {
+  const intent = (row?.transaction_intent ?? "").toString();
+  const buy = marketUsable(row?.buying_market_city, row?.buying_market_state, row?.buying_latitude, row?.buying_longitude);
+  const sell = marketUsable(row?.selling_market_city, row?.selling_market_state, row?.selling_latitude, row?.selling_longitude);
+  const general =
+    marketUsable(row?.market_city, row?.market_state, row?.latitude, row?.longitude) ||
+    Boolean(cleanPart(row?.location_normalized));
+  const missingMsg = "Client location is missing. Add a buying or selling market before matching.";
+  if (intent === "buying") return { complete: buy || general, requiredSide: "buying", message: buy || general ? null : missingMsg };
+  if (intent === "selling") return { complete: sell || general, requiredSide: "selling", message: sell || general ? null : missingMsg };
+  if (intent === "both") {
+    const complete = (buy || general) && (sell || general);
+    return { complete, requiredSide: "both", message: complete ? null : missingMsg };
+  }
+  return { complete: general || buy || sell, requiredSide: "general", message: general || buy || sell ? null : missingMsg };
+}
+
 /** Reviewer-facing one-line explanation combining personality + location fit. */
 export function buildLocationMatchReason(
   compatibilityScore: number,
