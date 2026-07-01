@@ -4,13 +4,14 @@ import { insertWithSchemaFallback, isMissingTableError, isMissingColumnError } f
 /**
  * Email event logging + send-and-record helpers.
  *
- * Keeps Brevo sending (backend/lib/brevo.ts) decoupled from persistence so the
- * assessment and matching flows can fire emails with a single call and always
- * leave an audit trail in the `email_events` table.
+ * Keeps provider sending (backend/lib/sendgrid.ts) decoupled from persistence so
+ * the assessment and matching flows can fire emails with a single call and always
+ * leave a truthful audit trail in the `email_events` table.
  */
 
 export type EmailEventStatus =
   | "queued"
+  | "sending"
   | "sent"
   | "failed"
   | "test_mode"
@@ -18,9 +19,17 @@ export type EmailEventStatus =
   | "rate_limited"
   | "deduped";
 
+/** Active email provider recorded on each audit row. */
+export const DEFAULT_EMAIL_PROVIDER = "sendgrid";
+
 export type RecordEmailEventParams = {
   recipientEmail: string;
   templateKey: string;
+  /** Provider that handled (or would handle) the send. Defaults to sendgrid. */
+  provider?: string | null;
+  /** Provider message id (SendGrid x-message-id). */
+  providerMessageId?: string | null;
+  /** @deprecated legacy alias kept for the drifted brevo_message_id column. */
   brevoMessageId?: string | null;
   payload?: Record<string, unknown>;
   status?: EmailEventStatus;
@@ -52,21 +61,28 @@ export async function recordEmailEvent(
   params: RecordEmailEventParams
 ): Promise<EmailEventRecord | null> {
   try {
+    const provider = params.provider ?? DEFAULT_EMAIL_PROVIDER;
+    const messageId = params.providerMessageId ?? params.brevoMessageId ?? null;
+    const status = params.status ?? "queued";
     const { data } = await insertWithSchemaFallback<EmailEventRecord>(
       "email_events",
       {
         recipient_email: params.recipientEmail,
         template_key: params.templateKey,
-        brevo_message_id: params.brevoMessageId ?? null,
+        // Legacy column kept in sync so old dashboards keep working; dropped by
+        // the resilient writer if the column is absent on a drifted live DB.
+        brevo_message_id: messageId,
         payload: params.payload ?? {},
-        status: params.status ?? "queued",
-        // Dedupe + enrichment columns (migration 0004). Dropped if missing live.
+        status,
+        // Dedupe + enrichment columns (migrations 0004/0005). Dropped if missing.
         event_key: params.eventKey ?? null,
         event_type: params.eventType ?? null,
-        provider: "brevo",
-        provider_message_id: params.brevoMessageId ?? null,
+        provider,
+        provider_message_id: messageId,
         error_message: params.errorMessage ?? null,
         metadata: params.payload ?? {},
+        // Timestamp of a successful send (migration 0005). Dropped if absent.
+        sent_at: status === "sent" ? new Date().toISOString() : null,
       },
       { required: ["recipient_email", "template_key"] }
     );

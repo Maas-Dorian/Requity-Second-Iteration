@@ -73,10 +73,44 @@ following (see `.env.example` for the full list). Set them for **Production**
 | `SUPABASE_URL` | your Project URL |
 | `SUPABASE_ANON_KEY` | your anon public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | your service_role secret key |
-| `VERCEL_FRONTEND_URL` | your deployed URL, e.g. `https://requity.vercel.app` |
-| `BREVO_API_KEY` | *(optional)* Brevo key, omit to run email in test mode |
-| `BREVO_SENDER_EMAIL` | *(optional)* a verified Brevo sender |
-| `BREVO_SENDER_NAME` | *(optional)* e.g. `REQUITY` |
+| `VERCEL_FRONTEND_URL` | your production URL, `https://www.requityapp.com` |
+| `EMAIL_PROVIDER` | `sendgrid` (active provider; unset also defaults to SendGrid) |
+| `SENDGRID_API_KEY` | your Twilio SendGrid API key (secret, server side only) |
+| `SENDGRID_SENDER_EMAIL` | a verified SendGrid sender, `info@requityapp.com` |
+| `SENDGRID_SENDER_NAME` | `REQUITY` |
+| `PUBLIC_SITE_URL` | `https://www.requityapp.com` |
+| `REQUITY_REVIEW_EMAIL` | *(optional)* fallback recipient, `info@requityapp.com` |
+
+Email is sent through Twilio SendGrid. Brevo is no longer used by the app (the
+old `BREVO_*` variables can stay in Vercel but are ignored unless you explicitly
+set `EMAIL_PROVIDER=brevo`).
+
+**Set the SendGrid env on Windows PowerShell** (run each, paste the value when
+prompted, choose the `production` environment):
+
+```powershell
+npx vercel env add EMAIL_PROVIDER production
+npx vercel env add SENDGRID_API_KEY production
+npx vercel env add SENDGRID_SENDER_EMAIL production
+npx vercel env add SENDGRID_SENDER_NAME production
+npx vercel env add PUBLIC_SITE_URL production
+npx vercel env add VERCEL_FRONTEND_URL production
+npx vercel env add REQUITY_REVIEW_EMAIL production
+```
+
+Expected values:
+
+```text
+EMAIL_PROVIDER=sendgrid
+SENDGRID_SENDER_EMAIL=info@requityapp.com
+SENDGRID_SENDER_NAME=REQUITY
+PUBLIC_SITE_URL=https://www.requityapp.com
+VERCEL_FRONTEND_URL=https://www.requityapp.com
+REQUITY_REVIEW_EMAIL=info@requityapp.com
+```
+
+> Do not use Linux only inline env syntax like `SENDGRID_API_KEY=... npm run build`
+> in PowerShell. Set the variable in Vercel (commands above) instead.
 
 **Public (safe for the browser):**
 | Key | Value |
@@ -111,7 +145,10 @@ Trigger a new deploy (Vercel → Deployments → **Redeploy**, or push a commit)
 ### 9. Verify with health checks
 Open these URLs (replace the host with your deployment):
 - `https://YOUR-APP.vercel.app/api/health` → expect `ok: true` and the
-  `hasSupabase*` / `hasBrevoApiKey` booleans reflecting your env vars.
+  `hasSupabase*` booleans reflecting your env vars.
+- `https://www.requityapp.com/api/health/email` → expect `provider: "sendgrid"`,
+  `hasSendGridApiKey: true`, `hasSenderEmail: true`, `hasPublicSiteUrl: true`,
+  `canSendConfigured: true`.
 - `https://YOUR-APP.vercel.app/api/health/supabase` → expect
   `ok: true, profilesReachable: true`. If `ok:false`, re-check the service role
   key and that you ran the schema.
@@ -183,11 +220,21 @@ server-side; these credentials are never hardcoded in the frontend.
 3. As a reviewer, open `reviewer/index.html` → **Incomplete Assessments**. The
    lead should appear with status `started`/`in_progress`.
 
-### 15. Test Brevo (test mode vs live)
-- **Test mode (no key):** `/api/health/brevo` shows `testMode:true`. Email is
-  logged in the function logs, not sent. All flows still succeed.
-- **Live mode:** set `BREVO_API_KEY` + a verified `BREVO_SENDER_EMAIL`, redeploy,
-  approve a match, then check Supabase `email_events` for a `status=sent` row.
+### 15. Test SendGrid email
+1. Check config: open `https://www.requityapp.com/api/health/email` and confirm
+   `provider: "sendgrid"`, `hasSendGridApiKey: true`, `canSendConfigured: true`.
+2. (Optional) For a quick send test without a login, set
+   `ALLOW_PUBLIC_EMAIL_TEST=true` in Vercel, redeploy, then POST:
+   ```powershell
+   curl.exe -X POST https://www.requityapp.com/api/admin/test-email `
+     -H "Content-Type: application/json" `
+     -d '{ "to": "your-email@example.com" }'
+   ```
+   Expect `provider: "sendgrid"`, `status: "sent"`, and an HTML email to arrive.
+   Remove `ALLOW_PUBLIC_EMAIL_TEST` afterward so the endpoint requires
+   reviewer/admin auth again.
+3. Approve a match or submit a client assessment, then check Supabase
+   `email_events` for a `provider = sendgrid`, `status = sent` row.
 
 ---
 
@@ -195,4 +242,5 @@ server-side; these credentials are never hardcoded in the frontend.
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (from Part A.2)
 - `VERCEL_FRONTEND_URL` (your deployed URL)
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_BASE_URL`
-- `BREVO_API_KEY` + `BREVO_SENDER_EMAIL` only if you want live email (optional)
+- `EMAIL_PROVIDER=sendgrid`, `SENDGRID_API_KEY`, `SENDGRID_SENDER_EMAIL`,
+  `SENDGRID_SENDER_NAME`, `PUBLIC_SITE_URL` for live SendGrid email

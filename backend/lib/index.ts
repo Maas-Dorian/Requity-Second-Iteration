@@ -45,12 +45,24 @@ export {
 } from "./emailEvents.js";
 
 export {
+  sendAppEmail,
   sendClientAssessmentCompletedEmail,
   sendClientMatchedEmail,
+  sendAgentAssessmentCompletedEmail,
+  resolveEmailProvider,
+  buildRequityEmailHtml,
+  buildPlainTextEmail,
+  escapeHtml,
+  getPublicSiteUrl,
   agentDashboardUrl,
   reviewerDashboardUrl,
+  EMAIL_SUBJECTS,
+  type EmailProvider,
+  type SendAppEmailParams,
+  type SendAppEmailResult,
   type EmailDeliveryResult,
   type EmailDeliveryStatus,
+  type EmailContentInput,
   type EmailTarget,
   type EmailRole,
 } from "./email.js";

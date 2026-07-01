@@ -81,38 +81,45 @@ export function getRequiredEnvStatus(): {
   };
 }
 
+/** The active email provider (SendGrid by default; Brevo only if explicit). */
+export function getEmailProvider(): "sendgrid" | "brevo" {
+  const configured = (read("EMAIL_PROVIDER") ?? "").toLowerCase();
+  return configured === "brevo" ? "brevo" : "sendgrid";
+}
+
 /**
- * Booleans-only snapshot of the Brevo/email config. Safe to return from the
- * email health endpoint, never includes the key or sender values themselves.
+ * Booleans-only snapshot of the SendGrid/email config. Safe to return from the
+ * email health endpoint; never includes the API key or sender values themselves.
  *
- * `canSendConfigured` is true when an API key is present AND a sender email is
- * resolvable. The sender email/name fall back to project-approved defaults
- * (REQUITY / info@requityapp.com), so the only hard requirement for live
- * sending is the API key.
+ * `canSendConfigured` is true when the SendGrid API key is present. The sender
+ * email/name fall back to project-approved defaults (REQUITY /
+ * info@requityapp.com), so the only hard requirement for live sending is the key.
  */
 export function getEmailConfigStatus(): {
-  hasBrevoApiKey: boolean;
+  provider: "sendgrid" | "brevo";
+  hasSendGridApiKey: boolean;
   hasSenderEmail: boolean;
   hasSenderName: boolean;
   hasPublicSiteUrl: boolean;
   hasReviewNotificationEmail: boolean;
   canSendConfigured: boolean;
-  /** Safe to expose, a public, non-secret site origin used in email CTAs. */
+  /** Safe to expose: a public, non-secret site origin used in email CTAs. */
   publicSiteUrl: string;
 } {
+  const provider = getEmailProvider();
+  const hasSendGridApiKey = has("SENDGRID_API_KEY");
   const hasBrevoApiKey = has("BREVO_API_KEY");
+  const hasProviderKey = provider === "brevo" ? hasBrevoApiKey : hasSendGridApiKey;
   return {
-    hasBrevoApiKey,
+    provider,
+    hasSendGridApiKey,
     // A sender email/name are always resolvable (env override OR approved
-    // default), so these are always true. canSendConfigured therefore only
-    // truly requires the API key.
+    // default), so these are always true; canSendConfigured requires the key.
     hasSenderEmail: true,
     hasSenderName: true,
     hasPublicSiteUrl: has("PUBLIC_SITE_URL", "NEXT_PUBLIC_SITE_URL", "VERCEL_FRONTEND_URL"),
     hasReviewNotificationEmail: has("REQUITY_REVIEW_EMAIL", "ADMIN_NOTIFICATION_EMAIL"),
-    // A sender email is always resolvable (env override or approved default),
-    // so live sending only requires the API key.
-    canSendConfigured: hasBrevoApiKey,
+    canSendConfigured: hasProviderKey,
     publicSiteUrl: env.publicSiteUrl.replace(/\/$/, ""),
   };
 }
@@ -147,6 +154,7 @@ export const FRONTEND_SAFE_ENV = [
 /** Secrets that must NEVER be exposed to the browser. */
 export const NEVER_FRONTEND_ENV = [
   "SUPABASE_SERVICE_ROLE_KEY",
+  "SENDGRID_API_KEY",
   "BREVO_API_KEY",
 ] as const;
 
@@ -235,12 +243,16 @@ export function assertNoFrontendSecrets(): void {
 
   // 2) A public value must never equal a known secret value.
   const serviceRole = read("SUPABASE_SERVICE_ROLE_KEY");
+  const sendGrid = read("SENDGRID_API_KEY");
   const brevo = read("BREVO_API_KEY");
   for (const [name, value] of Object.entries(process.env)) {
     if (!value) continue;
     if (!name.startsWith("NEXT_PUBLIC_") && !name.startsWith("VITE_")) continue;
     if (serviceRole && value.trim() === serviceRole) {
       problems.push(`${name} contains the Supabase service role key, never expose it.`);
+    }
+    if (sendGrid && value.trim() === sendGrid) {
+      problems.push(`${name} contains the SendGrid API key, never expose it.`);
     }
     if (brevo && value.trim() === brevo) {
       problems.push(`${name} contains the Brevo API key, never expose it.`);
@@ -267,6 +279,21 @@ export const env = {
   },
   get supabaseServiceRoleKey(): string {
     return required("SUPABASE_SERVICE_ROLE_KEY", read("SUPABASE_SERVICE_ROLE_KEY"));
+  },
+  /** Active email provider (SendGrid by default). */
+  get emailProvider(): "sendgrid" | "brevo" {
+    return getEmailProvider();
+  },
+  /** SendGrid API key (secret, server-side only). Undefined when unset. */
+  get sendGridApiKey(): string | undefined {
+    return read("SENDGRID_API_KEY");
+  },
+  /** SendGrid verified sender. Override via SENDGRID_SENDER_EMAIL. */
+  get sendGridSenderEmail(): string {
+    return read("SENDGRID_SENDER_EMAIL") ?? "info@requityapp.com";
+  },
+  get sendGridSenderName(): string {
+    return read("SENDGRID_SENDER_NAME") ?? "REQUITY";
   },
   get brevoApiKey(): string | undefined {
     return read("BREVO_API_KEY");

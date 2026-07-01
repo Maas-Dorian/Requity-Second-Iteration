@@ -188,10 +188,15 @@ create table if not exists email_events (
   -- Dedupe + provider enrichment (migration 0004).
   event_key text,
   event_type text,
-  provider text,
+  provider text default 'sendgrid',
   provider_message_id text,
   error_message text,
   metadata jsonb default '{}'::jsonb,
+  -- SendGrid lifecycle enrichment (migration 0005).
+  retry_count integer default 0,
+  next_attempt_at timestamptz,
+  sent_at timestamptz,
+  updated_at timestamptz default now(),
   created_at timestamptz default now()
 );
 

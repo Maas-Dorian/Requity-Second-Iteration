@@ -7,15 +7,14 @@ import {
   sendJson,
   HttpError,
 } from "../_lib/http.js";
-import { sendBrevoEmail } from "../../backend/lib/brevo.js";
 import {
   EMAIL_SUBJECTS,
   buildRequityEmailHtml,
   buildPlainTextEmail,
   agentDashboardUrl,
+  sendAppEmail,
   type EmailContentInput,
 } from "../../backend/lib/email.js";
-import { recordEmailEvent } from "../../backend/lib/emailEvents.js";
 import { requireReviewer } from "../../backend/lib/auth.js";
 import { getOptionalEnv } from "../../backend/lib/env.js";
 import { logApiStart } from "../../backend/lib/logger.js";
@@ -23,8 +22,8 @@ import { logApiStart } from "../../backend/lib/logger.js";
 const ROUTE = "admin/test-email";
 
 const TEST_CONTENT: EmailContentInput = {
-  title: "REQUITY Brevo test email",
-  intro: "This is a REQUITY Brevo test email. If you received this, Brevo sending is working.",
+  title: "REQUITY SendGrid test email",
+  intro: "This is a REQUITY SendGrid test email. If you received this, SendGrid sending is working.",
   ctaLabel: "Open REQUITY",
   ctaUrl: agentDashboardUrl(),
 };
@@ -33,10 +32,11 @@ const TEST_CONTENT: EmailContentInput = {
  * POST /api/admin/test-email
  * Body: { to: "email@example.com" }
  *
- * Sends a REAL Brevo email using the shared transport so you can verify live
- * sending. Protected by reviewer/admin auth. When auth is unavailable you may
- * temporarily allow unauthenticated testing by setting ALLOW_PUBLIC_EMAIL_TEST=true
- * (defaults to false). Never exposes the API key or sender secrets.
+ * Sends a REAL email through the active provider (SendGrid) using the shared
+ * sendAppEmail() surface so you can verify live sending. Protected by
+ * reviewer/admin auth. When auth is unavailable you may temporarily allow
+ * unauthenticated testing by setting ALLOW_PUBLIC_EMAIL_TEST=true (defaults to
+ * false). Never exposes the API key or sender secrets.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {
@@ -57,37 +57,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       throw new HttpError(400, "A valid `to` email address is required.");
     }
 
-    const result = await sendBrevoEmail({
-      to: [{ email: to }],
+    const result = await sendAppEmail({
+      eventType: "test_email",
+      to,
       subject: EMAIL_SUBJECTS.testEmail,
-      htmlContent: buildRequityEmailHtml(TEST_CONTENT),
-      textContent: buildPlainTextEmail(TEST_CONTENT),
+      html: buildRequityEmailHtml(TEST_CONTENT),
+      text: buildPlainTextEmail(TEST_CONTENT),
       tags: ["test_email"],
     });
 
-    const status = result.sent ? "sent" : result.testMode ? "skipped" : "failed";
-    await recordEmailEvent({
-      recipientEmail: to,
-      templateKey: "test_email",
-      eventType: "test_email",
-      status,
-      brevoMessageId: result.providerMessageId ?? null,
-      errorMessage: result.sent ? null : result.error ?? null,
-      eventKey: null,
-      payload: { httpStatus: result.httpStatus ?? null, errorCode: result.errorCode ?? null },
-    });
+    // Safe response: booleans/codes only, never the API key, body, or sender
+    // secret. 200 on success; on a real provider failure return the honest
+    // outcome (429 for rate limits, otherwise 502) with a safe error message.
+    if (result.emailed) {
+      sendJson(res, 200, {
+        ok: true,
+        provider: result.provider,
+        status: result.status,
+        messageId: result.messageId,
+        recipient: to,
+      });
+      return;
+    }
 
-    // Safe response, booleans/codes only, never the API key, body, or sender
-    // secret. 200 when sent or in test mode (no key configured); 502 on a real
-    // Brevo failure so callers see the honest outcome.
-    sendJson(res, result.sent || result.testMode ? 200 : 502, {
-      ok: result.sent,
-      provider: "brevo",
-      status,
+    const httpStatus = result.status === "rate_limited" ? 429 : 502;
+    sendJson(res, httpStatus, {
+      ok: false,
+      provider: result.provider,
+      status: result.status,
+      httpStatus: result.httpStatus,
+      errorMessage: result.errorMessage,
       recipient: to,
-      httpStatus: result.httpStatus ?? null,
-      errorCode: result.sent ? null : result.errorCode ?? null,
-      testMode: Boolean(result.testMode),
     });
   });
 }

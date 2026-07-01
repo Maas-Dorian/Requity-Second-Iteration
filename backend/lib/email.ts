@@ -1,29 +1,47 @@
 import { getOptionalEnv } from "./env.js";
-import { sendBrevoEmail, type SendResult } from "./brevo.js";
-import { recordEmailEvent, emailEventAlreadySent } from "./emailEvents.js";
+import { sendSendGridEmail } from "./sendgrid.js";
+import { sendBrevoEmail } from "./brevo.js";
+import {
+  recordEmailEvent,
+  emailEventAlreadySent,
+  type EmailEventStatus,
+} from "./emailEvents.js";
 
 /**
  * High-level REQUITY email orchestration (server-side ONLY).
  *
  * This module owns *what* to send and *to whom*, plus idempotency/dedupe and
- * audit recording. The actual Brevo transport lives in backend/lib/brevo.ts
- * (sendBrevoEmail) and is reused here. Nothing in this file is import-safe for
- * the browser, it reads server env and the Brevo API key.
+ * audit recording. The actual transport is provider based:
+ *   - EMAIL_PROVIDER=sendgrid (or unset) uses backend/lib/sendgrid.ts.
+ *   - EMAIL_PROVIDER=brevo (only when explicitly configured later) uses brevo.ts.
+ * Nothing in this file is import-safe for the browser; it reads server env and
+ * the provider API key.
  *
  * Guarantees:
  *   - Never throws to the caller; always returns a structured delivery result so
  *     a failed email can never break assessment submission or match assignment.
- *   - Never exposes the Brevo API key or env values.
+ *   - Never exposes the SendGrid/Brevo API key or env values.
  *   - Dedupes via email_events.event_key when an eventKey is provided.
+ *   - Never marks an event "sent" unless the provider returned 2xx.
  */
 
 // Re-exported so callers have a single email surface (Part 2 deliverable).
-export { sendBrevoEmail } from "./brevo.js";
 export { recordEmailEvent } from "./emailEvents.js";
 
 const PRODUCTION_SITE_URL = "https://www.requityapp.com";
 
 export type EmailDeliveryStatus = "sent" | "skipped" | "failed";
+
+export type EmailProvider = "sendgrid" | "brevo";
+
+/**
+ * Resolve the active email provider. SendGrid is the default and is used when
+ * EMAIL_PROVIDER is unset. Brevo is only used when explicitly configured.
+ */
+export function resolveEmailProvider(): EmailProvider {
+  const configured = (getOptionalEnv("EMAIL_PROVIDER") ?? "").trim().toLowerCase();
+  return configured === "brevo" ? "brevo" : "sendgrid";
+}
 
 export type EmailDeliveryResult = {
   /** True only when at least one recipient was actually sent to via Brevo. */
@@ -88,49 +106,40 @@ function normalizeTargets(targets: EmailTarget[]): EmailTarget[] {
   return out;
 }
 
-function aggregateStatus(results: SendResult[]): EmailDeliveryStatus {
-  if (results.some((r) => r.sent)) return "sent";
-  // No real send happened. Test mode (no API key) => skipped, otherwise failed.
-  if (results.length && results.every((r) => r.testMode)) return "skipped";
-  return "failed";
-}
-
-function firstMessageId(results: SendResult[]): string | null {
-  for (const r of results) if (r.sent && r.providerMessageId) return r.providerMessageId;
-  return null;
-}
-
-function firstError(results: SendResult[]): string | null {
-  for (const r of results) if (!r.sent && r.error) return r.error;
-  return null;
-}
-
 /**
- * Safe structured email logging for Vercel. Never logs the Brevo API key,
- * sender values, or full HTML payloads, only event type, status, recipient
- * presence and short error text.
+ * Safe structured email logging for Vercel. Never logs the provider API key,
+ * sender values, or full HTML payloads; only provider, event type, status,
+ * http status, message-id presence and short error text.
  */
-function logEmailEvent(
-  tag: "EMAIL_SEND_ATTEMPT" | "EMAIL_SEND_RESULT" | "EMAIL_SEND_FAILED",
+function logEmail(
+  tag:
+    | "EMAIL_CONFIG_CHECK"
+    | "EMAIL_SEND_ATTEMPT"
+    | "EMAIL_SEND_RESULT"
+    | "EMAIL_SEND_FAILED"
+    | "EMAIL_RATE_LIMITED",
   fields: Record<string, unknown>
 ): void {
   try {
-    console.log(tag, JSON.stringify({ provider: "brevo", ...fields }));
+    console.log(tag, JSON.stringify(fields));
   } catch {
-    console.log(tag, { provider: "brevo", ...fields });
+    console.log(tag, fields);
   }
 }
 
-/** Short, secret-free error code for logs (e.g. the Brevo error `code`). */
-function safeErrorCode(message: string | null): string {
-  if (!message) return "unknown";
-  try {
-    const parsed = JSON.parse(message) as { code?: string };
-    if (parsed && typeof parsed.code === "string") return parsed.code;
-  } catch {
-    // not JSON, fall through to a generic code
-  }
-  return "send_error";
+/** Truncate an error message to a short, safe length for logs (never secrets). */
+function safeShortError(message: string | null | undefined): string {
+  const text = (message ?? "").toString().trim();
+  if (!text) return "send_error";
+  return text.slice(0, 200);
+}
+
+/** Aggregate per-recipient results into the coarse delivery status. */
+function aggregateDeliveryStatus(results: SendAppEmailResult[]): EmailDeliveryStatus {
+  if (results.some((r) => r.status === "sent")) return "sent";
+  if (results.length && results.every((r) => r.status === "deduped" || r.status === "skipped"))
+    return "skipped";
+  return "failed";
 }
 
 /** REQUITY email subjects (no cross dashes). */
@@ -138,8 +147,236 @@ export const EMAIL_SUBJECTS = {
   assessmentCompleted: "New client assessment completed on REQUITY",
   clientMatched: "New REQUITY match available",
   agentAssessmentCompleted: "Your REQUITY agent archetype is ready",
-  testEmail: "REQUITY Brevo test email",
+  testEmail: "REQUITY SendGrid test email",
 } as const;
+
+// --- Unified provider-based send (Part 2 deliverable) ----------------------
+
+export type SendAppEmailParams = {
+  /** Coarse event type, e.g. "assessment_completed". Also used as a tag. */
+  eventType: string;
+  /** Idempotency key for dedupe (e.g. "assessment_completed:<id>"). */
+  eventKey?: string | null;
+  to: string;
+  toName?: string | null;
+  subject: string;
+  html: string;
+  text: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+};
+
+export type SendAppEmailResult = {
+  /** True only when the active provider accepted the email (2xx). */
+  emailed: boolean;
+  provider: EmailProvider;
+  status: EmailEventStatus;
+  messageId: string | null;
+  httpStatus: number | null;
+  errorMessage: string | null;
+  recipient: string;
+};
+
+/**
+ * The single email surface every REQUITY trigger uses. Resolves the active
+ * provider (SendGrid by default), dedupes by eventKey, sends, and records a
+ * truthful email_events row. Never throws.
+ */
+export async function sendAppEmail(params: SendAppEmailParams): Promise<SendAppEmailResult> {
+  const provider = resolveEmailProvider();
+  const recipient = (params.to ?? "").trim();
+  const tags = Array.from(new Set([params.eventType, ...(params.tags ?? [])].filter(Boolean)));
+
+  logEmail("EMAIL_SEND_ATTEMPT", {
+    provider,
+    eventType: params.eventType,
+    status: "sending",
+    hasRecipient: recipient.length > 0,
+  });
+
+  // No recipient: record a truthful "skipped", never pretend it sent.
+  if (!recipient) {
+    await recordEmailEvent({
+      recipientEmail: "(none)",
+      templateKey: params.eventType,
+      eventType: params.eventType,
+      provider,
+      status: "skipped",
+      errorMessage: "No recipient found",
+      eventKey: null,
+      payload: { ...(params.metadata ?? {}), reason: "No recipient found" },
+    });
+    logEmail("EMAIL_SEND_RESULT", { provider, eventType: params.eventType, status: "skipped" });
+    return {
+      emailed: false,
+      provider,
+      status: "skipped",
+      messageId: null,
+      httpStatus: null,
+      errorMessage: "No recipient found",
+      recipient: "",
+    };
+  }
+
+  // Dedupe: an already-sent event returns "deduped" (not a fake send).
+  if (params.eventKey && (await emailEventAlreadySent(params.eventKey))) {
+    await recordEmailEvent({
+      recipientEmail: recipient,
+      templateKey: params.eventType,
+      eventType: params.eventType,
+      provider,
+      status: "deduped",
+      eventKey: null,
+      payload: { ...(params.metadata ?? {}), reason: "Already sent (duplicate event)" },
+    });
+    logEmail("EMAIL_SEND_RESULT", { provider, eventType: params.eventType, status: "deduped" });
+    return {
+      emailed: false,
+      provider,
+      status: "deduped",
+      messageId: null,
+      httpStatus: null,
+      errorMessage: null,
+      recipient,
+    };
+  }
+
+  // Send via the active provider.
+  let sent = false;
+  let httpStatus: number | null = null;
+  let messageId: string | null = null;
+  let rateLimited = false;
+  let errorMessage: string | null = null;
+
+  if (provider === "brevo") {
+    const r = await sendBrevoEmail({
+      to: [{ email: recipient, name: params.toName ?? undefined }],
+      subject: params.subject,
+      htmlContent: params.html,
+      textContent: params.text,
+      tags,
+    });
+    sent = r.sent;
+    httpStatus = r.httpStatus ?? null;
+    messageId = r.providerMessageId ?? null;
+    rateLimited = r.httpStatus === 429;
+    errorMessage = r.sent ? null : r.error ?? null;
+  } else {
+    const r = await sendSendGridEmail({
+      to: recipient,
+      toName: params.toName ?? null,
+      subject: params.subject,
+      html: params.html,
+      text: params.text,
+      categories: tags,
+    });
+    sent = r.sent;
+    httpStatus = r.httpStatus;
+    messageId = r.providerMessageId;
+    rateLimited = r.rateLimited;
+    errorMessage = r.errorMessage;
+  }
+
+  const status: EmailEventStatus = sent ? "sent" : rateLimited ? "rate_limited" : "failed";
+
+  await recordEmailEvent({
+    recipientEmail: recipient,
+    templateKey: params.eventType,
+    eventType: params.eventType,
+    provider,
+    status,
+    providerMessageId: messageId,
+    // Only persist the dedupe key on success so failures/rate-limits can retry.
+    eventKey: sent ? params.eventKey ?? null : null,
+    errorMessage: sent ? null : safeShortError(errorMessage),
+    payload: { ...(params.metadata ?? {}), httpStatus, provider },
+  });
+
+  logEmail("EMAIL_SEND_RESULT", {
+    provider,
+    eventType: params.eventType,
+    status,
+    httpStatus,
+    hasMessageId: Boolean(messageId),
+  });
+  if (!sent) {
+    logEmail(rateLimited ? "EMAIL_RATE_LIMITED" : "EMAIL_SEND_FAILED", {
+      provider,
+      eventType: params.eventType,
+      status,
+      httpStatus,
+      message: safeShortError(errorMessage),
+    });
+  }
+
+  return {
+    emailed: sent,
+    provider,
+    status,
+    messageId,
+    httpStatus,
+    errorMessage: sent ? null : safeShortError(errorMessage),
+    recipient,
+  };
+}
+
+/**
+ * Send REQUITY content to one or more recipients through {@link sendAppEmail}.
+ * Each recipient gets a per-recipient dedupe key derived from the base event
+ * key, so a retry never double-sends but every distinct recipient is notified.
+ */
+async function sendToRecipients(opts: {
+  eventType: string;
+  baseEventKey?: string | null;
+  subject: string;
+  recipients: EmailTarget[];
+  buildContent: (r: EmailTarget) => EmailContentInput;
+  metadata?: Record<string, unknown>;
+}): Promise<EmailDeliveryResult> {
+  const provider = resolveEmailProvider();
+  const recipients = normalizeTargets(opts.recipients);
+
+  if (!recipients.length) {
+    await recordEmailEvent({
+      recipientEmail: "(none)",
+      templateKey: opts.eventType,
+      eventType: opts.eventType,
+      provider,
+      status: "skipped",
+      errorMessage: "No recipient found",
+      eventKey: null,
+      payload: { ...(opts.metadata ?? {}), reason: "No recipient found" },
+    });
+    logEmail("EMAIL_SEND_RESULT", { provider, eventType: opts.eventType, status: "skipped" });
+    return { emailed: false, emailStatus: "skipped", recipients: [], reason: "No recipient found" };
+  }
+
+  const results: SendAppEmailResult[] = [];
+  for (const r of recipients) {
+    const content = opts.buildContent(r);
+    const res = await sendAppEmail({
+      eventType: opts.eventType,
+      eventKey: opts.baseEventKey ? `${opts.baseEventKey}:${r.email.toLowerCase()}` : null,
+      to: r.email,
+      toName: r.name ?? null,
+      subject: opts.subject,
+      html: buildRequityEmailHtml(content),
+      text: buildPlainTextEmail(content),
+      tags: [opts.eventType],
+      metadata: opts.metadata,
+    });
+    results.push(res);
+  }
+
+  const emailStatus = aggregateDeliveryStatus(results);
+  const emailed = results.some((r) => r.emailed);
+  return {
+    emailed,
+    emailStatus,
+    recipients: recipients.map((r) => r.email),
+    reason: emailed ? undefined : results.find((r) => r.errorMessage)?.errorMessage ?? undefined,
+  };
+}
 
 /** Escape a dynamic value for safe inclusion in HTML email bodies. */
 export function escapeHtml(value: string | null | undefined): string {
@@ -169,8 +406,8 @@ function usableDetails(details?: EmailDetail[]): { label: string; value: string 
 }
 
 /**
- * Build a complete, self-contained HTML email (full document) so Brevo accepts
- * and renders it. All dynamic values are HTML-escaped. Contains no cross dashes.
+ * Build a complete, self-contained HTML email (full document) so any provider
+ * accepts and renders it. All dynamic values are HTML-escaped. No cross dashes.
  */
 export function buildRequityEmailHtml(input: EmailContentInput): string {
   const rows = usableDetails(input.details);
@@ -243,54 +480,25 @@ export type ClientCompletedEmailInput = {
 };
 
 /**
- * Email the relevant agent/reviewer that a client completed the assessment.
- * Resolves dashboard links per recipient role, dedupes by eventKey, and records
- * the attempt in email_events. Returns a safe delivery result.
+ * Email the relevant agent/reviewer that a client completed the assessment
+ * (event type "assessment_completed"). Resolves dashboard links per recipient
+ * role, dedupes per recipient, and records the attempt via sendAppEmail.
  */
 export async function sendClientAssessmentCompletedEmail(
   input: ClientCompletedEmailInput
 ): Promise<EmailDeliveryResult> {
-  const recipients = normalizeTargets(input.recipients);
-  logEmailEvent("EMAIL_SEND_ATTEMPT", {
+  return sendToRecipients({
     eventType: "assessment_completed",
-    recipientFound: recipients.length > 0,
-  });
-
-  if (!recipients.length) {
-    await recordEmailEvent({
-      recipientEmail: "(none)",
-      templateKey: "client_complete",
-      eventType: "assessment_completed",
-      status: "skipped",
-      errorMessage: "No recipient found",
-      eventKey: null,
-      payload: { reason: "No recipient found", clientName: input.clientName ?? null },
-    });
-    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "assessment_completed", status: "skipped" });
-    return { emailed: false, emailStatus: "skipped", recipients: [], reason: "No recipient found" };
-  }
-
-  if (input.eventKey && (await emailEventAlreadySent(input.eventKey))) {
-    await recordEmailEvent({
-      recipientEmail: recipients[0].email,
-      templateKey: "client_complete",
-      eventType: "assessment_completed",
-      status: "deduped",
-      eventKey: null,
-      payload: { reason: "Already sent (duplicate event)", recipients: recipients.map((r) => r.email) },
-    });
-    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "assessment_completed", status: "deduped" });
-    return {
-      emailed: false,
-      emailStatus: "skipped",
-      recipients: recipients.map((r) => r.email),
-      reason: "Already sent (duplicate event)",
-    };
-  }
-
-  const results: SendResult[] = [];
-  for (const r of recipients) {
-    const content: EmailContentInput = {
+    baseEventKey: input.eventKey ?? null,
+    subject: EMAIL_SUBJECTS.assessmentCompleted,
+    recipients: input.recipients,
+    metadata: {
+      clientName: input.clientName ?? null,
+      transaction: input.transactionIntentLabel ?? null,
+      market: input.marketCity ?? null,
+      archetype: input.clientArchetype ?? null,
+    },
+    buildContent: (r) => ({
       title: "New client assessment completed",
       intro: `${input.clientName || "A client"} just completed their REQUITY assessment. Open your dashboard to view the full relational report.`,
       details: [
@@ -303,51 +511,8 @@ export async function sendClientAssessmentCompletedEmail(
       ],
       ctaLabel: "View in REQUITY",
       ctaUrl: dashboardUrlForRole(r.role),
-    };
-    const send = await sendBrevoEmail({
-      to: [{ email: r.email, name: r.name ?? undefined }],
-      subject: EMAIL_SUBJECTS.assessmentCompleted,
-      htmlContent: buildRequityEmailHtml(content),
-      textContent: buildPlainTextEmail(content),
-      tags: ["assessment_completed"],
-    });
-    results.push(send);
-  }
-
-  const status = aggregateStatus(results);
-  await recordEmailEvent({
-    recipientEmail: recipients[0].email,
-    templateKey: "client_complete",
-    eventType: "assessment_completed",
-    status,
-    // Only persist the dedupe key on success so failures/test-mode can retry.
-    eventKey: status === "sent" ? input.eventKey ?? null : null,
-    brevoMessageId: firstMessageId(results),
-    errorMessage: status === "failed" ? firstError(results) : null,
-    payload: {
-      clientName: input.clientName ?? null,
-      transaction: input.transactionIntentLabel ?? null,
-      market: input.marketCity ?? null,
-      archetype: input.clientArchetype ?? null,
-      recipients: recipients.map((r) => r.email),
-    },
+    }),
   });
-
-  logEmailEvent("EMAIL_SEND_RESULT", { eventType: "assessment_completed", status });
-  if (status === "failed") {
-    const message = firstError(results);
-    logEmailEvent("EMAIL_SEND_FAILED", {
-      eventType: "assessment_completed",
-      code: safeErrorCode(message),
-      message: message ?? "send failed",
-    });
-  }
-
-  return {
-    emailed: status === "sent",
-    emailStatus: status,
-    recipients: recipients.map((r) => r.email),
-  };
 }
 
 export type ClientMatchedEmailInput = {
@@ -364,52 +529,24 @@ export type ClientMatchedEmailInput = {
 
 /**
  * Email the matched agent (and optional reviewer/admin) that a REQUITY match is
- * ready to review. Dedupes by eventKey and records the attempt. Safe result.
+ * ready to review (event type "client_matched"). Dedupes per recipient.
  */
 export async function sendClientMatchedEmail(
   input: ClientMatchedEmailInput
 ): Promise<EmailDeliveryResult> {
-  const recipients = normalizeTargets(input.recipients);
-  logEmailEvent("EMAIL_SEND_ATTEMPT", {
+  return sendToRecipients({
     eventType: "client_matched",
-    recipientFound: recipients.length > 0,
-  });
-
-  if (!recipients.length) {
-    await recordEmailEvent({
-      recipientEmail: "(none)",
-      templateKey: "client_matched",
-      eventType: "client_matched",
-      status: "skipped",
-      errorMessage: "No recipient found",
-      eventKey: null,
-      payload: { reason: "No recipient found", clientName: input.clientName ?? null },
-    });
-    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "client_matched", status: "skipped" });
-    return { emailed: false, emailStatus: "skipped", recipients: [], reason: "No recipient found" };
-  }
-
-  if (input.eventKey && (await emailEventAlreadySent(input.eventKey))) {
-    await recordEmailEvent({
-      recipientEmail: recipients[0].email,
-      templateKey: "client_matched",
-      eventType: "client_matched",
-      status: "deduped",
-      eventKey: null,
-      payload: { reason: "Already sent (duplicate event)", recipients: recipients.map((r) => r.email) },
-    });
-    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "client_matched", status: "deduped" });
-    return {
-      emailed: false,
-      emailStatus: "skipped",
-      recipients: recipients.map((r) => r.email),
-      reason: "Already sent (duplicate event)",
-    };
-  }
-
-  const results: SendResult[] = [];
-  for (const r of recipients) {
-    const content: EmailContentInput = {
+    baseEventKey: input.eventKey ?? null,
+    subject: EMAIL_SUBJECTS.clientMatched,
+    recipients: input.recipients,
+    metadata: {
+      clientName: input.clientName ?? null,
+      agentName: input.agentName ?? null,
+      matchLabel: input.matchLabel ?? null,
+      transaction: input.transactionIntentLabel ?? null,
+      market: input.marketCity ?? null,
+    },
+    buildContent: (r) => ({
       title: "A new REQUITY match is ready",
       intro: `${
         input.clientName || "A client"
@@ -424,51 +561,8 @@ export async function sendClientMatchedEmail(
       ],
       ctaLabel: "View match in REQUITY",
       ctaUrl: dashboardUrlForRole(r.role),
-    };
-    const send = await sendBrevoEmail({
-      to: [{ email: r.email, name: r.name ?? undefined }],
-      subject: EMAIL_SUBJECTS.clientMatched,
-      htmlContent: buildRequityEmailHtml(content),
-      textContent: buildPlainTextEmail(content),
-      tags: ["client_matched"],
-    });
-    results.push(send);
-  }
-
-  const status = aggregateStatus(results);
-  await recordEmailEvent({
-    recipientEmail: recipients[0].email,
-    templateKey: "client_matched",
-    eventType: "client_matched",
-    status,
-    eventKey: status === "sent" ? input.eventKey ?? null : null,
-    brevoMessageId: firstMessageId(results),
-    errorMessage: status === "failed" ? firstError(results) : null,
-    payload: {
-      clientName: input.clientName ?? null,
-      agentName: input.agentName ?? null,
-      matchLabel: input.matchLabel ?? null,
-      transaction: input.transactionIntentLabel ?? null,
-      market: input.marketCity ?? null,
-      recipients: recipients.map((r) => r.email),
-    },
+    }),
   });
-
-  logEmailEvent("EMAIL_SEND_RESULT", { eventType: "client_matched", status });
-  if (status === "failed") {
-    const message = firstError(results);
-    logEmailEvent("EMAIL_SEND_FAILED", {
-      eventType: "client_matched",
-      code: safeErrorCode(message),
-      message: message ?? "send failed",
-    });
-  }
-
-  return {
-    emailed: status === "sent",
-    emailStatus: status,
-    recipients: recipients.map((r) => r.email),
-  };
 }
 
 export type AgentAssessmentCompletedEmailInput = {
@@ -481,96 +575,33 @@ export type AgentAssessmentCompletedEmailInput = {
 };
 
 /**
- * Email an agent that their archetype assessment is complete, with a CTA to the
- * dashboard. Sends a full HTML email plus a plain-text fallback. Never throws,
- * dedupes by eventKey, and records the attempt in email_events.
+ * Email an agent that their archetype assessment is complete (event type
+ * "agent_assessment_completed"), with a CTA to the agent dashboard. Sends full
+ * HTML plus a plain-text fallback via sendAppEmail. Never throws.
  */
 export async function sendAgentAssessmentCompletedEmail(
   input: AgentAssessmentCompletedEmailInput
 ): Promise<EmailDeliveryResult> {
-  const email = (input.agentEmail ?? "").trim();
-  logEmailEvent("EMAIL_SEND_ATTEMPT", {
+  return sendToRecipients({
     eventType: "agent_assessment_completed",
-    recipientFound: email.length > 0,
-  });
-
-  if (!email) {
-    await recordEmailEvent({
-      recipientEmail: "(none)",
-      templateKey: "agent_assessment_completed",
-      eventType: "agent_assessment_completed",
-      status: "skipped",
-      errorMessage: "No recipient found",
-      eventKey: null,
-      payload: { reason: "No recipient found", agentName: input.agentName ?? null },
-    });
-    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "agent_assessment_completed", status: "skipped" });
-    return { emailed: false, emailStatus: "skipped", recipients: [], reason: "No recipient found" };
-  }
-
-  if (input.eventKey && (await emailEventAlreadySent(input.eventKey))) {
-    await recordEmailEvent({
-      recipientEmail: email,
-      templateKey: "agent_assessment_completed",
-      eventType: "agent_assessment_completed",
-      status: "deduped",
-      eventKey: null,
-      payload: { reason: "Already sent (duplicate event)" },
-    });
-    logEmailEvent("EMAIL_SEND_RESULT", { eventType: "agent_assessment_completed", status: "deduped" });
-    return {
-      emailed: false,
-      emailStatus: "skipped",
-      recipients: [email],
-      reason: "Already sent (duplicate event)",
-    };
-  }
-
-  const content: EmailContentInput = {
-    title: "Your REQUITY agent archetype is ready",
-    intro: `Your assessment is complete. ${
-      input.archetype
-        ? `Your agent archetype is ${input.archetype}.`
-        : "Your agent archetype has been saved."
-    } REQUITY uses this when reviewing future client matches.`,
-    details: [
-      { label: "Agent", value: input.agentName },
-      { label: "Archetype", value: input.archetype },
-      { label: "Market", value: input.marketCity },
-    ],
-    ctaLabel: "View in REQUITY",
-    ctaUrl: agentDashboardUrl(),
-  };
-
-  const send = await sendBrevoEmail({
-    to: [{ email, name: input.agentName ?? undefined }],
+    baseEventKey: input.eventKey ?? null,
     subject: EMAIL_SUBJECTS.agentAssessmentCompleted,
-    htmlContent: buildRequityEmailHtml(content),
-    textContent: buildPlainTextEmail(content),
-    tags: ["agent_assessment_completed"],
+    recipients: [{ email: (input.agentEmail ?? "").trim(), name: input.agentName ?? null, role: "agent" }],
+    metadata: { agentName: input.agentName ?? null, archetype: input.archetype ?? null },
+    buildContent: () => ({
+      title: "Your REQUITY agent archetype is ready",
+      intro: `Your assessment is complete. ${
+        input.archetype
+          ? `Your agent archetype is ${input.archetype}.`
+          : "Your agent archetype has been saved."
+      } REQUITY uses this when reviewing future client matches.`,
+      details: [
+        { label: "Agent", value: input.agentName },
+        { label: "Archetype", value: input.archetype },
+        { label: "Market", value: input.marketCity },
+      ],
+      ctaLabel: "View in REQUITY",
+      ctaUrl: agentDashboardUrl(),
+    }),
   });
-
-  const status = aggregateStatus([send]);
-  await recordEmailEvent({
-    recipientEmail: email,
-    templateKey: "agent_assessment_completed",
-    eventType: "agent_assessment_completed",
-    status,
-    eventKey: status === "sent" ? input.eventKey ?? null : null,
-    brevoMessageId: firstMessageId([send]),
-    errorMessage: status === "failed" ? firstError([send]) : null,
-    payload: { agentName: input.agentName ?? null, archetype: input.archetype ?? null },
-  });
-
-  logEmailEvent("EMAIL_SEND_RESULT", { eventType: "agent_assessment_completed", status });
-  if (status === "failed") {
-    const message = firstError([send]);
-    logEmailEvent("EMAIL_SEND_FAILED", {
-      eventType: "agent_assessment_completed",
-      code: safeErrorCode(message),
-      message: message ?? "send failed",
-    });
-  }
-
-  return { emailed: status === "sent", emailStatus: status, recipients: [email] };
 }
