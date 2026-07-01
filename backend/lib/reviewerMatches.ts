@@ -10,7 +10,11 @@ import {
   createNotification,
   REVIEWER_MATCH_NOTIFICATION_BODY,
 } from "./messages.js";
-import { sendClientMatchedEmail, type EmailTarget } from "./email.js";
+import {
+  sendClientMatchedEmail,
+  sendClientMatchedGetToKnowAgentEmail,
+  type EmailTarget,
+} from "./email.js";
 import { env } from "./env.js";
 import { assignArchetype, isApprovedClientArchetype } from "./archetypes.js";
 import { attachClientReport } from "./clientReport.js";
@@ -730,6 +734,33 @@ async function finalizeAssignment(
       emailed = delivery.emailed;
     } catch (error) {
       console.error("[reviewerMatches] email failed:", error instanceof Error ? error.message : error);
+    }
+  }
+
+  // Client-facing "get to know your agent" email (match finalized). The body
+  // tells the client who their agent is and what the archetype means, so they
+  // never need to log in. Best-effort: never blocks matching. Deduped by
+  // client + agent + recipient. Agent phone is only shown when explicitly
+  // approved for public display (agents.phone_public).
+  if ((client.email ?? "").trim()) {
+    try {
+      await sendClientMatchedGetToKnowAgentEmail({
+        clientIdOrLeadId: client.id ?? null,
+        agentId: agent.id ?? null,
+        clientName: client.full_name ?? null,
+        clientEmail: client.email ?? null,
+        agentName: agent.display_name ?? null,
+        agentEmail: agent.email ?? null,
+        agentPhone: agent.phone ?? null,
+        agentPhonePublic: agent.phone_public === true,
+        agentMarket: agent.market_city ?? null,
+        agentArchetype: agent.archetype ?? null,
+      });
+    } catch (error) {
+      console.error(
+        "[reviewerMatches] get-to-know-agent email failed:",
+        error instanceof Error ? error.message : error
+      );
     }
   }
 

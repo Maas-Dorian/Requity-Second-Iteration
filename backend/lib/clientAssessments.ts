@@ -8,7 +8,11 @@ import {
   type ClientSource,
 } from "./matching.js";
 import { createNotification } from "./messages.js";
-import { sendClientAssessmentCompletedEmail, type EmailTarget } from "./email.js";
+import {
+  sendClientAssessmentCompletedEmail,
+  sendClientMatchReviewStartedEmail,
+  type EmailTarget,
+} from "./email.js";
 import { completeAssessmentLead, upsertAssessmentLeadStart } from "./assessmentLeads.js";
 import { getAgentIdBySlug } from "./agentSlug.js";
 import {
@@ -870,7 +874,11 @@ export async function submitClientAssessmentWithContact(
       recipients: completionRecipients,
       clientName: fullName,
       clientEmail: params.contact.email ?? null,
+      clientPhone: params.contact.phone ?? null,
+      transactionIntent,
       transactionIntentLabel,
+      buyingMarketCity,
+      sellingMarketCity,
       marketCity,
       clientArchetype: result.archetype,
       assignedAgentName: agentDisplayName ?? null,
@@ -880,6 +888,24 @@ export async function submitClientAssessmentWithContact(
   } catch (error) {
     console.error("[clientAssessments] completion email failed:", error instanceof Error ? error.message : error);
     emailStatus = "failed";
+  }
+
+  // Reviewer-queue clients (source != qr) move into an active review/matching
+  // state on completion. Let the client know their match is being reviewed. This
+  // is best-effort and never blocks the saved assessment.
+  if (dbSource !== "qr" && (params.contact.email ?? "").trim()) {
+    try {
+      await sendClientMatchReviewStartedEmail({
+        clientIdOrLeadId: clientId ?? assessmentId ?? params.leadId ?? null,
+        clientName: fullName,
+        clientEmail: params.contact.email ?? null,
+      });
+    } catch (error) {
+      console.error(
+        "[clientAssessments] review-started email failed:",
+        error instanceof Error ? error.message : error
+      );
+    }
   }
 
   return {
