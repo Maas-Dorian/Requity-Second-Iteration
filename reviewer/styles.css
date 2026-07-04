@@ -524,7 +524,10 @@ body.demo-active {
     height: 0.9em;
     margin: 0 0.05em;
     transform: translateY(0.05em);
-    animation: rqColorShift 5s infinite cubic-bezier(0.25, 1, 0.5, 1);
+    /* The REQUITY Q animation intentionally plays once per page reload and
+       remains orange after completion. Single iteration + animation-fill-mode:
+       forwards holds the final orange state until the next full page reload. */
+    animation: rqColorShift 5s 1 cubic-bezier(0.25, 1, 0.5, 1) forwards;
     color: var(--requity-blue);
 }
 
@@ -566,9 +569,9 @@ body.demo-active {
     opacity: 0;
 }
 
-.rq-ripple-inner { animation: rqSplashInner 5s infinite ease-out; }
-.rq-ripple-outer { animation: rqSplashOuter 5s infinite ease-out; }
-.rq-ripple-furthest { animation: rqSplashFurthest 5s infinite ease-out; }
+.rq-ripple-inner { animation: rqSplashInner 5s 1 ease-out forwards; }
+.rq-ripple-outer { animation: rqSplashOuter 5s 1 ease-out forwards; }
+.rq-ripple-furthest { animation: rqSplashFurthest 5s 1 ease-out forwards; }
 
 .logo-light.review-label {
     margin-left: 0.2rem;
@@ -581,7 +584,8 @@ body.demo-active {
     26% { color: var(--requity-orange); transform: translateY(0.1em) scale(0.95, 1.05); }
     32% { color: var(--requity-orange); transform: translateY(-0.02em) scale(1.02); }
     38%, 75% { color: var(--requity-orange); transform: translateY(0.05em) scale(1); }
-    85%, 100% { color: var(--requity-blue); transform: translateY(0.05em) scale(1); }
+    /* Final keyframe holds the Q orange (forwards) after the single play. */
+    85%, 100% { color: var(--requity-orange); transform: translateY(0.05em) scale(1); }
 }
 
 @keyframes rqSplashInner {

@@ -74,7 +74,10 @@
       height: 0.9em;
       margin: 0 0.05em;
       transform: translateY(0.05em); 
-      animation: qColorShift 5s infinite cubic-bezier(0.25, 1, 0.5, 1);
+      /* The REQUITY Q animation intentionally plays once per page reload and
+         remains orange after completion. Single iteration + animation-fill-mode:
+         forwards holds the final orange state until the next full page reload. */
+      animation: qColorShift 5s 1 cubic-bezier(0.25, 1, 0.5, 1) forwards;
     }
 
     .q-ring {
@@ -115,15 +118,15 @@
     }
 
     .ripple-inner {
-      animation: splashInner 5s infinite ease-out;
+      animation: splashInner 5s 1 ease-out forwards;
     }
 
     .ripple-outer {
-      animation: splashOuter 5s infinite ease-out;
+      animation: splashOuter 5s 1 ease-out forwards;
     }
 
     .ripple-furthest {
-      animation: splashFurthest 5s infinite ease-out;
+      animation: splashFurthest 5s 1 ease-out forwards;
     }
 
     @keyframes qColorShift {
@@ -147,8 +150,9 @@
         color: var(--requity-orange);
         transform: translateY(0.05em) scale(1);
       }
+      /* Final keyframe holds the Q orange (forwards) after the single play. */
       85%, 100% {
-        color: var(--requity-blue);
+        color: var(--requity-orange);
         transform: translateY(0.05em) scale(1);
       }
     }
