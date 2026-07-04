@@ -224,6 +224,9 @@
     e.serverError = serverMsg || null;
     e.area = parsed && parsed.area ? parsed.area : null;
     e.detail = parsed && parsed.detail ? parsed.detail : null;
+    // Full parsed JSON body so callers can read structured fields (e.g. the
+    // activeMatch on a 409 CLIENT_ALREADY_MATCHED response).
+    e.data = parsed || null;
     return e;
   }
 
@@ -622,9 +625,10 @@
       markets: data.markets || [],
       clients: data.clients || [],
       agents: data.agents || [],
+      manage: data.manage || [],
       total: data.total || {
         marketCount: 0, clientCount: 0, agentCount: 0,
-        agentsMissingLocation: 0, clientsMissingLocation: 0, noLocalMatch: 0,
+        agentsMissingLocation: 0, clientsMissingLocation: 0, noLocalMatch: 0, manageCount: 0,
       },
     };
   }
@@ -667,11 +671,38 @@
   }
 
   /**
-   * Reviewer: approve + assign a queued client to an agent. Throws on failure.
-   * payload: { clientId, agentId, score?, reason? }
+   * Reviewer: finalize a match for a queued client/lead. Each client may only
+   * have ONE active match; the same agent may be matched to unlimited clients.
+   * payload: { clientId?, leadId?, agentId, score?, reason?, replaceExisting? }
+   *
+   * On 409 (client already matched to a different agent) the thrown ApiError
+   * carries code "CLIENT_ALREADY_MATCHED" and err.data.activeMatch so the UI can
+   * confirm a replacement, then retry with replaceExisting: true.
    */
   async function approveReviewerMatch(payload) {
     return apiPost("/reviewer/approve-match", payload);
+  }
+
+  /**
+   * Reviewer: add/update a market location for an agent, client, or lead.
+   * payload: { targetType: "agent"|"client"|"lead", targetId, location: {...} }
+   * Returns the updated location summary. Requires reviewer auth.
+   */
+  async function updateReviewerLocation(payload) {
+    return apiPatch("/reviewer/locations", payload);
+  }
+
+  /**
+   * Reviewer: clear the market/location fields for an agent, client, or lead.
+   * The person, assessment, and match history are NOT deleted. Requires reviewer auth.
+   */
+  async function deleteReviewerLocation(targetType, targetId) {
+    return apiDelete(
+      "/reviewer/locations?targetType=" +
+        encodeURIComponent(targetType) +
+        "&targetId=" +
+        encodeURIComponent(targetId)
+    );
   }
 
   /**
@@ -1133,6 +1164,8 @@
     fetchReviewerMatchSuggestions: fetchReviewerMatchSuggestions,
     approveReviewerMatch: approveReviewerMatch,
     updateReviewerClientStatus: updateReviewerClientStatus,
+    updateReviewerLocation: updateReviewerLocation,
+    deleteReviewerLocation: deleteReviewerLocation,
     copyAssessmentLink: copyAssessmentLink,
   };
 })(window);

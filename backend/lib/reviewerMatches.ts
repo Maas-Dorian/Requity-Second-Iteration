@@ -15,6 +15,7 @@ import {
   sendClientMatchedGetToKnowAgentEmail,
   type EmailTarget,
 } from "./email.js";
+import { insertWithSchemaFallback } from "./supabaseWrite.js";
 import { env } from "./env.js";
 import { assignArchetype, isApprovedClientArchetype } from "./archetypes.js";
 import { attachClientReport } from "./clientReport.js";
@@ -103,7 +104,19 @@ export type RankedAgent = MatchResult & {
   locationWarning: string | null;
   /** True when the agent covers only one side of a buying-and-selling client. */
   limitedFit: boolean;
+  /**
+   * How many clients this agent is CURRENTLY the active match for. Informational
+   * only. Agents are reusable without limit, so this never blocks a match.
+   */
+  activeMatchCount?: number;
 };
+
+/**
+ * Match statuses that count as a CURRENT/active pairing for a client. 'active'
+ * is the canonical finalized status (migration 0010); 'assigned'/'approved' are
+ * kept so pairings created before the migration still count as current.
+ */
+export const ACTIVE_MATCH_STATUSES = ["active", "assigned", "approved"] as const;
 
 // --- Location-aware ranking -------------------------------------------------
 
@@ -432,6 +445,16 @@ export async function listReviewerQueue(): Promise<ReviewerQueueItem[]> {
     console.error("[reviewerMatches] lead-based queue fallback skipped:", error);
   }
 
+  // Informational "currently matched with X client(s)" note on each agent card.
+  // Never blocks a match; agents are reusable without limit.
+  const matchCounts = await getAgentActiveMatchCounts();
+  for (const item of queue) {
+    for (const r of item.rankings) {
+      const agentId = r.agentRow?.id;
+      if (agentId) r.activeMatchCount = matchCounts.get(agentId) ?? 0;
+    }
+  }
+
   return queue;
 }
 
@@ -575,7 +598,8 @@ function cleanText(value: unknown): string | null {
 export async function listPairedClients(): Promise<PairedClientItem[]> {
   const supabase = getSupabaseAdmin();
   const byClient = new Map<string, PairedClientItem>();
-  const PAIRED_STATUSES = ["assigned", "approved"];
+  // Only CURRENT/active pairings. Superseded/declined/archived never show here.
+  const PAIRED_STATUSES = ACTIVE_MATCH_STATUSES as unknown as string[];
 
   const pushItem = (item: PairedClientItem) => {
     const key = item.clientId ?? item.matchId ?? `${item.clientName}:${item.agentId}`;
@@ -665,36 +689,193 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
 }
 
 export type ApproveReviewerMatchResult = {
+  ok: true;
   matchId: string;
-  clientId: string;
+  clientId: string | null;
+  leadId: string | null;
   agentId: string;
   notified: boolean;
   emailed: boolean;
+  clientEmailed: boolean;
+  /** True when this finalization replaced a previous active client match. */
+  replaced: boolean;
 };
 
+/** Returned (never thrown) when a client already has a different active match. */
+export type ClientAlreadyMatchedResult = {
+  ok: false;
+  code: "CLIENT_ALREADY_MATCHED";
+  message: string;
+  activeMatch: {
+    agentId: string | null;
+    agentName: string | null;
+    matchedAt: string | null;
+  };
+};
+
+export type FinalizeReviewerMatchResult = ApproveReviewerMatchResult | ClientAlreadyMatchedResult;
+
+/** Detects a status CHECK-constraint violation from a not-yet-migrated DB. */
+function isStatusCheckError(error: unknown): boolean {
+  const anyErr = (error ?? {}) as { code?: string; message?: string };
+  if (anyErr.code === "23514") return true;
+  const msg = (anyErr.message ?? String(error)).toLowerCase();
+  return msg.includes("status_check") || msg.includes("violates check constraint");
+}
+
 /**
- * Shared assignment side-effects: assign client -> agent, create the exact
- * reviewer-match notification, and send + record the Brevo email.
+ * How many clients each agent is CURRENTLY the active match for. Agents are
+ * reusable without limit; this is informational only ("matched with X clients").
+ */
+export async function getAgentActiveMatchCounts(): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  const supabase = getSupabaseAdmin();
+  try {
+    const { data, error } = await supabase
+      .from("match_recommendations")
+      .select("agent_id, client_id, lead_id, status")
+      .in("status", ACTIVE_MATCH_STATUSES as unknown as string[]);
+    if (error) throw new Error(error.message);
+    // De-duplicate per agent+client so a client that also has a superseded row is
+    // never double counted, and only count one row per client/lead.
+    const seen = new Set<string>();
+    for (const row of (data ?? []) as any[]) {
+      const agentId = row.agent_id;
+      if (!agentId) continue;
+      const target = row.client_id ?? row.lead_id ?? row.id;
+      const key = `${agentId}:${target}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      counts.set(agentId, (counts.get(agentId) ?? 0) + 1);
+    }
+  } catch (error) {
+    console.error("[reviewerMatches] agent match counts unavailable:", error);
+  }
+  return counts;
+}
+
+/**
+ * The current active match for a client or lead (newest first), joined to the
+ * agent so callers can report who the client is already matched with. Tolerates
+ * an un-migrated schema by matching the historical statuses too.
+ */
+async function findActiveMatchForTarget(target: {
+  clientId?: string | null;
+  leadId?: string | null;
+}): Promise<any | null> {
+  const supabase = getSupabaseAdmin();
+  const column = target.clientId ? "client_id" : target.leadId ? "lead_id" : null;
+  const value = target.clientId ?? target.leadId ?? null;
+  if (!column || !value) return null;
+  try {
+    const { data, error } = await supabase
+      .from("match_recommendations")
+      .select("*, agents(*)")
+      .eq(column, value)
+      .in("status", ACTIVE_MATCH_STATUSES as unknown as string[])
+      .order("finalized_at", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as any[];
+    return rows.length ? rows[0] : null;
+  } catch (error) {
+    // lead_id may not exist on an un-migrated schema; degrade to "no active match".
+    console.error("[reviewerMatches] findActiveMatch unavailable:", error);
+    return null;
+  }
+}
+
+/** Supersede every current active match for a client/lead. Returns their ids. */
+async function supersedeActiveMatches(target: {
+  clientId?: string | null;
+  leadId?: string | null;
+}): Promise<string[]> {
+  const supabase = getSupabaseAdmin();
+  const column = target.clientId ? "client_id" : target.leadId ? "lead_id" : null;
+  const value = target.clientId ?? target.leadId ?? null;
+  if (!column || !value) return [];
+  const now = new Date().toISOString();
+  const ids: string[] = [];
+  try {
+    const { data } = await supabase
+      .from("match_recommendations")
+      .select("id")
+      .eq(column, value)
+      .in("status", ACTIVE_MATCH_STATUSES as unknown as string[]);
+    for (const r of (data ?? []) as any[]) if (r.id) ids.push(r.id);
+  } catch {
+    /* ignore lookup issues */
+  }
+  if (!ids.length) return [];
+  // Try the canonical 'superseded' status; fall back to 'rejected' if the DB
+  // has not been migrated to the widened status CHECK yet (both remove the row
+  // from the active set so a new active match can be created).
+  const { error } = await supabase
+    .from("match_recommendations")
+    .update({ status: "superseded", superseded_at: now, updated_at: now })
+    .in("id", ids);
+  if (error && isStatusCheckError(error)) {
+    await supabase.from("match_recommendations").update({ status: "rejected" }).in("id", ids);
+  } else if (error) {
+    console.error("[reviewerMatches] supersede failed:", error.message);
+  }
+  return ids;
+}
+
+/** Insert a new ACTIVE match row, tolerating missing columns / un-migrated status. */
+async function insertActiveMatchRow(values: Record<string, unknown>): Promise<string> {
+  try {
+    const { data } = await insertWithSchemaFallback<{ id: string }>(
+      "match_recommendations",
+      { ...values, status: "active", is_selected: true },
+      { select: "id" }
+    );
+    return data.id;
+  } catch (error) {
+    if (isStatusCheckError(error)) {
+      // Un-migrated schema: 'active' is not an allowed status yet. 'assigned' is
+      // the historical paired status and is treated as active by this module.
+      const { data } = await insertWithSchemaFallback<{ id: string }>(
+        "match_recommendations",
+        { ...values, status: "assigned" },
+        { select: "id" }
+      );
+      return data.id;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Shared assignment side-effects for the NEW active match:
+ *  - assign the client -> agent (when a clients row exists),
+ *  - create the reviewer-match notification for the agent,
+ *  - email the agent (dedupe per client+agent) and the reviewer fallback,
+ *  - email the client a "get to know your agent" intro (dedupe per client+agent).
+ * `party` is the client OR lead row (used for names/email/market).
  */
 async function finalizeAssignment(
-  client: any,
+  party: any,
   agent: any,
-  matchId: string,
+  target: { clientId: string | null; leadId: string | null },
   matchLabel?: string | null
-): Promise<{ notified: boolean; emailed: boolean }> {
+): Promise<{ notified: boolean; emailed: boolean; clientEmailed: boolean }> {
   const supabase = getSupabaseAdmin();
+  const targetId = target.clientId ?? target.leadId ?? party?.id ?? "unknown";
 
-  await supabase
-    .from("clients")
-    .update({ assigned_agent_id: agent.id, status: "assigned" })
-    .eq("id", client.id);
+  if (target.clientId) {
+    await supabase
+      .from("clients")
+      .update({ assigned_agent_id: agent.id, status: "assigned" })
+      .eq("id", target.clientId);
+  }
 
   let notified = false;
   try {
     await createNotification({
       recipientProfileId: agent.profile_id ?? null,
       agentId: agent.id,
-      clientId: client.id,
+      clientId: target.clientId ?? null,
       type: "reviewer_match_received",
       title: "You've received a client match from REQUITY!",
       body: REVIEWER_MATCH_NOTIFICATION_BODY,
@@ -705,7 +886,8 @@ async function finalizeAssignment(
   }
 
   // Email the matched agent, plus the reviewer/admin fallback when configured
-  // (and not a duplicate of the agent address). Dedupes by client+agent.
+  // (and not a duplicate of the agent address). Dedupe is per client+agent so an
+  // agent DOES receive a separate email for every different client they match.
   const recipients: EmailTarget[] = [];
   if (agent.email) {
     recipients.push({ email: agent.email, name: agent.display_name, role: "agent" });
@@ -722,33 +904,36 @@ async function finalizeAssignment(
   if (recipients.length) {
     try {
       const delivery = await sendClientMatchedEmail({
-        eventKey: `client_matched:${client.id}:${agent.id}`,
+        eventKey: `agent_match_notification:${targetId}:${agent.id}`,
         recipients,
-        clientName: client.full_name ?? null,
-        clientArchetype: client.archetype ?? null,
+        clientName: party?.full_name ?? null,
+        clientArchetype: party?.archetype ?? null,
         agentName: agent.display_name ?? null,
         matchLabel: matchLabel ?? null,
-        transactionIntentLabel: client.transaction_intent_label ?? null,
-        marketCity: client.market_city ?? null,
+        transactionIntentLabel: party?.transaction_intent_label ?? null,
+        marketCity: party?.market_city ?? null,
       });
       emailed = delivery.emailed;
     } catch (error) {
-      console.error("[reviewerMatches] email failed:", error instanceof Error ? error.message : error);
+      console.error("[reviewerMatches] agent email failed:", error instanceof Error ? error.message : error);
     }
   }
 
-  // Client-facing "get to know your agent" email (match finalized). The body
-  // tells the client who their agent is and what the archetype means, so they
-  // never need to log in. Best-effort: never blocks matching. Deduped by
-  // client + agent + recipient. Agent phone is only shown when explicitly
-  // approved for public display (agents.phone_public).
-  if ((client.email ?? "").trim()) {
+  // Client-facing "get to know your agent" email (match finalized). Uses the
+  // content-rich SendGrid builder so the client sees who their agent is and what
+  // the archetype means without logging in. Best-effort: never blocks matching.
+  // Deduped per client + agent + recipient, so a replacement match sends a fresh
+  // intro for the new agent. Agent phone is only shown when the agent approved
+  // public display (agents.phone_public).
+  let clientEmailed = false;
+  const clientEmail = (party?.email ?? "").trim();
+  if (clientEmail) {
     try {
-      await sendClientMatchedGetToKnowAgentEmail({
-        clientIdOrLeadId: client.id ?? null,
+      const delivery = await sendClientMatchedGetToKnowAgentEmail({
+        clientIdOrLeadId: target.clientId ?? target.leadId ?? null,
         agentId: agent.id ?? null,
-        clientName: client.full_name ?? null,
-        clientEmail: client.email ?? null,
+        clientName: party?.full_name ?? null,
+        clientEmail,
         agentName: agent.display_name ?? null,
         agentEmail: agent.email ?? null,
         agentPhone: agent.phone ?? null,
@@ -756,6 +941,7 @@ async function finalizeAssignment(
         agentMarket: agent.market_city ?? null,
         agentArchetype: agent.archetype ?? null,
       });
+      clientEmailed = delivery.emailed;
     } catch (error) {
       console.error(
         "[reviewerMatches] get-to-know-agent email failed:",
@@ -764,33 +950,37 @@ async function finalizeAssignment(
     }
   }
 
-  return { notified, emailed };
+  return { notified, emailed, clientEmailed };
 }
 
 export type AssignReviewerMatchParams = {
-  clientId: string;
+  clientId?: string | null;
+  leadId?: string | null;
   agentId: string;
   score?: number;
   reason?: string;
   reviewerId?: string | null;
+  /** Replace the client's existing active match instead of returning a 409. */
+  replaceExisting?: boolean;
 };
 
 /**
- * Reviewer picks an agent for a queued client and approves in one step:
- * records the recommendation (assigned), assigns the client, notifies + emails.
+ * Reviewer finalizes a match: the client (or lead) gets exactly ONE active
+ * match; the same agent may be active for unlimited clients. If the client
+ * already has a DIFFERENT active agent and `replaceExisting` is not set, returns
+ * a CLIENT_ALREADY_MATCHED result (the API layer turns this into a 409). When
+ * replacing, the previous active match is superseded first.
  */
 export async function assignReviewerMatch(
   params: AssignReviewerMatchParams
-): Promise<ApproveReviewerMatchResult> {
+): Promise<FinalizeReviewerMatchResult> {
   const supabase = getSupabaseAdmin();
   const now = new Date().toISOString();
-
-  const { data: client, error: clientError } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("id", params.clientId)
-    .single();
-  if (clientError) throw new Error(`assignReviewerMatch client failed: ${clientError.message}`);
+  const clientId = params.clientId ?? null;
+  const leadId = params.leadId ?? null;
+  if (!clientId && !leadId) {
+    throw new Error("assignReviewerMatch requires a clientId or leadId.");
+  }
 
   const { data: agent, error: agentError } = await supabase
     .from("agents")
@@ -799,40 +989,112 @@ export async function assignReviewerMatch(
     .single();
   if (agentError) throw new Error(`assignReviewerMatch agent failed: ${agentError.message}`);
 
-  const score = params.score ?? 0;
-  const { data: match, error: matchError } = await supabase
-    .from("match_recommendations")
-    .insert({
-      client_id: client.id,
-      agent_id: agent.id,
-      score,
-      label: labelForScore(score),
-      reason: params.reason ?? null,
-      status: "assigned",
-      reviewer_id: params.reviewerId ?? null,
-      reviewed_at: now,
-    })
-    .select("id")
-    .single();
-  if (matchError) throw new Error(`assignReviewerMatch recommendation failed: ${matchError.message}`);
+  // Load the client (or lead) row for names/email/market. Missing is tolerated.
+  let party: any = null;
+  if (clientId) {
+    const { data } = await supabase.from("clients").select("*").eq("id", clientId).maybeSingle();
+    party = data ?? null;
+  }
+  if (!party && leadId) {
+    const { data } = await supabase
+      .from("assessment_leads")
+      .select("*")
+      .eq("id", leadId)
+      .maybeSingle();
+    party = data ?? null;
+  }
 
-  const { notified, emailed } = await finalizeAssignment(client, agent, match.id, labelForScore(score));
-  return { matchId: match.id, clientId: client.id, agentId: agent.id, notified, emailed };
+  // Enforce single active match per client/lead.
+  const existing = await findActiveMatchForTarget({ clientId, leadId });
+  let replaced = false;
+  if (existing) {
+    if (existing.agent_id === params.agentId) {
+      // Same agent already active: idempotent success, do not duplicate.
+      console.log("MATCH_ALREADY_ACTIVE_SAME_AGENT", { clientId, leadId, agentId: params.agentId });
+      return {
+        ok: true,
+        matchId: existing.id,
+        clientId,
+        leadId,
+        agentId: params.agentId,
+        notified: false,
+        emailed: false,
+        clientEmailed: false,
+        replaced: false,
+      };
+    }
+    if (!params.replaceExisting) {
+      console.log("MATCH_CLIENT_ALREADY_MATCHED", { clientId, leadId, existingAgentId: existing.agent_id });
+      return {
+        ok: false,
+        code: "CLIENT_ALREADY_MATCHED",
+        message: "This client already has an active agent match.",
+        activeMatch: {
+          agentId: existing.agent_id ?? null,
+          agentName: (existing.agents as any)?.display_name ?? null,
+          matchedAt: existing.finalized_at ?? existing.reviewed_at ?? existing.created_at ?? null,
+        },
+      };
+    }
+    await supersedeActiveMatches({ clientId, leadId });
+    replaced = true;
+  }
+
+  const score = params.score ?? 0;
+  const matchId = await insertActiveMatchRow({
+    client_id: clientId,
+    lead_id: leadId,
+    agent_id: agent.id,
+    score,
+    label: labelForScore(score),
+    reason: params.reason ?? null,
+    reviewer_id: params.reviewerId ?? null,
+    reviewed_at: now,
+    finalized_at: now,
+  });
+
+  if (replaced) {
+    // Link the superseded rows to the new active match (best effort).
+    const col = clientId ? "client_id" : "lead_id";
+    const val = clientId ?? leadId;
+    await supabase
+      .from("match_recommendations")
+      .update({ superseded_by: matchId })
+      .eq(col, val)
+      .in("status", ["superseded"]);
+  }
+
+  const { notified, emailed, clientEmailed } = await finalizeAssignment(
+    party ?? { id: clientId ?? leadId },
+    agent,
+    { clientId, leadId },
+    labelForScore(score)
+  );
+  console.log("MATCH_FINALIZED_ACTIVE", { clientId, leadId, agentId: agent.id, replaced });
+  return {
+    ok: true,
+    matchId,
+    clientId,
+    leadId,
+    agentId: agent.id,
+    notified,
+    emailed,
+    clientEmailed,
+    replaced,
+  };
 }
 
 /**
- * Approve a reviewer recommendation:
- *  1. mark the recommendation approved/assigned
- *  2. assign the client to the agent (badge: "REQUITY Client Match")
- *  3. create the in-app reviewer-match notification (exact REQUITY copy)
- *  4. send + record the Brevo reviewer match email to the agent
+ * Approve an existing reviewer recommendation by id and make it the client's
+ * active match. Enforces the same single-active rule (supersedes any other
+ * active match for that client/lead).
  */
 export async function approveReviewerMatch(
   matchId: string,
-  reviewerId?: string | null
-): Promise<ApproveReviewerMatchResult> {
+  reviewerId?: string | null,
+  replaceExisting = false
+): Promise<FinalizeReviewerMatchResult> {
   const supabase = getSupabaseAdmin();
-  const now = new Date().toISOString();
 
   const { data: match, error: matchError } = await supabase
     .from("match_recommendations")
@@ -841,21 +1103,15 @@ export async function approveReviewerMatch(
     .single();
   if (matchError) throw new Error(`approveReviewerMatch lookup failed: ${matchError.message}`);
 
-  const client = (match as any).clients;
-  const agent = (match as any).agents;
-
-  await supabase
-    .from("match_recommendations")
-    .update({ status: "assigned", reviewed_at: now, reviewer_id: reviewerId ?? match.reviewer_id })
-    .eq("id", matchId);
-
-  const { notified, emailed } = await finalizeAssignment(
-    client,
-    agent,
-    matchId,
-    (match as any).label ?? labelForScore((match as any).score ?? 0)
-  );
-  return { matchId, clientId: client.id, agentId: agent.id, notified, emailed };
+  return assignReviewerMatch({
+    clientId: (match as any).client_id ?? null,
+    leadId: (match as any).lead_id ?? null,
+    agentId: (match as any).agent_id,
+    score: typeof (match as any).score === "number" ? (match as any).score : undefined,
+    reason: (match as any).reason ?? undefined,
+    reviewerId: reviewerId ?? (match as any).reviewer_id ?? null,
+    replaceExisting,
+  });
 }
 
 // ============================================================================
@@ -910,10 +1166,34 @@ export type ReviewerLocationAgent = {
   serviceRadiusMiles: number | null;
 };
 
+/**
+ * A flat "Manage locations" entry: every agent, client, and lead (INCLUDING
+ * those missing a location) with the raw market fields needed to pre-fill the
+ * reviewer edit form. Powers the reviewer add/edit/delete location controls.
+ */
+export type ReviewerLocationManageEntry = {
+  targetType: "agent" | "client" | "lead";
+  id: string | null;
+  name: string | null;
+  email: string | null;
+  status: "complete" | "partial" | "missing";
+  transactionIntent: string | null;
+  transactionIntentLabel: string | null;
+  marketCity: string | null;
+  marketState: string | null;
+  serviceRadiusMiles: number | null;
+  buyingMarketCity: string | null;
+  buyingMarketState: string | null;
+  sellingMarketCity: string | null;
+  sellingMarketState: string | null;
+};
+
 export type ReviewerLocationsResult = {
   markets: ReviewerMarket[];
   clients: ReviewerLocationClient[];
   agents: ReviewerLocationAgent[];
+  /** Flat list for the Manage locations section (bounded). */
+  manage: ReviewerLocationManageEntry[];
   total: {
     marketCount: number;
     clientCount: number;
@@ -924,6 +1204,8 @@ export type ReviewerLocationsResult = {
     clientsMissingLocation: number;
     /** Clients with a location but no eligible local agent. */
     noLocalMatch: number;
+    /** Entries returned in the manage list. */
+    manageCount: number;
   };
 };
 
@@ -1194,6 +1476,63 @@ export async function listReviewerLocations(
     }
   }
 
+  // --- Manage locations: flat list of everyone (incl. missing location) ----
+  // Only the free-text search narrows this list; the browser applies its own
+  // type + missing-location sub-filters. Bounded so the browser never overloads.
+  const manage: ReviewerLocationManageEntry[] = [];
+  const MANAGE_CAP = 200;
+  const manageMatchesQuery = (e: ReviewerLocationManageEntry): boolean => {
+    if (!q) return true;
+    const hay = `${e.name ?? ""} ${e.email ?? ""} ${e.marketCity ?? ""} ${e.marketState ?? ""} ${e.buyingMarketCity ?? ""} ${e.sellingMarketCity ?? ""}`.toLowerCase();
+    return hay.includes(q);
+  };
+  for (const a of agentRowsRaw) {
+    if (manage.length >= MANAGE_CAP) break;
+    const entry: ReviewerLocationManageEntry = {
+      targetType: "agent",
+      id: a.id ?? null,
+      name: cleanText(a.display_name),
+      email: cleanText(a.email),
+      status: hasUsableAgentLocation(a) ? "complete" : "missing",
+      transactionIntent: null,
+      transactionIntentLabel: null,
+      marketCity: cleanText(a.market_city),
+      marketState: cleanText(a.market_state),
+      serviceRadiusMiles: typeof a.service_radius_miles === "number" ? a.service_radius_miles : null,
+      buyingMarketCity: null,
+      buyingMarketState: null,
+      sellingMarketCity: null,
+      sellingMarketState: null,
+    };
+    if (manageMatchesQuery(entry)) manage.push(entry);
+  }
+  for (const row of clientRows) {
+    if (manage.length >= MANAGE_CAP) break;
+    const loc = evaluateClientLocation(row);
+    const status: "complete" | "partial" | "missing" = loc.complete
+      ? "complete"
+      : hasUsableClientLocation(row)
+        ? "partial"
+        : "missing";
+    const entry: ReviewerLocationManageEntry = {
+      targetType: row.__rowKind === "lead" ? "lead" : "client",
+      id: row.id ?? null,
+      name: cleanText(row.full_name),
+      email: cleanText(row.email),
+      status,
+      transactionIntent: cleanText(row.transaction_intent),
+      transactionIntentLabel: transactionLabel(row),
+      marketCity: cleanText(row.market_city),
+      marketState: cleanText(row.market_state),
+      serviceRadiusMiles: null,
+      buyingMarketCity: cleanText(row.buying_market_city),
+      buyingMarketState: cleanText(row.buying_market_state),
+      sellingMarketCity: cleanText(row.selling_market_city),
+      sellingMarketState: cleanText(row.selling_market_state),
+    };
+    if (manageMatchesQuery(entry)) manage.push(entry);
+  }
+
   // --- Order + page -------------------------------------------------------
   const allMarkets = Array.from(markets.values())
     .map(({ _city, _state, ...m }) => m)
@@ -1217,6 +1556,7 @@ export async function listReviewerLocations(
     markets: allMarkets.slice(offset, offset + limit),
     clients: clientResults.slice(offset, offset + limit),
     agents: agentResults.slice(offset, offset + limit),
+    manage,
     total: {
       marketCount: allMarkets.length,
       clientCount: clientResults.length,
@@ -1224,6 +1564,7 @@ export async function listReviewerLocations(
       agentsMissingLocation,
       clientsMissingLocation,
       noLocalMatch,
+      manageCount: manage.length,
     },
   };
 }
@@ -1251,6 +1592,8 @@ export type ReviewerMatchSuggestion = {
   eligible: boolean;
   limitedFit: boolean;
   warning: string | null;
+  /** Informational: how many clients this agent is currently the active match for. */
+  activeMatchCount: number;
 };
 
 export type ReviewerMatchSuggestionsResult = {
@@ -1316,11 +1659,13 @@ export async function getReviewerMatchSuggestions(params: {
   const { data: agentRows } = await supabase.from("agents").select("*").not("archetype", "is", null);
   const ranked = await rankAgentsForClientLocationAware(rankRow, agentRows ?? []);
   const summary = summarizeMatchEligibility(rankRow, ranked);
+  const matchCounts = await getAgentActiveMatchCounts();
 
   const toSuggestion = (r: RankedAgent): ReviewerMatchSuggestion => {
     const a = r.agentRow ?? {};
+    const agentId = a.id ?? r.agent.id ?? null;
     return {
-      agentId: a.id ?? r.agent.id ?? null,
+      agentId,
       agentName: cleanText(a.display_name) ?? r.agent.name ?? null,
       agentEmail: cleanText(a.email),
       agentArchetype: cleanText(a.archetype) ?? r.agent.archetype ?? null,
@@ -1337,6 +1682,7 @@ export async function getReviewerMatchSuggestions(params: {
       eligible: r.eligible,
       limitedFit: r.limitedFit,
       warning: r.locationWarning,
+      activeMatchCount: agentId ? matchCounts.get(agentId) ?? 0 : 0,
     };
   };
 

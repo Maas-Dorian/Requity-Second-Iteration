@@ -16,11 +16,12 @@ const ROUTE = "reviewer/approve-match";
 
 /**
  * POST /api/reviewer/approve-match
- * Body: { clientId, agentId, score?, reason?, reviewerId? }
+ * Body: { clientId?, leadId?, agentId, score?, reason?, reviewerId?, replaceExisting? }
  *
- * Requires reviewer/admin auth. Approves the match, assigns the client to the
- * agent (shown with the "REQUITY Client Match" badge), creates the exact
- * reviewer-match notification, and sends + records the Brevo reviewer match email.
+ * Requires reviewer/admin auth. Finalizes the match: the client (or lead) gets
+ * exactly ONE active match; the same agent may be active for unlimited clients.
+ * If the client already has a DIFFERENT active agent and replaceExisting is not
+ * set, responds 409 CLIENT_ALREADY_MATCHED so the reviewer can confirm a replace.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {
@@ -30,8 +31,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const reviewer = await requireReviewer(req);
 
     const body = getJsonBody(req);
-    const clientId = requireString(body, "clientId");
+    const clientId = optionalString(body, "clientId") ?? null;
+    const leadId = optionalString(body, "leadId") ?? null;
     const agentId = requireString(body, "agentId");
+    if (!clientId && !leadId) {
+      throw new HttpError(400, "A clientId or leadId is required.");
+    }
+    const replaceExisting = body.replaceExisting === true;
 
     let score: number | undefined;
     if (body.score !== undefined) {
@@ -45,14 +51,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     try {
       const result = await assignReviewerMatch({
         clientId,
+        leadId,
         agentId,
         score,
         reason: optionalString(body, "reason"),
         reviewerId: optionalString(body, "reviewerId") ?? reviewer.profileId,
+        replaceExisting,
       });
+      if (result.ok === false) {
+        // Client already has a different active match; reviewer must confirm replace.
+        sendJson(res, 409, result);
+        return;
+      }
       sendJson(res, 200, result);
     } catch (error) {
-      logSupabaseError(ROUTE, error, { clientId, agentId });
+      logSupabaseError(ROUTE, error, { hasClientId: Boolean(clientId), hasLeadId: Boolean(leadId), agentId });
       throw error;
     }
   });

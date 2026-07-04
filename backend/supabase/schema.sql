@@ -152,17 +152,31 @@ create table if not exists assessments (
 create table if not exists match_recommendations (
   id uuid primary key default gen_random_uuid(),
   client_id uuid references clients(id) on delete cascade,
+  -- Reviewer leads that never became a clients row can still be matched.
+  lead_id uuid references assessment_leads(id) on delete cascade,
   agent_id uuid references agents(id) on delete cascade,
   score integer not null check (score >= 0 and score <= 100),
   label text not null,
   reason text,
-  status text default 'pending' check (status in ('pending','approved','rejected','assigned')),
+  -- Match lifecycle. Only ONE row per client (or lead) may be 'active'. Agents
+  -- are intentionally unconstrained: the same agent may be active for unlimited
+  -- clients. Legacy values (pending/approved/assigned) are kept for compatibility.
+  status text default 'suggested' check (status in (
+    'pending','approved','rejected','assigned',
+    'suggested','pending_review','active','superseded','declined','archived','closed'
+  )),
+  is_selected boolean default false,
   reviewer_id uuid references profiles(id),
+  reviewer_notes text,
   -- Location component of the match (proximity-aware ranking).
   location_score integer,
   distance_miles double precision,
   match_reason text,
+  finalized_at timestamptz,
+  superseded_at timestamptz,
+  superseded_by uuid,
   created_at timestamptz default now(),
+  updated_at timestamptz default now(),
   reviewed_at timestamptz
 );
 
@@ -432,6 +446,13 @@ create index if not exists idx_assessments_token on assessments(token);
 create index if not exists idx_match_recs_client_id on match_recommendations(client_id);
 create index if not exists idx_match_recs_agent_id on match_recommendations(agent_id);
 create index if not exists idx_match_recs_status on match_recommendations(status);
+create index if not exists match_recommendations_client_id_status_idx on match_recommendations(client_id, status);
+create index if not exists match_recommendations_lead_id_status_idx on match_recommendations(lead_id, status);
+-- One active match per client / per lead. Agents are intentionally NOT limited.
+create unique index if not exists one_active_match_per_client_idx
+  on match_recommendations(client_id) where status = 'active' and client_id is not null;
+create unique index if not exists one_active_match_per_lead_idx
+  on match_recommendations(lead_id) where status = 'active' and lead_id is not null;
 create index if not exists idx_messages_recipient on messages(recipient_profile_id);
 create index if not exists idx_messages_agent_id on messages(agent_id);
 create index if not exists idx_email_events_recipient on email_events(recipient_email);

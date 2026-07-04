@@ -194,6 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 distanceMiles: (r && r.distanceMiles != null) ? r.distanceMiles : null,
                 limitedFit: !!(r && r.limitedFit),
                 warning: (r && r.locationWarning) || null,
+                // Informational only. Agents are reusable without limit.
+                activeMatchCount: (r && typeof r.activeMatchCount === 'number') ? r.activeMatchCount : 0,
                 top: i === 0
             };
         });
@@ -474,6 +476,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? '<span class="badge badge-source">' + fit.distanceMiles + ' mi</span>'
                     : (fit.locationScore != null ? '<span class="badge badge-source">Loc ' + fit.locationScore + '</span>' : '');
                 const limitedHtml = fit.limitedFit ? '<span class="badge badge-source">Limited fit</span>' : '';
+                const matchedHtml = (fit.activeMatchCount > 0)
+                    ? '<span class="badge badge-internal">Matched with ' + fit.activeMatchCount + ' client' + (fit.activeMatchCount === 1 ? '' : 's') + '</span>'
+                    : '';
                 const warnHtml = fit.warning ? '<div class="loc-row-warning">' + esc(fit.warning) + '</div>' : '';
                 const labelHtml = fit.label
                     ? '<div class="mb-2"><span class="detail-label">Fit:</span> <span class="helper-text" style="color:var(--text-primary)">' + esc(fit.label) + '</span></div>'
@@ -488,7 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 '<h3 class="fit-name">' + esc(fit.name) + '</h3>' +
                                 '<div class="fit-meta">Agent Archetype: <strong class="text-blue">' + esc(fit.archetype) + '</strong></div>' +
                             '</div>' +
-                            '<div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">' + badgeHtml + pctHtml + totalHtml + distHtml + limitedHtml + '</div>' +
+                            '<div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">' + badgeHtml + pctHtml + totalHtml + distHtml + limitedHtml + matchedHtml + '</div>' +
                         '</div>' +
                         labelHtml +
                         reasonHtml +
@@ -693,6 +698,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // Build the client/lead identifier payload for the match API. Reviewer leads
+    // that never became a clients row are matched by leadId; everyone else by clientId.
+    function matchTargetPayload(client) {
+        return client.rowKind === 'lead'
+            ? { leadId: client.clientId }
+            : { clientId: client.clientId };
+    }
+
     window.approveSelected = function () {
         const client = clients.find(function (c) { return c.id === state.activeClientId; });
         if (!client || !state.selectedAgentId) return;
@@ -701,21 +714,42 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!window.RequityAPI || !window.RequityAPI.approveReviewerMatch) return;
 
         setDecisionBusy(true);
-        Promise.resolve(window.RequityAPI.approveReviewerMatch({
-            clientId: client.clientId,
-            agentId: fit.agentId,
-            score: fit.fit != null ? fit.fit : undefined,
-            reason: fit.reason || undefined
-        })).then(function () {
-            addLog('Reviewer approved ' + fit.name + ' for ' + client.name + '. Client assigned and the agent was notified.');
-            removeClientFromQueue(client.id);
-            state.counts.scheduled++;
-        }).catch(function () {
-            addLog('Could not approve ' + fit.name + ' for ' + client.name + '. Please try again.');
-        }).finally(function () {
+        finalizeMatch(client, fit, false).finally(function () {
             setDecisionBusy(false);
         });
     };
+
+    // Finalize a match. On a 409 CLIENT_ALREADY_MATCHED, confirm a replacement and
+    // retry with replaceExisting so the old match is superseded (never duplicated).
+    function finalizeMatch(client, fit, replaceExisting) {
+        const payload = matchTargetPayload(client);
+        payload.agentId = fit.agentId;
+        payload.score = fit.fit != null ? fit.fit : undefined;
+        payload.reason = fit.reason || undefined;
+        if (replaceExisting) payload.replaceExisting = true;
+
+        return Promise.resolve(window.RequityAPI.approveReviewerMatch(payload)).then(function () {
+            addLog((replaceExisting ? 'Replaced match: ' : 'Reviewer approved ') + fit.name + ' for ' + client.name + '. Client assigned and the agent was notified.');
+            removeClientFromQueue(client.id);
+            state.counts.scheduled++;
+        }).catch(function (err) {
+            if (err && err.code === 'CLIENT_ALREADY_MATCHED') {
+                const active = (err.data && err.data.activeMatch) || {};
+                const currentName = active.agentName || 'another agent';
+                const ok = window.confirm(
+                    'This client already has an active agent match with ' + currentName + '. ' +
+                    'Replacing it will archive the previous match and make ' + fit.name + ' the current match.'
+                );
+                if (ok) {
+                    setDecisionBusy(true);
+                    return finalizeMatch(client, fit, true).finally(function () { setDecisionBusy(false); });
+                }
+                addLog('Kept existing match for ' + client.name + ' (' + currentName + ').');
+                return;
+            }
+            addLog('Could not approve ' + fit.name + ' for ' + client.name + '. Please try again.');
+        });
+    }
 
     window.holdSelected = function () {
         const client = clients.find(function (c) { return c.id === state.activeClientId; });
@@ -814,19 +848,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             addLog('Auto reviewing: ' + client.name);
             try {
-                await window.RequityAPI.approveReviewerMatch({
-                    clientId: client.clientId,
-                    agentId: fit.agentId,
-                    score: fit.fit != null ? fit.fit : undefined,
-                    reason: fit.reason || undefined
-                });
+                const payload = matchTargetPayload(client);
+                payload.agentId = fit.agentId;
+                payload.score = fit.fit != null ? fit.fit : undefined;
+                payload.reason = fit.reason || undefined;
+                await window.RequityAPI.approveReviewerMatch(payload);
                 scheduled++;
                 state.counts.scheduled++;
                 autoScheduled.textContent = scheduled;
                 clients = clients.filter(function (c) { return c.id !== client.id; });
                 addLog(client.name + ' assigned to ' + fit.name + '. The agent was notified.');
             } catch (e) {
-                addLog('Auto could not assign ' + client.name + '. Skipped.');
+                // Auto never silently replaces an existing client match.
+                if (e && e.code === 'CLIENT_ALREADY_MATCHED') {
+                    addLog('Auto skipped ' + client.name + ': already has an active match. Replace it manually if needed.');
+                } else {
+                    addLog('Auto could not assign ' + client.name + '. Skipped.');
+                }
             }
         }
 

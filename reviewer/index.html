@@ -222,6 +222,27 @@
                 <div id="loc-summary" class="helper-text mb-3"></div>
                 <div id="loc-markets" class="locations-markets"></div>
             </section>
+
+            <!-- Manage locations: add / edit / delete markets without touching Supabase. -->
+            <section class="section">
+                <h2 class="section-title">Manage locations</h2>
+                <p class="helper-text mb-3">Add, edit, or remove market data for agents, clients, and leads. Only location fields change. The person, their assessment, and their match history are always kept. Use the search box above to find someone by name, email, or city.</p>
+                <div class="locations-filters">
+                    <select id="manage-type" class="leads-select" aria-label="Filter by record type">
+                        <option value="">All records</option>
+                        <option value="agent">Agents</option>
+                        <option value="client">Clients</option>
+                        <option value="lead">Leads</option>
+                    </select>
+                    <select id="manage-missing" class="leads-select" aria-label="Filter by location status">
+                        <option value="">All location states</option>
+                        <option value="missing">Missing location only</option>
+                        <option value="complete">Has location</option>
+                    </select>
+                </div>
+                <div id="manage-summary" class="helper-text mb-3"></div>
+                <div id="manage-list" class="locations-markets"></div>
+            </section>
         </section>
 
         <!-- ===== Archetype Reference ===== -->
@@ -290,6 +311,83 @@
             <div class="modal-actions">
                 <button class="btn btn-outline" id="delete-lead-cancel" type="button">Cancel</button>
                 <button class="btn btn-primary" id="delete-lead-confirm" type="button">Delete permanently</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reviewer location editor (add/edit an agent, client, or lead market). -->
+    <div id="loc-form-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h2 class="section-title text-xl mb-2" id="loc-form-title">Edit location</h2>
+            <p class="helper-text mb-3" id="loc-form-sub"></p>
+            <div id="loc-form-error" class="helper-text mb-3" style="color:#C0392B; display:none;"></div>
+
+            <!-- Agent fields -->
+            <div id="loc-form-agent" hidden>
+                <div class="form-group">
+                    <label class="detail-label">Market city</label>
+                    <input type="text" id="lf-agent-city" class="form-input" maxlength="80" placeholder="e.g. Miami">
+                </div>
+                <div class="form-group">
+                    <label class="detail-label">Market state</label>
+                    <input type="text" id="lf-agent-state" class="form-input" maxlength="60" placeholder="e.g. FL">
+                </div>
+                <div class="form-group">
+                    <label class="detail-label">Service radius (miles)</label>
+                    <input type="number" id="lf-agent-radius" class="form-input" min="1" max="100000" placeholder="50">
+                </div>
+            </div>
+
+            <!-- Client / lead fields (intent aware) -->
+            <div id="loc-form-client" hidden>
+                <div id="lf-buying-wrap">
+                    <div class="form-group">
+                        <label class="detail-label">Buying market city</label>
+                        <input type="text" id="lf-buy-city" class="form-input" maxlength="80" placeholder="e.g. Austin">
+                    </div>
+                    <div class="form-group">
+                        <label class="detail-label">Buying market state</label>
+                        <input type="text" id="lf-buy-state" class="form-input" maxlength="60" placeholder="e.g. TX">
+                    </div>
+                </div>
+                <div id="lf-selling-wrap">
+                    <div class="form-group">
+                        <label class="detail-label">Selling market city</label>
+                        <input type="text" id="lf-sell-city" class="form-input" maxlength="80" placeholder="e.g. Dallas">
+                    </div>
+                    <div class="form-group">
+                        <label class="detail-label">Selling market state</label>
+                        <input type="text" id="lf-sell-state" class="form-input" maxlength="60" placeholder="e.g. TX">
+                    </div>
+                </div>
+                <div id="lf-general-wrap">
+                    <div class="form-group">
+                        <label class="detail-label">General market city</label>
+                        <input type="text" id="lf-gen-city" class="form-input" maxlength="80" placeholder="e.g. Denver">
+                    </div>
+                    <div class="form-group">
+                        <label class="detail-label">General market state</label>
+                        <input type="text" id="lf-gen-state" class="form-input" maxlength="60" placeholder="e.g. CO">
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-outline" id="loc-form-cancel" type="button">Cancel</button>
+                <button class="btn btn-primary" id="loc-form-save" type="button">Save location</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete location confirmation. -->
+    <div id="loc-delete-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h2 class="section-title text-xl mb-2">Are you sure you want to delete this location?</h2>
+            <p class="helper-text mb-4">This will remove the saved market information and may make this person ineligible for automatic matching until a new location is added. The person, their assessment, and their match history are kept.</p>
+            <div id="loc-delete-error" class="helper-text mb-3" style="color:#C0392B; display:none;"></div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" id="loc-delete-cancel" type="button">Cancel</button>
+                <button class="btn btn-primary" id="loc-delete-confirm" type="button">Delete location</button>
             </div>
         </div>
     </div>
@@ -722,11 +820,17 @@
         var transactionEl = document.getElementById('loc-transaction');
         var eligibilityEl = document.getElementById('loc-eligibility');
         var summaryEl = document.getElementById('loc-summary');
+        var manageEl = document.getElementById('manage-list');
+        var manageTypeEl = document.getElementById('manage-type');
+        var manageMissingEl = document.getElementById('manage-missing');
+        var manageSummaryEl = document.getElementById('manage-summary');
 
         var loaded = false;
         var searchTimer = null;
         var lastClients = [];
         var lastAgents = [];
+        var lastManage = [];
+        var manageIndex = {};
 
         function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
         function dbg(name, payload) {
@@ -765,8 +869,29 @@
             return '<span class="status-pill ' + m.cls + '">' + esc(m.label) + '</span>';
         }
 
+        // Location completeness pill for the Manage list (complete/partial/missing).
+        function locStatusPill(s) {
+            var map = {
+                complete: { label: 'Location complete', cls: 'status-active' },
+                partial: { label: 'Partial location', cls: 'status-potential' },
+                missing: { label: 'Missing location', cls: 'status-closed' }
+            };
+            var m = map[s] || map.missing;
+            return '<span class="status-pill ' + m.cls + '">' + esc(m.label) + '</span>';
+        }
+
+        // Edit + delete (or Add) controls for a location row. Uses data attributes so
+        // a single delegated handler can look up the full record from manageIndex.
+        function manageBtns(targetType, id, hasLocation) {
+            if (!id) return '';
+            var editLabel = hasLocation ? 'Edit location' : 'Add location';
+            return '<button type="button" class="btn btn-outline btn-sm loc-edit-btn" data-target-type="' + esc(targetType) + '" data-target-id="' + esc(id) + '">' + editLabel + '</button>' +
+                (hasLocation ? '<button type="button" class="btn btn-outline btn-sm loc-delete-btn" data-target-type="' + esc(targetType) + '" data-target-id="' + esc(id) + '">Delete location</button>' : '');
+        }
+
         function clientRowHtml(c) {
             var side = c.requiredSideLabel && c.requiredSideLabel !== 'General' ? (' &middot; Needs: ' + esc(c.requiredSideLabel)) : '';
+            var hasLoc = c.matchStatus !== 'missing';
             return '<div class="loc-row" data-row-kind="' + esc(c.rowKind) + '" data-row-id="' + esc(c.id || '') + '">' +
                 '<div class="loc-row-main">' +
                     '<strong>' + esc(c.name || 'Unknown client') + '</strong>' +
@@ -777,6 +902,7 @@
                 '</div>' +
                 '<div class="loc-row-side">' + matchStatusBadge(c.matchStatus) + statusPill(c.status) +
                     '<button type="button" class="btn btn-outline btn-sm loc-suggest" data-kind="' + esc(c.rowKind) + '" data-id="' + esc(c.id || '') + '">Suggest agents</button>' +
+                    manageBtns(c.rowKind, c.id, hasLoc) +
                 '</div>' +
                 '<div class="loc-suggestions" hidden></div>' +
             '</div>';
@@ -789,6 +915,7 @@
                     '<strong>' + esc(a.name || 'Unknown agent') + '</strong>' +
                     '<span class="loc-row-sub">' + esc(a.archetype || 'No archetype') + ' &middot; ' + esc(radius) + '</span>' +
                 '</div>' +
+                '<div class="loc-row-side">' + manageBtns('agent', a.id, true) + '</div>' +
             '</div>';
         }
 
@@ -899,6 +1026,11 @@
         function render(result) {
             lastClients = result.clients || [];
             lastAgents = result.agents || [];
+            lastManage = result.manage || [];
+            manageIndex = {};
+            lastManage.forEach(function (e) {
+                if (e && e.id) manageIndex[e.targetType + ':' + e.id] = e;
+            });
             var markets = result.markets || [];
             if (summaryEl) {
                 var t = result.total || {};
@@ -924,10 +1056,213 @@
                     if (open) bindSuggest(body);
                 });
             });
+            renderManage();
             dbg('reviewer:location-results', {
                 marketCount: markets.length,
                 clientCount: lastClients.length,
-                agentCount: lastAgents.length
+                agentCount: lastAgents.length,
+                manageCount: lastManage.length
+            });
+        }
+
+        // --- Manage locations list (add / edit / delete) --------------------
+        function manageTypeLabel(t) {
+            return ({ agent: 'Agent', client: 'Client', lead: 'Lead' })[t] || 'Record';
+        }
+
+        function manageRowHtml(e) {
+            var market = e.marketCity ? (esc(e.marketCity) + (e.marketState ? (', ' + esc(e.marketState)) : '')) : null;
+            var buying = e.buyingMarketCity ? ('Buying: ' + esc(e.buyingMarketCity) + (e.buyingMarketState ? (', ' + esc(e.buyingMarketState)) : '')) : null;
+            var selling = e.sellingMarketCity ? ('Selling: ' + esc(e.sellingMarketCity) + (e.sellingMarketState ? (', ' + esc(e.sellingMarketState)) : '')) : null;
+            var bits = [];
+            if (e.email) bits.push(esc(e.email));
+            if (e.targetType === 'agent') {
+                if (market) bits.push(market);
+                if (e.serviceRadiusMiles != null && e.serviceRadiusMiles < 100000) bits.push(e.serviceRadiusMiles + ' mi radius');
+            } else {
+                if (e.transactionIntentLabel) bits.push(esc(e.transactionIntentLabel));
+                if (buying) bits.push(buying);
+                if (selling) bits.push(selling);
+                if (market) bits.push(market);
+            }
+            var hasLoc = e.status !== 'missing';
+            return '<div class="loc-row">' +
+                '<div class="loc-row-main">' +
+                    '<strong>' + esc(e.name || ('Unknown ' + manageTypeLabel(e.targetType).toLowerCase())) + '</strong>' +
+                    '<span class="loc-row-sub">' + esc(manageTypeLabel(e.targetType)) + (bits.length ? (' &middot; ' + bits.join(' &middot; ')) : '') + '</span>' +
+                '</div>' +
+                '<div class="loc-row-side">' + locStatusPill(e.status) + manageBtns(e.targetType, e.id, hasLoc) + '</div>' +
+            '</div>';
+        }
+
+        function renderManage() {
+            if (!manageEl) return;
+            var typeFilter = (manageTypeEl && manageTypeEl.value) || '';
+            var missFilter = (manageMissingEl && manageMissingEl.value) || '';
+            var rows = lastManage.filter(function (e) {
+                if (typeFilter && e.targetType !== typeFilter) return false;
+                if (missFilter === 'missing' && e.status !== 'missing') return false;
+                if (missFilter === 'complete' && e.status === 'missing') return false;
+                return true;
+            });
+            if (manageSummaryEl) {
+                var missing = lastManage.filter(function (e) { return e.status === 'missing'; }).length;
+                manageSummaryEl.textContent = rows.length + ' shown · ' + lastManage.length + ' loaded · ' + missing + ' missing location';
+            }
+            manageEl.innerHTML = rows.length
+                ? rows.map(manageRowHtml).join('')
+                : '<div class="leads-empty">No records match these filters.</div>';
+        }
+
+        // --- Location edit form + delete confirmation -----------------------
+        var formModal = document.getElementById('loc-form-modal');
+        var formTitle = document.getElementById('loc-form-title');
+        var formSub = document.getElementById('loc-form-sub');
+        var formError = document.getElementById('loc-form-error');
+        var formAgent = document.getElementById('loc-form-agent');
+        var formClient = document.getElementById('loc-form-client');
+        var deleteModal = document.getElementById('loc-delete-modal');
+        var deleteError = document.getElementById('loc-delete-error');
+        var pendingDelete = null;
+        var pendingSave = null;
+
+        function fld(id) { return document.getElementById(id); }
+
+        function lookupEntry(targetType, id) {
+            return manageIndex[targetType + ':' + id] || { targetType: targetType, id: id };
+        }
+
+        function openLocationForm(targetType, id) {
+            var e = lookupEntry(targetType, id);
+            pendingSave = { targetType: targetType, id: id };
+            if (formError) { formError.style.display = 'none'; formError.textContent = ''; }
+            var isAgent = targetType === 'agent';
+            if (formTitle) formTitle.textContent = (e.status === 'missing' || !e.status ? 'Add location' : 'Edit location') + ' · ' + esc(e.name || manageTypeLabel(targetType));
+            if (formSub) formSub.textContent = isAgent
+                ? 'Enter the agent market. City and state are required. Service radius defaults to 50 miles.'
+                : 'Enter the client market. City and state are required for any market you save.';
+            if (formAgent) formAgent.hidden = !isAgent;
+            if (formClient) formClient.hidden = isAgent;
+            if (isAgent) {
+                fld('lf-agent-city').value = e.marketCity || '';
+                fld('lf-agent-state').value = e.marketState || '';
+                fld('lf-agent-radius').value = (e.serviceRadiusMiles != null && e.serviceRadiusMiles < 100000) ? e.serviceRadiusMiles : '';
+            } else {
+                fld('lf-buy-city').value = e.buyingMarketCity || '';
+                fld('lf-buy-state').value = e.buyingMarketState || '';
+                fld('lf-sell-city').value = e.sellingMarketCity || '';
+                fld('lf-sell-state').value = e.sellingMarketState || '';
+                fld('lf-gen-city').value = e.marketCity || '';
+                fld('lf-gen-state').value = e.marketState || '';
+                // Show only the sides relevant to the client's transaction intent.
+                var intent = (e.transactionIntent || '').toLowerCase();
+                var showBuy = intent === 'buying' || intent === 'both' || !intent || intent === 'other';
+                var showSell = intent === 'selling' || intent === 'both' || !intent || intent === 'other';
+                document.getElementById('lf-buying-wrap').hidden = !(showBuy || intent === 'buying');
+                document.getElementById('lf-selling-wrap').hidden = !(showSell || intent === 'selling');
+                // General is always available as a fallback.
+                document.getElementById('lf-general-wrap').hidden = false;
+                if (intent === 'buying') { document.getElementById('lf-selling-wrap').hidden = true; }
+                if (intent === 'selling') { document.getElementById('lf-buying-wrap').hidden = true; }
+            }
+            if (formModal) formModal.classList.remove('hidden');
+        }
+
+        function closeLocationForm() {
+            if (formModal) formModal.classList.add('hidden');
+            pendingSave = null;
+        }
+
+        function showFormError(msg) {
+            if (formError) { formError.textContent = msg; formError.style.display = 'block'; }
+        }
+
+        function saveLocation() {
+            if (!pendingSave) return;
+            var isAgent = pendingSave.targetType === 'agent';
+            var location = {};
+            if (isAgent) {
+                var ac = fld('lf-agent-city').value.trim();
+                var as = fld('lf-agent-state').value.trim();
+                if (!ac || !as) { showFormError('A market city and state are required.'); return; }
+                location.marketCity = ac;
+                location.marketState = as;
+                var r = parseInt(fld('lf-agent-radius').value, 10);
+                location.serviceRadiusMiles = (!isNaN(r) && r > 0) ? r : 50;
+            } else {
+                var bc = fld('lf-buy-city').value.trim(), bs = fld('lf-buy-state').value.trim();
+                var sc = fld('lf-sell-city').value.trim(), ss = fld('lf-sell-state').value.trim();
+                var gc = fld('lf-gen-city').value.trim(), gs = fld('lf-gen-state').value.trim();
+                var pairs = [[bc, bs, 'buying'], [sc, ss, 'selling'], [gc, gs, 'general']];
+                for (var i = 0; i < pairs.length; i++) {
+                    if ((pairs[i][0] && !pairs[i][1]) || (!pairs[i][0] && pairs[i][1])) {
+                        showFormError('The ' + pairs[i][2] + ' market needs both a city and a state.');
+                        return;
+                    }
+                }
+                if (!bc && !sc && !gc) { showFormError('Enter at least one market (buying, selling, or general).'); return; }
+                if (bc) { location.buyingMarketCity = bc; location.buyingMarketState = bs; }
+                if (sc) { location.sellingMarketCity = sc; location.sellingMarketState = ss; }
+                if (gc) { location.marketCity = gc; location.marketState = gs; }
+            }
+            if (!window.RequityAPI || !window.RequityAPI.updateReviewerLocation) { showFormError('Location editing is not available.'); return; }
+            var saveBtn = document.getElementById('loc-form-save');
+            if (saveBtn) saveBtn.disabled = true;
+            Promise.resolve(window.RequityAPI.updateReviewerLocation({
+                targetType: pendingSave.targetType,
+                targetId: pendingSave.id,
+                location: location
+            })).then(function () {
+                closeLocationForm();
+                loadInner(); // Refresh markets, counts, and eligibility.
+            }).catch(function (err) {
+                showFormError((err && (err.serverError || err.message)) || 'Could not save the location.');
+            }).finally(function () {
+                if (saveBtn) saveBtn.disabled = false;
+            });
+        }
+
+        function openDeleteLocation(targetType, id) {
+            pendingDelete = { targetType: targetType, id: id };
+            if (deleteError) { deleteError.style.display = 'none'; deleteError.textContent = ''; }
+            if (deleteModal) deleteModal.classList.remove('hidden');
+        }
+
+        function closeDeleteLocation() {
+            if (deleteModal) deleteModal.classList.add('hidden');
+            pendingDelete = null;
+        }
+
+        function confirmDeleteLocation() {
+            if (!pendingDelete) return;
+            if (!window.RequityAPI || !window.RequityAPI.deleteReviewerLocation) {
+                if (deleteError) { deleteError.textContent = 'Location editing is not available.'; deleteError.style.display = 'block'; }
+                return;
+            }
+            var btn = document.getElementById('loc-delete-confirm');
+            if (btn) btn.disabled = true;
+            Promise.resolve(window.RequityAPI.deleteReviewerLocation(pendingDelete.targetType, pendingDelete.id)).then(function () {
+                closeDeleteLocation();
+                loadInner();
+            }).catch(function (err) {
+                if (deleteError) { deleteError.textContent = (err && (err.serverError || err.message)) || 'Could not delete the location.'; deleteError.style.display = 'block'; }
+            }).finally(function () {
+                if (btn) btn.disabled = false;
+            });
+        }
+
+        // Delegated edit/delete handling across markets + manage list.
+        function bindLocationActions(scope) {
+            scope.addEventListener('click', function (ev) {
+                var edit = ev.target.closest ? ev.target.closest('.loc-edit-btn') : null;
+                var del = ev.target.closest ? ev.target.closest('.loc-delete-btn') : null;
+                if (edit) {
+                    ev.stopPropagation();
+                    openLocationForm(edit.getAttribute('data-target-type'), edit.getAttribute('data-target-id'));
+                } else if (del) {
+                    ev.stopPropagation();
+                    openDeleteLocation(del.getAttribute('data-target-type'), del.getAttribute('data-target-id'));
+                }
             });
         }
 
@@ -963,6 +1298,23 @@
         if (statusEl) statusEl.addEventListener('change', loadInner);
         if (transactionEl) transactionEl.addEventListener('change', loadInner);
         if (eligibilityEl) eligibilityEl.addEventListener('change', loadInner);
+        // Manage-list sub-filters are client-side (data is already loaded).
+        if (manageTypeEl) manageTypeEl.addEventListener('change', renderManage);
+        if (manageMissingEl) manageMissingEl.addEventListener('change', renderManage);
+
+        // Location editor + delete modal wiring.
+        if (marketsEl) bindLocationActions(marketsEl);
+        if (manageEl) bindLocationActions(manageEl);
+        var lfCancel = document.getElementById('loc-form-cancel');
+        var lfSave = document.getElementById('loc-form-save');
+        var ldCancel = document.getElementById('loc-delete-cancel');
+        var ldConfirm = document.getElementById('loc-delete-confirm');
+        if (lfCancel) lfCancel.addEventListener('click', closeLocationForm);
+        if (lfSave) lfSave.addEventListener('click', saveLocation);
+        if (ldCancel) ldCancel.addEventListener('click', closeDeleteLocation);
+        if (ldConfirm) ldConfirm.addEventListener('click', confirmDeleteLocation);
+        if (formModal) formModal.addEventListener('click', function (ev) { if (ev.target === formModal) closeLocationForm(); });
+        if (deleteModal) deleteModal.addEventListener('click', function (ev) { if (ev.target === deleteModal) closeDeleteLocation(); });
     })();
     </script>
 </body>
