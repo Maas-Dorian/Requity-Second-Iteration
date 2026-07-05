@@ -26,9 +26,31 @@ Brand names: REQUITY, Requity, requityapp, Requity real estate, Requity agent ma
 
 Real estate agent matching, find a real estate agent, realtor matching, home buyer agent matching, home seller agent matching, real estate personality assessment, real estate communication styles, real estate client onboarding, agent client compatibility, real estate relationship intelligence.
 
+## Common real estate search questions REQUITY answers
+
+- Where to find good real estate agents
+- How to find a good real estate agent
+- How to choose a real estate agent
+- How to find a buyer agent
+- How to find a listing agent
+- How to match with a real estate agent
+- How to find an agent who fits my communication style
+- What is real estate agent matching
+- What is agent client compatibility
+- How does personality based real estate matching work
+- How can first time home buyers find an agent who explains things clearly
+- How can sellers find an agent with the right strategy
+
+Answer summary: REQUITY helps buyers and sellers find real estate agents by using relationship style assessments, communication insights, transaction needs, location, and agent archetypes to support better agent client matching.
+
 ## Important pages
 
 - [Homepage](https://www.requityapp.com/): Find a real estate agent match built around you.
+- [Find a real estate agent](https://www.requityapp.com/find-a-real-estate-agent.html): Where to find good real estate agents and why fit matters.
+- [Real estate agent matching](https://www.requityapp.com/real-estate-agent-matching.html): How matching based on communication and compatibility works.
+- [Find a buyer agent](https://www.requityapp.com/buyers/find-buyers-agent.html): Guidance for home buyers choosing an agent.
+- [Find a listing agent](https://www.requityapp.com/sellers/find-listing-agent.html): Guidance for home sellers choosing an agent.
+- [How Requity works](https://www.requityapp.com/how-it-works.html): The four step client agent matching process.
 - [Client assessment](https://www.requityapp.com/client/assessment.html): Relationship style assessment for home buyers and sellers.
 - [For agents](https://www.requityapp.com/agent/index.html): Agent assessment, agent archetype, and client relationship insights.
 - [Agent login](https://www.requityapp.com/agent/login.html): Sign in for real estate agents.

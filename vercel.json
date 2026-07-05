@@ -1,5 +1,17 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/auth",
+      "destination": "/agent/login.html",
+      "permanent": true
+    },
+    {
+      "source": "/auth/:path*",
+      "destination": "/agent/login.html",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/:slug([^/]*-requityapp-relational-assessment)",

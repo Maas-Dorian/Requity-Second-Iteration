@@ -349,8 +349,8 @@ h1, h2, h3, h4 {
     max-width: 1180px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: 1.6fr 1fr 1fr;
-    gap: 56px;
+    grid-template-columns: 1.6fr 1fr 1fr 1.2fr;
+    gap: 44px;
     padding-bottom: 42px;
     border-bottom: 1px solid rgba(255,255,255,0.12);
 }
