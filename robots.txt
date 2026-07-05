@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /agent/dashboard.html
+Disallow: /reviewer/
+Disallow: /api/
+
+Sitemap: https://www.requityapp.com/sitemap.xml

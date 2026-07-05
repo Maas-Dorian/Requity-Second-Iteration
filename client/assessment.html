@@ -8,9 +8,18 @@
          (/<name>-requityapp-relational-assessment), which is rewritten to this
          file by vercel.json. Must come before any relative href/src below. -->
     <base href="/client/">
-    <!-- Personalized intake link, never index individual agent assessment URLs. -->
-    <meta name="robots" content="noindex, nofollow">
-    <title>REQUITY | Client Assessment</title>
+    <!-- Personalized agent slug URLs rewrite to this file. The canonical tag
+         consolidates them all to the main client assessment URL so individual
+         agent intake links are not indexed separately, while the page itself
+         stays discoverable in search. -->
+    <link rel="canonical" href="https://www.requityapp.com/client/assessment.html" />
+    <title>Real Estate Client Assessment | Find Your Agent Match | Requity</title>
+    <meta name="description" content="Complete the Requity client assessment to match with a real estate agent who fits your communication style, personality, and buying or selling needs.">
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Requity" />
+    <meta property="og:title" content="Real Estate Client Assessment | Requity" />
+    <meta property="og:description" content="Complete the Requity client assessment to match with a real estate agent who fits your communication style, personality, and buying or selling needs." />
+    <meta property="og:url" content="https://www.requityapp.com/client/assessment.html" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
