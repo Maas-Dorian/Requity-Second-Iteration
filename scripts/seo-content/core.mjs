@@ -4,14 +4,14 @@
  */
 export const CORE_PAGES = [
   {
-    path: "how-to-find-a-good-realtor.html",
-    title: "How to Find a Good Realtor | Requity",
+    path: "how-to-find-a-good-real-estate-agent.html",
+    title: "How to Find a Good Real Estate Agent | Requity",
     description:
-      "A practical guide to finding a good Realtor: referrals, directories, interviews, questions to ask, red flags to avoid, and how Requity adds communication fit to the search.",
-    h1: "How to find a good Realtor",
-    breadcrumb: "How to find a good Realtor",
+      "A practical guide to finding a good real estate agent: referrals, directories, interviews, questions to ask, red flags to avoid, and how Requity adds communication fit to the search.",
+    h1: "How to find a good Real Estate Agent",
+    breadcrumb: "How to find a good Real Estate Agent",
     intro: [
-      "To find a good Realtor, start with referrals and local research, then interview at least three agents, ask how they communicate, review their recent sales, and pay attention to how well they listen to your goals. A good Realtor combines local knowledge and negotiation skill with a working style that actually fits you.",
+      "To find a good real estate agent, start with referrals and local research, then interview at least three agents, ask how they communicate, review their recent sales, and pay attention to how well they listen to your goals. A good real estate agent combines local knowledge and negotiation skill with a working style that actually fits you.",
       "This guide walks through each step, the questions worth asking, and the red flags worth avoiding. It also explains how Requity adds communication style and relationship fit to the search, which most agent directories leave out.",
     ],
     sections: [
@@ -42,7 +42,7 @@ export const CORE_PAGES = [
       {
         h2: "Ask how they run comps",
         paras: [
-          "Comparable sales analysis is where good agents prove their local knowledge. Ask how they choose comparable properties, how they adjust for condition and location, and how they would price the home you want to buy or sell. A good Realtor can explain their comps clearly and show their reasoning. A weak answer here is a sign that pricing guidance will be shaky when it matters most.",
+          "Comparable sales analysis is where good agents prove their local knowledge. Ask how they choose comparable properties, how they adjust for condition and location, and how they would price the home you want to buy or sell. A good real estate agent can explain their comps clearly and show their reasoning. A weak answer here is a sign that pricing guidance will be shaky when it matters most.",
         ],
       },
       {
@@ -72,31 +72,31 @@ export const CORE_PAGES = [
     ],
     faqs: [
       {
-        q: "How do I find a good Realtor?",
+        q: "How do I find a good real estate agent?",
         a: "Start with referrals and directory research, interview at least three agents, ask about communication habits, comps, and offer strategy, and compare how well each agent listens to your goals. Agent matching platforms like Requity can also factor in communication style and fit.",
       },
       {
-        q: "How do I know if a Realtor is good?",
-        a: "Good Realtors respond promptly, explain their reasoning on pricing and strategy, know your target neighborhoods in detail, and adjust how they communicate to fit you. Recent relevant sales plus clear answers in an interview are strong signals.",
+        q: "How do I know if a real estate agent is good?",
+        a: "Good real estate agents respond promptly, explain their reasoning on pricing and strategy, know your target neighborhoods in detail, and adjust how they communicate to fit you. Recent relevant sales plus clear answers in an interview are strong signals.",
       },
       {
-        q: "How many Realtors should I interview?",
+        q: "How many real estate agents should I interview?",
         a: "Three is a practical minimum. Interviewing several agents gives you a real basis for comparison on communication, strategy, and local knowledge, and the differences usually become clear quickly.",
       },
       {
-        q: "Is it okay to switch Realtors?",
+        q: "Is it okay to switch real estate agents?",
         a: "Yes, subject to any agreement you signed. If communication has broken down or your goals are not being heard, review your agreement terms, communicate your decision clearly, and find an agent who fits better.",
       },
       {
-        q: "How does Requity help me find a good Realtor?",
+        q: "How does Requity help me find a good real estate agent?",
         a: "Requity uses a relationship style assessment to understand how you communicate and what support you need, then supports agent matching based on compatibility, transaction needs, and location, with human review before a match is finalized.",
       },
     ],
     related: [
-      { href: "/where-to-find-good-real-estate-agents.html", label: "Where to find good real estate agents" },
-      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a real estate agent" },
-      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare real estate agents" },
-      { href: "/real-estate-agent-matching.html", label: "Real estate agent matching" },
+      { href: "/where-to-find-good-real-estate-agents.html", label: "Where to find good Real Estate Agents" },
+      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a Real Estate Agent" },
+      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare Real Estate Agents" },
+      { href: "/real-estate-agent-matching.html", label: "Real Estate Agent matching" },
     ],
   },
   {
@@ -104,10 +104,10 @@ export const CORE_PAGES = [
     title: "Where to Find Good Real Estate Agents | Requity",
     description:
       "Where to find good real estate agents: referrals, brokerage sites, directories, marketplaces, open houses, and agent matching platforms like Requity. Pros and cons of each.",
-    h1: "Where to find good real estate agents",
-    breadcrumb: "Where to find good real estate agents",
+    h1: "Where to find good Real Estate Agents",
+    breadcrumb: "Where to find good Real Estate Agents",
     intro: [
-      "You can find good real estate agents through personal referrals, local brokerage websites, Realtor directories, real estate marketplaces, open houses, neighborhood signs, and agent matching platforms. Each source has strengths and blind spots, and the best approach usually combines two or three of them.",
+      "You can find good real estate agents through personal referrals, local brokerage websites, real estate agent directories, real estate marketplaces, open houses, neighborhood signs, and agent matching platforms. Each source has strengths and blind spots, and the best approach usually combines two or three of them.",
       "Here is what each option gives you, what it misses, and how relationship based matching through Requity fits into the picture.",
     ],
     sections: [
@@ -124,7 +124,7 @@ export const CORE_PAGES = [
         ],
       },
       {
-        h2: "Realtor directories and real estate marketplaces",
+        h2: "Real Estate Agent directories and real estate marketplaces",
         paras: [
           "Directories and large marketplaces let you filter by location and see reviews and sales activity. They are good for volume: you can build a candidate list quickly. The tradeoff is that profiles are optimized to look good, reviews skew positive, and nothing in a directory tells you how an agent communicates under pressure or whether their working style fits yours.",
         ],
@@ -151,7 +151,7 @@ export const CORE_PAGES = [
     faqs: [
       {
         q: "Where can I find good real estate agents?",
-        a: "The main sources are referrals, local brokerage websites, Realtor directories, real estate marketplaces, open houses, neighborhood signs, and agent matching platforms like Requity. Combining a personal source with a research source usually works best.",
+        a: "The main sources are referrals, local brokerage websites, real estate agent directories, real estate marketplaces, open houses, neighborhood signs, and agent matching platforms like Requity. Combining a personal source with a research source usually works best.",
       },
       {
         q: "What is the best place to find a real estate agent?",
@@ -167,10 +167,10 @@ export const CORE_PAGES = [
       },
     ],
     related: [
-      { href: "/how-to-find-a-good-realtor.html", label: "How to find a good Realtor" },
-      { href: "/find-a-real-estate-agent.html", label: "Find a real estate agent who fits how you communicate" },
-      { href: "/is-there-a-way-to-get-matched-with-a-realtor.html", label: "Is there a way to get matched with a Realtor?" },
-      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare real estate agents" },
+      { href: "/how-to-find-a-good-real-estate-agent.html", label: "How to find a good Real Estate Agent" },
+      { href: "/find-a-real-estate-agent.html", label: "Find a Real Estate Agent who fits how you communicate" },
+      { href: "/can-you-get-matched-with-a-real-estate-agent.html", label: "Can you get matched with a Real Estate Agent?" },
+      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare Real Estate Agents" },
     ],
   },
   {
@@ -178,8 +178,8 @@ export const CORE_PAGES = [
     title: "Find a Real Estate Agent Who Fits How You Communicate | Requity",
     description:
       "Learn where to find good real estate agents and how Requity helps buyers and sellers find agent matches based on communication style, needs, location, and fit.",
-    h1: "Find a real estate agent who fits how you communicate",
-    breadcrumb: "Find a real estate agent",
+    h1: "Find a Real Estate Agent who fits how you communicate",
+    breadcrumb: "Find a Real Estate Agent",
     intro: [
       "To find a real estate agent who fits you, look beyond experience and sales numbers. The right agent communicates in a way that helps you feel informed, supported, and confident: the right amount of detail, the right pace, and the right kind of guidance for how you make decisions.",
       "This page explains what agent fit actually means, what buyers and sellers should each look for, and how Requity helps match clients with agents based on communication style, transaction needs, and location.",
@@ -196,7 +196,7 @@ export const CORE_PAGES = [
         h2: "Why communication style matters",
         paras: [
           "Buying or selling a home involves weeks or months of updates, questions, decisions, and negotiation moments. Some clients want detailed explanations before every step. Others want short, direct recommendations. Some need calm reassurance when a deal gets stressful; others want data and speed. When an agent's natural style matches yours, every one of those interactions gets easier. When it does not, even a highly productive agent can leave you feeling unheard.",
-          'If communication is your top priority, see the dedicated guide to <a href="/find-a-realtor-who-communicates-well.html">finding a Realtor who communicates well</a>.',
+          'If communication is your top priority, see the dedicated guide to <a href="/find-a-real-estate-agent-who-communicates-well.html">finding a real estate agent who communicates well</a>.',
         ],
       },
       {
@@ -221,7 +221,7 @@ export const CORE_PAGES = [
     faqs: [
       {
         q: "Where can I find good real estate agents?",
-        a: "You can find good real estate agents through referrals, local brokerages, Realtor directories, real estate marketplaces, open houses, and agent matching platforms like Requity.",
+        a: "You can find good real estate agents through referrals, local brokerages, real estate agent directories, real estate marketplaces, open houses, and agent matching platforms like Requity.",
       },
       {
         q: "What should I look for in a real estate agent?",
@@ -241,10 +241,10 @@ export const CORE_PAGES = [
       },
     ],
     related: [
-      { href: "/how-to-find-a-good-realtor.html", label: "How to find a good Realtor" },
-      { href: "/where-to-find-good-real-estate-agents.html", label: "Where to find good real estate agents" },
-      { href: "/real-estate-agent-matching.html", label: "Real estate agent matching" },
-      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a real estate agent" },
+      { href: "/how-to-find-a-good-real-estate-agent.html", label: "How to find a good Real Estate Agent" },
+      { href: "/where-to-find-good-real-estate-agents.html", label: "Where to find good Real Estate Agents" },
+      { href: "/real-estate-agent-matching.html", label: "Real Estate Agent matching" },
+      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a Real Estate Agent" },
     ],
   },
   {
@@ -252,15 +252,15 @@ export const CORE_PAGES = [
     title: "Real Estate Agent Matching Based on Communication and Fit | Requity",
     description:
       "What real estate agent matching is, how matching platforms usually work, why sales history is not the whole picture, and how Requity matches on communication and fit.",
-    h1: "Real estate agent matching based on communication and fit",
-    breadcrumb: "Real estate agent matching",
+    h1: "Real Estate Agent matching based on communication and fit",
+    breadcrumb: "Real Estate Agent matching",
     intro: [
       "Real estate agent matching connects buyers and sellers with agents through a guided process instead of open ended browsing. You share what you need, and the platform identifies agents who may fit. The quality of the match depends entirely on what the platform actually measures.",
       "This page explains how matching platforms usually work, why sales history alone is not enough, and how Requity approaches matching through communication style and agent client compatibility.",
     ],
     sections: [
       {
-        h2: "What real estate agent matching is",
+        h2: "What Real Estate Agent matching is",
         paras: [
           "Agent matching is an alternative to directories. Rather than handing you hundreds of profiles to compare, a matching service asks about your transaction, your location, and sometimes your preferences, then proposes a small number of agents. Done well, it saves time and surfaces agents you would not have found on your own. Done poorly, it is a referral engine that sends your contact information to whoever pays for leads.",
         ],
@@ -313,28 +313,28 @@ export const CORE_PAGES = [
       },
     ],
     related: [
-      { href: "/is-there-a-way-to-get-matched-with-a-realtor.html", label: "Is there a way to get matched with a Realtor?" },
+      { href: "/can-you-get-matched-with-a-real-estate-agent.html", label: "Can you get matched with a Real Estate Agent?" },
       { href: "/agent-client-compatibility.html", label: "Agent client compatibility in real estate" },
       { href: "/real-estate-personality-assessment.html", label: "Real estate personality assessment" },
       { href: "/how-it-works.html", label: "How Requity works" },
     ],
   },
   {
-    path: "is-there-a-way-to-get-matched-with-a-realtor.html",
-    title: "Can You Get Matched With a Realtor? | Requity",
+    path: "can-you-get-matched-with-a-real-estate-agent.html",
+    title: "Can You Get Matched With a Real Estate Agent? | Requity",
     description:
-      "Yes, you can get matched with a Realtor. Learn how agent matching platforms work, what they measure, why compatibility matters, and how Requity matches on relationship fit.",
-    h1: "Is there a way to get matched with a Realtor?",
-    breadcrumb: "Get matched with a Realtor",
+      "Yes, you can get matched with a real estate agent. Learn how agent matching platforms work, what they measure, why compatibility matters, and how Requity matches on relationship fit.",
+    h1: "Can you get matched with a Real Estate Agent?",
+    breadcrumb: "Get matched with a Real Estate Agent",
     intro: [
-      "Yes. Agent matching platforms exist specifically to pair buyers and sellers with Realtors, so you do not have to build a shortlist from scratch. You answer questions about your transaction and preferences, and the service proposes agents who may fit.",
+      "Yes. Agent matching platforms exist specifically to pair buyers and sellers with real estate agents, so you do not have to build a shortlist from scratch. You answer questions about your transaction and preferences, and the service proposes agents who may fit.",
       "The important differences are in what each service measures and what happens with your information. Here is how matching works, what to look for before accepting a match, and how Requity approaches it.",
     ],
     sections: [
       {
         h2: "Yes, agent matching platforms exist",
         paras: [
-          "Several services will match you with a Realtor based on your location and transaction. Some are lead referral services that sell your contact information to agents who pay for it. Others use algorithms built on sales data. A smaller group, including Requity, focuses on the relationship side: who you are, how you communicate, and what kind of agent would actually work well with you.",
+          "Several services will match you with a real estate agent based on your location and transaction. Some are lead referral services that sell your contact information to agents who pay for it. Others use algorithms built on sales data. A smaller group, including Requity, focuses on the relationship side: who you are, how you communicate, and what kind of agent would actually work well with you.",
           "The word match hides these differences, so it is worth knowing which kind of service you are using before you hand over your details.",
         ],
       },
@@ -371,11 +371,11 @@ export const CORE_PAGES = [
     ],
     faqs: [
       {
-        q: "Is there anywhere I can get matched with a Realtor?",
-        a: "Yes. Agent matching services pair buyers and sellers with Realtors based on your answers about the transaction. Requity is one of them, and it adds communication style and relationship fit to the usual location and transaction inputs.",
+        q: "Is there anywhere I can get matched with a real estate agent?",
+        a: "Yes. Agent matching services pair buyers and sellers with real estate agents based on your answers about the transaction. Requity is one of them, and it adds communication style and relationship fit to the usual location and transaction inputs.",
       },
       {
-        q: "How do Realtor matching services work?",
+        q: "How do real estate agent matching services work?",
         a: "You answer questions about your location, transaction, and preferences. The service then proposes one or more agents. Most rank agents on sales data; Requity also uses relationship style assessments from both sides, with human review.",
       },
       {
@@ -388,8 +388,8 @@ export const CORE_PAGES = [
       },
     ],
     related: [
-      { href: "/real-estate-agent-matching.html", label: "Real estate agent matching" },
-      { href: "/find-a-real-estate-agent.html", label: "Find a real estate agent who fits how you communicate" },
+      { href: "/real-estate-agent-matching.html", label: "Real Estate Agent matching" },
+      { href: "/find-a-real-estate-agent.html", label: "Find a Real Estate Agent who fits how you communicate" },
       { href: "/real-estate-personality-assessment.html", label: "Real estate personality assessment" },
       { href: "/how-it-works.html", label: "How Requity works" },
     ],
@@ -478,8 +478,8 @@ export const CORE_PAGES = [
       },
     ],
     related: [
-      { href: "/real-estate-agent-matching.html", label: "Real estate agent matching" },
-      { href: "/find-a-real-estate-agent.html", label: "Find a real estate agent who fits how you communicate" },
+      { href: "/real-estate-agent-matching.html", label: "Real Estate Agent matching" },
+      { href: "/find-a-real-estate-agent.html", label: "Find a Real Estate Agent who fits how you communicate" },
       { href: "/buyers/find-buyers-agent.html", label: "Find a buyer agent" },
       { href: "/sellers/find-listing-agent.html", label: "Find a listing agent" },
     ],

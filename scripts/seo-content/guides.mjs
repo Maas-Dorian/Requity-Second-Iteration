@@ -8,7 +8,7 @@ export const GUIDE_PAGES = [
     title: "Questions to Ask a Real Estate Agent Before You Choose One | Requity",
     description:
       "The questions to ask a real estate agent before hiring: experience, communication, comps, offer strategy, buyer and seller support, plus the red flags to listen for.",
-    h1: "Questions to ask a real estate agent before you choose one",
+    h1: "Questions to ask a Real Estate Agent before you choose one",
     breadcrumb: "Questions to ask an agent",
     intro: [
       "Before choosing a real estate agent, ask about their experience in your area, how they communicate, how they run comps, and what their offer strategy looks like. The answers, and how clearly they are explained, tell you more than any profile page.",
@@ -35,7 +35,7 @@ export const GUIDE_PAGES = [
           "Who covers for you when you are unavailable?",
         ],
         after:
-          'Communication mismatches are the most common source of frustration with agents. If this is your priority, read <a href="/find-a-realtor-who-communicates-well.html">how to find a Realtor who communicates well</a>.',
+          'Communication mismatches are the most common source of frustration with agents. If this is your priority, read <a href="/find-a-real-estate-agent-who-communicates-well.html">how to find a real estate agent who communicates well</a>.',
       },
       {
         h2: "Questions about comps",
@@ -82,7 +82,7 @@ export const GUIDE_PAGES = [
     ],
     faqs: [
       {
-        q: "What questions should I ask a Realtor before hiring them?",
+        q: "What questions should I ask a real estate agent before hiring them?",
         a: "Cover four areas: experience in your market, communication habits, how they run comps, and offer strategy. Add buyer or seller specific questions depending on your side of the transaction, and compare answers across at least three agents.",
       },
       {
@@ -99,10 +99,10 @@ export const GUIDE_PAGES = [
       },
     ],
     related: [
-      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare real estate agents" },
-      { href: "/how-to-find-a-good-realtor.html", label: "How to find a good Realtor" },
-      { href: "/real-estate-agent-red-flags.html", label: "Real estate agent red flags" },
-      { href: "/find-a-realtor-who-communicates-well.html", label: "Find a Realtor who communicates well" },
+      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare Real Estate Agents" },
+      { href: "/how-to-find-a-good-real-estate-agent.html", label: "How to find a good Real Estate Agent" },
+      { href: "/real-estate-agent-red-flags.html", label: "Real Estate Agent red flags" },
+      { href: "/find-a-real-estate-agent-who-communicates-well.html", label: "Find a Real Estate Agent who communicates well" },
     ],
   },
   {
@@ -110,8 +110,8 @@ export const GUIDE_PAGES = [
     title: "How to Compare Real Estate Agents | Requity",
     description:
       "How to compare real estate agents: local experience, recent sales, communication style, process, and fit. A practical framework plus how Requity helps organize fit.",
-    h1: "How to compare real estate agents",
-    breadcrumb: "Compare real estate agents",
+    h1: "How to compare Real Estate Agents",
+    breadcrumb: "Compare Real Estate Agents",
     intro: [
       "To compare real estate agents, evaluate them on five dimensions: local experience, recent sales history, communication style, process and strategy, and overall fit with how you work. Comparing on price range and personality, not just credentials, is what separates a good choice from a lucky one.",
       "Here is a practical framework you can apply to any shortlist of agents. It works best when you interview all your candidates within the same week, ask each one the same core questions, and take brief notes immediately afterward while the differences are still fresh.",
@@ -174,21 +174,21 @@ export const GUIDE_PAGES = [
       },
     ],
     related: [
-      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a real estate agent" },
-      { href: "/how-to-find-a-good-realtor.html", label: "How to find a good Realtor" },
-      { href: "/real-estate-agent-red-flags.html", label: "Real estate agent red flags" },
-      { href: "/real-estate-agent-matching.html", label: "Real estate agent matching" },
+      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a Real Estate Agent" },
+      { href: "/how-to-find-a-good-real-estate-agent.html", label: "How to find a good Real Estate Agent" },
+      { href: "/real-estate-agent-red-flags.html", label: "Real Estate Agent red flags" },
+      { href: "/real-estate-agent-matching.html", label: "Real Estate Agent matching" },
     ],
   },
   {
-    path: "find-a-realtor-who-communicates-well.html",
-    title: "Find a Realtor Who Communicates Well | Requity",
+    path: "find-a-real-estate-agent-who-communicates-well.html",
+    title: "Find a Real Estate Agent Who Communicates Well | Requity",
     description:
-      "How to find a Realtor who communicates well: the signs of good communication, questions to ask, what poor communication looks like, and how Requity matches on style.",
-    h1: "Find a Realtor who communicates well",
-    breadcrumb: "Find a Realtor who communicates well",
+      "How to find a real estate agent who communicates well: the signs of good communication, questions to ask, what poor communication looks like, and how Requity matches on style.",
+    h1: "Find a Real Estate Agent who communicates well",
+    breadcrumb: "Find a Real Estate Agent who communicates well",
     intro: [
-      "To find a Realtor who communicates well, test communication before you commit: notice response speed during the interview stage, ask direct questions about update frequency and format, and pay attention to whether the agent listens more than they talk. Communication is the single most common complaint clients have about agents, and it is testable in advance.",
+      "To find a real estate agent who communicates well, test communication before you commit: notice response speed during the interview stage, ask direct questions about update frequency and format, and pay attention to whether the agent listens more than they talk. Communication is the single most common complaint clients have about agents, and it is testable in advance.",
       "This guide covers why communication matters so much in a transaction, the specific signs of a strong communicator, the questions that surface communication habits in an interview, and how Requity makes communication style a measured part of agent matching rather than a gamble.",
     ],
     sections: [
@@ -237,15 +237,15 @@ export const GUIDE_PAGES = [
     ],
     faqs: [
       {
-        q: "How do I find a Realtor who communicates well?",
+        q: "How do I find a real estate agent who communicates well?",
         a: "Test it before committing: notice interview stage response times, ask about update frequency and channels, and watch whether they listen and summarize next steps. Requity also matches specifically on communication style.",
       },
       {
-        q: "What should I do if my Realtor does not communicate?",
+        q: "What should I do if my real estate agent does not communicate?",
         a: "Raise it directly once, with specifics about what you need. If nothing changes, review your agreement and consider switching. Poor communication rarely improves on its own mid transaction.",
       },
       {
-        q: "How fast should a Realtor respond?",
+        q: "How fast should a real estate agent respond?",
         a: "It depends on market pace, but during a live deal, same day responses are a reasonable expectation, and time sensitive items like offers deserve faster. Ask each agent their standard and hold them to it.",
       },
       {
@@ -255,9 +255,9 @@ export const GUIDE_PAGES = [
     ],
     related: [
       { href: "/agent-client-compatibility.html", label: "Agent client compatibility in real estate" },
-      { href: "/real-estate-agent-red-flags.html", label: "Real estate agent red flags" },
-      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a real estate agent" },
-      { href: "/real-estate-agent-matching.html", label: "Real estate agent matching" },
+      { href: "/real-estate-agent-red-flags.html", label: "Real Estate Agent red flags" },
+      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a Real Estate Agent" },
+      { href: "/real-estate-agent-matching.html", label: "Real Estate Agent matching" },
     ],
   },
   {
@@ -265,8 +265,8 @@ export const GUIDE_PAGES = [
     title: "Real Estate Agent Red Flags to Watch For | Requity",
     description:
       "Real estate agent red flags: poor communication, pressure tactics, weak comps, vague local knowledge, no clear process, and not listening. Plus how to switch agents.",
-    h1: "Real estate agent red flags to watch for",
-    breadcrumb: "Real estate agent red flags",
+    h1: "Real Estate Agent red flags to watch for",
+    breadcrumb: "Real Estate Agent red flags",
     intro: [
       "The biggest real estate agent red flags are poor communication, pressure without explanation, weak or vague comps, thin local knowledge, no clear process, and an agent who talks more than they listen. Most of these are visible before you sign anything, if you know what to look for.",
     ],
@@ -321,11 +321,11 @@ export const GUIDE_PAGES = [
         a: "Poor communication, pressure without explanation, comps they cannot defend, vague local knowledge, no articulated process, and not listening to your goals. Most show up before you sign if you interview carefully.",
       },
       {
-        q: "My Realtor only sends me listings I could find myself. Is that a red flag?",
+        q: "My real estate agent only sends me listings I could find myself. Is that a red flag?",
         a: "By itself, no; portals surface most inventory now. The real question is what they add: local insight, early information, honest evaluation of each home, and offer strategy. If nothing is added beyond forwarding links, raise it.",
       },
       {
-        q: "Should I fire my Realtor?",
+        q: "Should I fire my real estate agent?",
         a: "Try one direct conversation with specifics first. If the problems continue, review your agreement terms, communicate the decision in writing, and involve the brokerage if needed. You deserve representation that works.",
       },
       {
@@ -334,10 +334,10 @@ export const GUIDE_PAGES = [
       },
     ],
     related: [
-      { href: "/find-a-realtor-who-communicates-well.html", label: "Find a Realtor who communicates well" },
-      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a real estate agent" },
-      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare real estate agents" },
-      { href: "/how-to-find-a-good-realtor.html", label: "How to find a good Realtor" },
+      { href: "/find-a-real-estate-agent-who-communicates-well.html", label: "Find a Real Estate Agent who communicates well" },
+      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a Real Estate Agent" },
+      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare Real Estate Agents" },
+      { href: "/how-to-find-a-good-real-estate-agent.html", label: "How to find a good Real Estate Agent" },
     ],
   },
   {
@@ -368,7 +368,7 @@ export const GUIDE_PAGES = [
       {
         h2: "Communication style",
         paras: [
-          'The most visible compatibility dimension. Frequency: daily updates or milestone summaries? Depth: full reasoning or the bottom line? Channel: calls, texts, or email? Tone: direct or diplomatic? None of these have a right answer, which is exactly why matching on them matters. See <a href="/find-a-realtor-who-communicates-well.html">finding a Realtor who communicates well</a> for how to evaluate this in interviews.',
+          'The most visible compatibility dimension. Frequency: daily updates or milestone summaries? Depth: full reasoning or the bottom line? Channel: calls, texts, or email? Tone: direct or diplomatic? None of these have a right answer, which is exactly why matching on them matters. See <a href="/find-a-real-estate-agent-who-communicates-well.html">finding a real estate agent who communicates well</a> for how to evaluate this in interviews.',
         ],
       },
       {
@@ -411,8 +411,8 @@ export const GUIDE_PAGES = [
     ],
     related: [
       { href: "/real-estate-personality-assessment.html", label: "Real estate personality assessment" },
-      { href: "/real-estate-agent-matching.html", label: "Real estate agent matching" },
-      { href: "/find-a-realtor-who-communicates-well.html", label: "Find a Realtor who communicates well" },
+      { href: "/real-estate-agent-matching.html", label: "Real Estate Agent matching" },
+      { href: "/find-a-real-estate-agent-who-communicates-well.html", label: "Find a Real Estate Agent who communicates well" },
       { href: "/how-it-works.html", label: "How Requity works" },
     ],
   },
@@ -481,9 +481,9 @@ export const GUIDE_PAGES = [
     ],
     related: [
       { href: "/agent-client-compatibility.html", label: "Agent client compatibility in real estate" },
-      { href: "/real-estate-agent-matching.html", label: "Real estate agent matching" },
+      { href: "/real-estate-agent-matching.html", label: "Real Estate Agent matching" },
       { href: "/how-it-works.html", label: "How Requity works" },
-      { href: "/find-a-real-estate-agent.html", label: "Find a real estate agent who fits how you communicate" },
+      { href: "/find-a-real-estate-agent.html", label: "Find a Real Estate Agent who fits how you communicate" },
     ],
   },
 ];

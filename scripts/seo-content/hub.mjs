@@ -8,35 +8,35 @@ export const HUB_PAGES = [
     title: "Real Estate Agent Matching Resources | Requity",
     description:
       "Free guides on finding, comparing, and matching with real estate agents: buyer agents, listing agents, questions to ask, red flags, communication fit, and more.",
-    h1: "Real estate agent matching resources",
+    h1: "Real Estate Agent matching resources",
     breadcrumb: "Resources",
     collection: true,
     ctaTitle: "Prefer to skip the research?",
     ctaCopy:
       "Complete a short relationship style assessment and let Requity support a match with a real estate agent who fits how you communicate, what you need, and where you are moving.",
     intro: [
-      "This is the Requity library of guides for anyone trying to find, compare, or get matched with a real estate agent. Every page here is free, practical, and written to answer the questions people actually search: how to find a good Realtor, where to look, what to ask, what to avoid, and how communication fit changes the experience of buying or selling a home.",
+      "This is the Requity library of guides for anyone trying to find, compare, or get matched with a real estate agent. Every page here is free, practical, and written to answer the questions people actually search: how to find a good real estate agent, where to look, what to ask, what to avoid, and how communication fit changes the experience of buying or selling a home.",
       "Use the sections below to jump to the topic that matches where you are in the process. If you would rather start with your match, the client assessment takes a few minutes and a Requity team member reviews every profile before a match is proposed.",
     ],
     linkGroups: [
       {
-        h2: "Find a real estate agent",
+        h2: "Find a Real Estate Agent",
         intro:
           "Start here if you are at the beginning of the search. These guides cover where to look, how to evaluate what you find, and how to tell a good agent from a merely visible one.",
         links: [
           {
-            href: "/how-to-find-a-good-realtor.html",
-            label: "How to find a good Realtor",
+            href: "/how-to-find-a-good-real-estate-agent.html",
+            label: "How to find a good Real Estate Agent",
             desc: "the full step by step search process, from referrals to interviews",
           },
           {
             href: "/where-to-find-good-real-estate-agents.html",
-            label: "Where to find good real estate agents",
+            label: "Where to find good Real Estate Agents",
             desc: "every major source compared, with the blind spots of each",
           },
           {
             href: "/find-a-real-estate-agent.html",
-            label: "Find a real estate agent who fits how you communicate",
+            label: "Find a Real Estate Agent who fits how you communicate",
             desc: "what agent fit means and why it matters as much as credentials",
           },
         ],
@@ -48,12 +48,12 @@ export const HUB_PAGES = [
         links: [
           {
             href: "/real-estate-agent-matching.html",
-            label: "Real estate agent matching",
+            label: "Real Estate Agent matching",
             desc: "how matching platforms work and why sales history is not the whole picture",
           },
           {
-            href: "/is-there-a-way-to-get-matched-with-a-realtor.html",
-            label: "Is there a way to get matched with a Realtor?",
+            href: "/can-you-get-matched-with-a-real-estate-agent.html",
+            label: "Can you get matched with a Real Estate Agent?",
             desc: "yes, and here is what to check before accepting any match",
           },
           {
@@ -124,17 +124,17 @@ export const HUB_PAGES = [
         links: [
           {
             href: "/questions-to-ask-a-real-estate-agent.html",
-            label: "Questions to ask a real estate agent",
+            label: "Questions to ask a Real Estate Agent",
             desc: "the full interview checklist, organized by topic",
           },
           {
             href: "/how-to-compare-real-estate-agents.html",
-            label: "How to compare real estate agents",
+            label: "How to compare Real Estate Agents",
             desc: "a five dimension framework for scoring your shortlist",
           },
           {
             href: "/real-estate-agent-red-flags.html",
-            label: "Real estate agent red flags",
+            label: "Real Estate Agent red flags",
             desc: "the warning signs visible before you sign, and how to switch if needed",
           },
         ],
@@ -145,13 +145,13 @@ export const HUB_PAGES = [
           "Communication problems are the most common complaint clients have about agents, and the most preventable. These guides show you how to get fit right from the start.",
         links: [
           {
-            href: "/find-a-realtor-who-communicates-well.html",
-            label: "Find a Realtor who communicates well",
+            href: "/find-a-real-estate-agent-who-communicates-well.html",
+            label: "Find a Real Estate Agent who communicates well",
             desc: "the signs of good communication and how to test them in advance",
           },
           {
             href: "/real-estate-agent-faq.html",
-            label: "Real estate agent FAQ",
+            label: "Real Estate Agent FAQ",
             desc: "short answers to dozens of common agent search questions",
           },
         ],
@@ -164,7 +164,7 @@ export const HUB_PAGES = [
       {
         href: "https://www.nar.realtor/",
         label: "National Association of Realtors",
-        desc: "industry association information about Realtors and standards of practice",
+        desc: "industry association information about real estate agents and standards of practice",
       },
       {
         href: "https://www.consumerfinance.gov/owning-a-home/",
@@ -178,8 +178,8 @@ export const HUB_PAGES = [
     title: "Real Estate Agent FAQ | Requity",
     description:
       "Short, direct answers to common real estate agent questions: finding an agent, matching, buyer agents, listing agents, comparing candidates, communication, and red flags.",
-    h1: "Real estate agent FAQ",
-    breadcrumb: "Real estate agent FAQ",
+    h1: "Real Estate Agent FAQ",
+    breadcrumb: "Real Estate Agent FAQ",
     intro: [
       "Short, direct answers to the questions people ask most when finding, comparing, and working with real estate agents. Each answer links to a longer guide when there is more to say. For the full library, visit the <a href=\"/resources.html\">Requity resources hub</a>.",
     ],
@@ -189,10 +189,10 @@ export const HUB_PAGES = [
         faqs: [
           {
             q: "How do I find a good real estate agent?",
-            a: 'Combine sources: referrals from recent buyers or sellers, local brokerage research, and directories to build a shortlist, then interview at least three agents. Compare their local knowledge, communication, and strategy before deciding. The full process is in <a href="/how-to-find-a-good-realtor.html">how to find a good Realtor</a>.',
+            a: 'Combine sources: referrals from recent buyers or sellers, local brokerage research, and directories to build a shortlist, then interview at least three agents. Compare their local knowledge, communication, and strategy before deciding. The full process is in <a href="/how-to-find-a-good-real-estate-agent.html">how to find a good real estate agent</a>.',
           },
           {
-            q: "Where do most people find their Realtor?",
+            q: "Where do most people find their real estate agent?",
             a: "Most people use a referral from someone they know, and many others find agents through directories, marketplaces, open houses, or matching platforms. Referrals are a strong start but reflect one transaction and one personality pairing, so an interview is still worthwhile.",
           },
           {
@@ -217,8 +217,8 @@ export const HUB_PAGES = [
         h2: "Matching with an agent",
         faqs: [
           {
-            q: "Is there a way to get matched with a Realtor?",
-            a: 'Yes. Agent matching services pair you with agents based on your answers about the transaction, and some also consider fit. Requity matches on communication style, transaction needs, and location, with human review. See <a href="/is-there-a-way-to-get-matched-with-a-realtor.html">the full answer</a>.',
+            q: "Is there a way to get matched with a real estate agent?",
+            a: 'Yes. Agent matching services pair you with agents based on your answers about the transaction, and some also consider fit. Requity matches on communication style, transaction needs, and location, with human review. See <a href="/can-you-get-matched-with-a-real-estate-agent.html">the full answer</a>.',
           },
           {
             q: "How do agent matching platforms decide who to match me with?",
@@ -326,7 +326,7 @@ export const HUB_PAGES = [
           },
           {
             q: "How can I tell if an agent communicates well before hiring them?",
-            a: 'Watch response speed during the interview stage, ask about update frequency and channels, and notice whether they listen and summarize next steps. Details in <a href="/find-a-realtor-who-communicates-well.html">find a Realtor who communicates well</a>.',
+            a: 'Watch response speed during the interview stage, ask about update frequency and channels, and notice whether they listen and summarize next steps. Details in <a href="/find-a-real-estate-agent-who-communicates-well.html">find a real estate agent who communicates well</a>.',
           },
           {
             q: "What is agent client compatibility?",
@@ -350,11 +350,11 @@ export const HUB_PAGES = [
             a: 'Poor communication, pressure without explanation, comps they cannot defend, vague local knowledge, no clear process, and not listening to your goals. The full list is in <a href="/real-estate-agent-red-flags.html">real estate agent red flags</a>.',
           },
           {
-            q: "My Realtor does not communicate. What should I do?",
+            q: "My real estate agent does not communicate. What should I do?",
             a: "Raise it once, directly and specifically: what you need, how often, and through which channel. If nothing changes, review your agreement terms and consider switching. Communication rarely improves on its own mid transaction.",
           },
           {
-            q: "Should I fire my Realtor?",
+            q: "Should I fire my real estate agent?",
             a: "Try one honest conversation first; some problems are fixable. If they persist, check your representation or listing agreement for term and cancellation provisions, put your decision in writing, and involve the brokerage if needed.",
           },
           {
@@ -410,9 +410,9 @@ export const HUB_PAGES = [
       },
     ],
     related: [
-      { href: "/how-to-find-a-good-realtor.html", label: "How to find a good Realtor" },
-      { href: "/real-estate-agent-matching.html", label: "Real estate agent matching" },
-      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a real estate agent" },
+      { href: "/how-to-find-a-good-real-estate-agent.html", label: "How to find a good Real Estate Agent" },
+      { href: "/real-estate-agent-matching.html", label: "Real Estate Agent matching" },
+      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a Real Estate Agent" },
       { href: "/how-it-works.html", label: "How Requity works" },
     ],
   },

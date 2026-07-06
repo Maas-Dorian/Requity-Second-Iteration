@@ -13,6 +13,21 @@
       "permanent": true
     },
     {
+      "source": "/how-to-find-a-good-realtor.html",
+      "destination": "/how-to-find-a-good-real-estate-agent.html",
+      "permanent": true
+    },
+    {
+      "source": "/is-there-a-way-to-get-matched-with-a-realtor.html",
+      "destination": "/can-you-get-matched-with-a-real-estate-agent.html",
+      "permanent": true
+    },
+    {
+      "source": "/find-a-realtor-who-communicates-well.html",
+      "destination": "/find-a-real-estate-agent-who-communicates-well.html",
+      "permanent": true
+    },
+    {
       "source": "/auth",
       "destination": "/agent/login.html",
       "permanent": true

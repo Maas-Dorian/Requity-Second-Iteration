@@ -6,6 +6,10 @@ blog or landing pages. Do not paste these lists into visible pages as keyword
 dumps. Each future page should target one intent cluster with genuinely helpful
 content.
 
+Trademark note: REALTOR is a registered trademark of the National Association
+of Realtors. Public REQUITY copy uses "real estate agent" (or "Real Estate
+Agent" in titles); "realtor" terms below are search query research only.
+
 Page mapping:
 
 - A, F -> /find-a-real-estate-agent.html

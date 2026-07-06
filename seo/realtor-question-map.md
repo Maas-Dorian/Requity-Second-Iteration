@@ -2,20 +2,22 @@
 
 Internal SEO planning file. Not a public page, not in the sitemap, not linked from any public page.
 
+Trademark note: REALTOR is a registered trademark of the National Association of Realtors. Public REQUITY copy uses "real estate agent" (or "Real Estate Agent" in titles) instead. The "realtor" terms in this file are kept only as search query research; do not use them in visible copy.
+
 Purpose: a research map of natural search questions and query variations that REQUITY content should be able to answer, grouped by intent. Use this file to guide future content, FAQ coverage, and AI search answers. Do not dump these lists onto public pages.
 
 Each group maps to one or more target pages. Current page inventory:
 
 - / (homepage)
 - /resources.html
-- /how-to-find-a-good-realtor.html
+- /how-to-find-a-good-real-estate-agent.html
 - /where-to-find-good-real-estate-agents.html
 - /find-a-real-estate-agent.html
 - /real-estate-agent-matching.html
-- /is-there-a-way-to-get-matched-with-a-realtor.html
+- /can-you-get-matched-with-a-real-estate-agent.html
 - /questions-to-ask-a-real-estate-agent.html
 - /how-to-compare-real-estate-agents.html
-- /find-a-realtor-who-communicates-well.html
+- /find-a-real-estate-agent-who-communicates-well.html
 - /real-estate-agent-red-flags.html
 - /real-estate-agent-faq.html
 - /agent-client-compatibility.html
@@ -30,7 +32,7 @@ Each group maps to one or more target pages. Current page inventory:
 
 ## A. Find a realtor
 
-Target pages: /how-to-find-a-good-realtor.html, /find-a-real-estate-agent.html
+Target pages: /how-to-find-a-good-real-estate-agent.html, /find-a-real-estate-agent.html
 
 1. how to find a good realtor
 2. how do I find a good realtor
@@ -75,7 +77,7 @@ Target pages: /how-to-find-a-good-realtor.html, /find-a-real-estate-agent.html
 
 ## B. Find a real estate agent
 
-Target pages: /find-a-real-estate-agent.html, /how-to-find-a-good-realtor.html
+Target pages: /find-a-real-estate-agent.html, /how-to-find-a-good-real-estate-agent.html
 
 1. how to find a real estate agent
 2. how do I find a real estate agent
@@ -165,7 +167,7 @@ Target page: /where-to-find-good-real-estate-agents.html
 
 ## D. Realtor matching
 
-Target pages: /is-there-a-way-to-get-matched-with-a-realtor.html, /real-estate-agent-matching.html
+Target pages: /can-you-get-matched-with-a-real-estate-agent.html, /real-estate-agent-matching.html
 
 1. is there anywhere I can get matched with a realtor
 2. is there a way to get matched with a realtor
@@ -570,7 +572,7 @@ Target page: /questions-to-ask-a-real-estate-agent.html
 
 ## M. Agent communication
 
-Target page: /find-a-realtor-who-communicates-well.html
+Target page: /find-a-real-estate-agent-who-communicates-well.html
 
 1. find a real estate agent who communicates well
 2. find a realtor who communicates well
@@ -930,7 +932,7 @@ Target page: /where-to-find-good-real-estate-agents.html
 
 ## U. Agent matching platforms
 
-Target pages: /real-estate-agent-matching.html, /is-there-a-way-to-get-matched-with-a-realtor.html
+Target pages: /real-estate-agent-matching.html, /can-you-get-matched-with-a-real-estate-agent.html
 
 1. agent matching platforms
 2. best agent matching platforms

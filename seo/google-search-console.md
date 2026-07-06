@@ -8,7 +8,7 @@ Run these steps after each SEO deployment.
 4. Use URL Inspection to request indexing for the homepage and key resource pages:
    - https://www.requityapp.com/
    - https://www.requityapp.com/resources.html
-   - https://www.requityapp.com/how-to-find-a-good-realtor.html
+   - https://www.requityapp.com/how-to-find-a-good-real-estate-agent.html
    - https://www.requityapp.com/where-to-find-good-real-estate-agents.html
    - https://www.requityapp.com/find-a-real-estate-agent.html
    - https://www.requityapp.com/real-estate-agent-matching.html

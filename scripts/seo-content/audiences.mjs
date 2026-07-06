@@ -42,7 +42,7 @@ export const AUDIENCE_PAGES = [
       {
         h2: "Why communication matters for buyers",
         paras: [
-          'Buyers live at the speed of the market. Homes appear and go under contract in days, and offer deadlines do not wait for unreturned calls. You need an agent whose responsiveness matches your market and whose explanations match your experience level. A first time buyer paired with a terse, assume you know everything agent will feel lost; an experienced buyer paired with an over explainer will feel slowed down. Fit works both ways; see <a href="/find-a-realtor-who-communicates-well.html">finding a Realtor who communicates well</a>.',
+          'Buyers live at the speed of the market. Homes appear and go under contract in days, and offer deadlines do not wait for unreturned calls. You need an agent whose responsiveness matches your market and whose explanations match your experience level. A first time buyer paired with a terse, assume you know everything agent will feel lost; an experienced buyer paired with an over explainer will feel slowed down. Fit works both ways; see <a href="/find-a-real-estate-agent-who-communicates-well.html">finding a real estate agent who communicates well</a>.',
         ],
       },
       {
@@ -73,8 +73,8 @@ export const AUDIENCE_PAGES = [
     related: [
       { href: "/buyers/how-to-choose-a-buyers-agent.html", label: "How to choose a buyer agent" },
       { href: "/buyers/first-time-home-buyer-agent.html", label: "First time home buyer agent guide" },
-      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a real estate agent" },
-      { href: "/find-a-realtor-who-communicates-well.html", label: "Find a Realtor who communicates well" },
+      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a Real Estate Agent" },
+      { href: "/find-a-real-estate-agent-who-communicates-well.html", label: "Find a Real Estate Agent who communicates well" },
     ],
   },
   {
@@ -82,7 +82,7 @@ export const AUDIENCE_PAGES = [
     title: "How First Time Buyers Can Choose a Real Estate Agent | Requity",
     description:
       "How first time home buyers can choose a real estate agent: why guidance matters, questions to ask, communication expectations, red flags, and how Requity helps.",
-    h1: "How first time home buyers can choose a real estate agent",
+    h1: "How first time home buyers can choose a Real Estate Agent",
     breadcrumb: "First time home buyer agent",
     intro: [
       "First time home buyers should choose an agent who teaches as they go: someone patient with questions, clear about each step, honest about tradeoffs, and communicative enough that you never wonder what happens next. The right agent turns an intimidating process into a manageable one.",
@@ -154,8 +154,8 @@ export const AUDIENCE_PAGES = [
     related: [
       { href: "/buyers/find-buyers-agent.html", label: "Find a buyer agent" },
       { href: "/buyers/how-to-choose-a-buyers-agent.html", label: "How to choose a buyer agent" },
-      { href: "/find-a-realtor-who-communicates-well.html", label: "Find a Realtor who communicates well" },
-      { href: "/real-estate-agent-red-flags.html", label: "Real estate agent red flags" },
+      { href: "/find-a-real-estate-agent-who-communicates-well.html", label: "Find a Real Estate Agent who communicates well" },
+      { href: "/real-estate-agent-red-flags.html", label: "Real Estate Agent red flags" },
     ],
   },
   {
@@ -194,7 +194,7 @@ export const AUDIENCE_PAGES = [
       {
         h2: "Communication style",
         paras: [
-          'Match their natural style to yours: frequency of updates, depth of explanation, channel, and directness. The interview is your free sample; notice response speed and whether they listen. The dedicated guide to <a href="/find-a-realtor-who-communicates-well.html">finding a Realtor who communicates well</a> covers the specific signals.',
+          'Match their natural style to yours: frequency of updates, depth of explanation, channel, and directness. The interview is your free sample; notice response speed and whether they listen. The dedicated guide to <a href="/find-a-real-estate-agent-who-communicates-well.html">finding a real estate agent who communicates well</a> covers the specific signals.',
         ],
       },
       {
@@ -231,8 +231,8 @@ export const AUDIENCE_PAGES = [
     related: [
       { href: "/buyers/find-buyers-agent.html", label: "Find a buyer agent" },
       { href: "/buyers/first-time-home-buyer-agent.html", label: "First time home buyer agent guide" },
-      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a real estate agent" },
-      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare real estate agents" },
+      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a Real Estate Agent" },
+      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare Real Estate Agents" },
     ],
   },
   {
@@ -274,7 +274,7 @@ export const AUDIENCE_PAGES = [
       {
         h2: "Communication and negotiation",
         paras: [
-          'Selling means weeks of showings, feedback, and offer activity. You need an agent who reports proactively, in the format and frequency you want, and who negotiates the way you want to be represented: some sellers want a direct closer, others want a diplomat. Style mismatches here are the top source of seller frustration; see <a href="/find-a-realtor-who-communicates-well.html">finding a Realtor who communicates well</a>.',
+          'Selling means weeks of showings, feedback, and offer activity. You need an agent who reports proactively, in the format and frequency you want, and who negotiates the way you want to be represented: some sellers want a direct closer, others want a diplomat. Style mismatches here are the top source of seller frustration; see <a href="/find-a-real-estate-agent-who-communicates-well.html">finding a real estate agent who communicates well</a>.',
         ],
       },
       {
@@ -311,8 +311,8 @@ export const AUDIENCE_PAGES = [
     related: [
       { href: "/sellers/how-to-choose-a-listing-agent.html", label: "How to choose a listing agent" },
       { href: "/sellers/find-agent-to-sell-my-house.html", label: "Find an agent to sell your house" },
-      { href: "/real-estate-agent-red-flags.html", label: "Real estate agent red flags" },
-      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a real estate agent" },
+      { href: "/real-estate-agent-red-flags.html", label: "Real Estate Agent red flags" },
+      { href: "/questions-to-ask-a-real-estate-agent.html", label: "Questions to ask a Real Estate Agent" },
     ],
   },
   {
@@ -393,8 +393,8 @@ export const AUDIENCE_PAGES = [
     related: [
       { href: "/sellers/find-listing-agent.html", label: "Find a listing agent" },
       { href: "/sellers/find-agent-to-sell-my-house.html", label: "Find an agent to sell your house" },
-      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare real estate agents" },
-      { href: "/real-estate-agent-red-flags.html", label: "Real estate agent red flags" },
+      { href: "/how-to-compare-real-estate-agents.html", label: "How to compare Real Estate Agents" },
+      { href: "/real-estate-agent-red-flags.html", label: "Real Estate Agent red flags" },
     ],
   },
   {
@@ -463,8 +463,8 @@ export const AUDIENCE_PAGES = [
     related: [
       { href: "/sellers/find-listing-agent.html", label: "Find a listing agent" },
       { href: "/sellers/how-to-choose-a-listing-agent.html", label: "How to choose a listing agent" },
-      { href: "/real-estate-agent-red-flags.html", label: "Real estate agent red flags" },
-      { href: "/find-a-realtor-who-communicates-well.html", label: "Find a Realtor who communicates well" },
+      { href: "/real-estate-agent-red-flags.html", label: "Real Estate Agent red flags" },
+      { href: "/find-a-real-estate-agent-who-communicates-well.html", label: "Find a Real Estate Agent who communicates well" },
     ],
   },
 ];

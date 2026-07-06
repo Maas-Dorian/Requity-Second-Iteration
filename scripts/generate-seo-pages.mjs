@@ -75,14 +75,14 @@ const FOOTER = `    <footer class="site-footer">
             </div>
             <div class="footer-column">
                 <h4>Guides</h4>
-                <a href="/resources.html">All resources</a>
-                <a href="/real-estate-agent-faq.html">Real estate agent FAQ</a>
-                <a href="/how-to-find-a-good-realtor.html">How to find a good Realtor</a>
-                <a href="/find-a-real-estate-agent.html">Find a real estate agent</a>
-                <a href="/real-estate-agent-matching.html">Real estate agent matching</a>
-                <a href="/buyers/find-buyers-agent.html">Find a buyer agent</a>
-                <a href="/sellers/find-listing-agent.html">Find a listing agent</a>
-                <a href="/how-it-works.html">How Requity works</a>
+                <a href="/resources.html">All Resources</a>
+                <a href="/real-estate-agent-faq.html">Real Estate Agent FAQ</a>
+                <a href="/how-to-find-a-good-real-estate-agent.html">How to Find a Good Real Estate Agent</a>
+                <a href="/find-a-real-estate-agent.html">Find a Real Estate Agent</a>
+                <a href="/real-estate-agent-matching.html">Real Estate Agent Matching</a>
+                <a href="/buyers/find-buyers-agent.html">Find a Buyer Agent</a>
+                <a href="/sellers/find-listing-agent.html">Find a Listing Agent</a>
+                <a href="/how-it-works.html">How Requity Works</a>
             </div>
             <div class="footer-column">
                 <h4>Get Started</h4>
