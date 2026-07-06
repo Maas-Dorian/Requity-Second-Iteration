@@ -1,4 +1,4 @@
-import { getOptionalEnv } from "./env.js";
+import { getOptionalEnv, env } from "./env.js";
 import { sendSendGridEmail } from "./sendgrid.js";
 import { sendBrevoEmail } from "./brevo.js";
 import {
@@ -179,6 +179,10 @@ export const EMAIL_SUBJECTS = {
   matchReviewStarted: "Your REQUITY match is being reviewed",
   getToKnowAgent: "Get to know your REQUITY agent",
   testEmail: "REQUITY SendGrid test email",
+  reviewerAssessmentSubmitted: "New REQUITY assessment submitted",
+  reviewerMatchReviewStarted: "Match review started on REQUITY",
+  reviewerMatchFinalized: "REQUITY match finalized",
+  reviewerMatchReplaced: "REQUITY match replaced",
 } as const;
 
 // --- Unified provider-based send (Part 2 deliverable) ----------------------
@@ -675,5 +679,297 @@ export async function sendClientMatchedGetToKnowAgentEmail(
     metadata: { ...(built.meta ?? {}), clientId: clientId || null, agentId: agentId || null },
   });
   return toDeliveryResult(res);
+}
+
+// ---------------------------------------------------------------------------
+// Reviewer/admin operational notifications (assessment submitted + matching
+// activity). Recipient resolution: REQUITY_REVIEW_EMAIL, then
+// ADMIN_NOTIFICATION_EMAIL. When neither is configured the send is recorded as
+// a truthful "skipped" with a clear reason; it never blocks the operation.
+// Reviewer emails may include reviewer/admin safe operational details, but
+// never passwords, tokens, auth ids, or raw private data.
+// ---------------------------------------------------------------------------
+
+/** The reviewer/admin notification recipient, or null when not configured. */
+export function resolveReviewerRecipient(): string | null {
+  const recipient = (env.reviewNotificationEmail ?? "").trim();
+  return recipient ? recipient : null;
+}
+
+const REVIEWER_RECIPIENT_MISSING =
+  "Reviewer recipient is not configured (set REQUITY_REVIEW_EMAIL or ADMIN_NOTIFICATION_EMAIL)";
+
+/**
+ * Send a simple reviewer/admin notification email (details + reviewer dashboard
+ * CTA). Skips with a clear recorded reason when no reviewer recipient exists.
+ */
+async function sendReviewerNotification(opts: {
+  eventType: string;
+  /** Full dedupe key WITHOUT the recipient suffix; recipient is appended here. */
+  dedupeBase: string | null;
+  subject: string;
+  title: string;
+  intro: string;
+  details: { label: string; value: string | null | undefined }[];
+  metadata?: Record<string, unknown>;
+}): Promise<EmailDeliveryResult> {
+  const recipient = resolveReviewerRecipient();
+  if (!recipient) {
+    await recordEmailEvent({
+      recipientEmail: "(none)",
+      templateKey: opts.eventType,
+      eventType: opts.eventType,
+      provider: resolveEmailProvider(),
+      status: "skipped",
+      errorMessage: REVIEWER_RECIPIENT_MISSING,
+      eventKey: null,
+      payload: { ...(opts.metadata ?? {}), reason: REVIEWER_RECIPIENT_MISSING },
+    });
+    logEmail("EMAIL_SEND_RESULT", {
+      provider: resolveEmailProvider(),
+      eventType: opts.eventType,
+      status: "skipped",
+    });
+    return {
+      emailed: false,
+      emailStatus: "skipped",
+      recipients: [],
+      reason: REVIEWER_RECIPIENT_MISSING,
+    };
+  }
+
+  const content: EmailContentInput = {
+    title: opts.title,
+    intro: opts.intro,
+    details: opts.details,
+    ctaLabel: "Open reviewer dashboard",
+    ctaUrl: reviewerDashboardUrl(),
+  };
+  const res = await sendAppEmail({
+    eventType: opts.eventType,
+    eventKey: opts.dedupeBase ? `${opts.dedupeBase}:${recipient.toLowerCase()}` : null,
+    to: recipient,
+    toName: "REQUITY Reviewer",
+    subject: opts.subject,
+    html: buildRequityEmailHtml(content),
+    text: buildPlainTextEmail(content),
+    tags: [opts.eventType],
+    metadata: opts.metadata,
+  });
+  return toDeliveryResult(res);
+}
+
+/** Human label for a submission source (never exposes internal enum values). */
+export function assessmentSourceLabel(source: string | null | undefined): string {
+  const s = (source ?? "").toString().trim().toLowerCase();
+  if (s === "agent_link") return "Agent link";
+  if (s === "qr") return "QR";
+  if (s === "client") return "Direct";
+  if (s === "reviewer" || s === "requity_reviewer") return "Reviewer link";
+  return "Unknown";
+}
+
+export type ReviewerAssessmentSubmittedEmailInput = {
+  /** Client or lead id (dedupe only, never shown in the email body). */
+  clientIdOrLeadId?: string | null;
+  clientName?: string | null;
+  clientEmail?: string | null;
+  clientPhone?: string | null;
+  transactionIntentLabel?: string | null;
+  buyingMarket?: string | null;
+  sellingMarket?: string | null;
+  generalMarket?: string | null;
+  clientArchetype?: string | null;
+  assignedAgentName?: string | null;
+  source?: string | null;
+  submittedAt?: string | null;
+};
+
+/**
+ * Part 3: email the reviewer/admin every time a client assessment is submitted
+ * (event type "reviewer_assessment_submitted"). Best-effort; a failed or
+ * skipped send never blocks assessment submission.
+ */
+export async function sendReviewerAssessmentSubmittedEmail(
+  input: ReviewerAssessmentSubmittedEmailInput
+): Promise<EmailDeliveryResult> {
+  const id = (input.clientIdOrLeadId ?? "").trim();
+  return sendReviewerNotification({
+    eventType: "reviewer_assessment_submitted",
+    dedupeBase: id ? `reviewer_assessment_submitted:${id}` : null,
+    subject: EMAIL_SUBJECTS.reviewerAssessmentSubmitted,
+    title: "New assessment submitted",
+    intro: `${input.clientName || "A client"} just completed the REQUITY client assessment. The full submission details are below.`,
+    details: [
+      { label: "Client", value: input.clientName },
+      { label: "Email", value: input.clientEmail },
+      { label: "Phone", value: input.clientPhone },
+      { label: "Transaction", value: input.transactionIntentLabel },
+      { label: "Buying market", value: input.buyingMarket },
+      { label: "Selling market", value: input.sellingMarket },
+      { label: "Market", value: input.generalMarket },
+      { label: "Client archetype", value: input.clientArchetype },
+      { label: "Assigned agent", value: input.assignedAgentName },
+      { label: "Source", value: assessmentSourceLabel(input.source) },
+      { label: "Submitted", value: input.submittedAt ?? new Date().toISOString() },
+    ],
+    metadata: {
+      clientName: input.clientName ?? null,
+      source: assessmentSourceLabel(input.source),
+    },
+  });
+}
+
+export type ReviewerMatchReviewStartedEmailInput = {
+  clientIdOrLeadId?: string | null;
+  clientName?: string | null;
+  clientEmail?: string | null;
+  transactionIntentLabel?: string | null;
+  buyingMarket?: string | null;
+  sellingMarket?: string | null;
+  generalMarket?: string | null;
+  reviewerEmail?: string | null;
+  status?: string | null;
+};
+
+/**
+ * Part 4: email the reviewer/admin when match review starts for a client
+ * (event type "reviewer_match_review_started"). Deduped per client + recipient.
+ */
+export async function sendReviewerMatchReviewStartedEmail(
+  input: ReviewerMatchReviewStartedEmailInput
+): Promise<EmailDeliveryResult> {
+  const id = (input.clientIdOrLeadId ?? "").trim();
+  return sendReviewerNotification({
+    eventType: "reviewer_match_review_started",
+    dedupeBase: id ? `reviewer_match_review_started:${id}` : null,
+    subject: EMAIL_SUBJECTS.reviewerMatchReviewStarted,
+    title: "Match review started",
+    intro: `Match review has started for ${input.clientName || "a client"}.`,
+    details: [
+      { label: "Client", value: input.clientName },
+      { label: "Email", value: input.clientEmail },
+      { label: "Transaction", value: input.transactionIntentLabel },
+      { label: "Buying market", value: input.buyingMarket },
+      { label: "Selling market", value: input.sellingMarket },
+      { label: "Market", value: input.generalMarket },
+      { label: "Reviewer", value: input.reviewerEmail },
+      { label: "Status", value: input.status ?? "Match review in progress" },
+    ],
+    metadata: { clientName: input.clientName ?? null },
+  });
+}
+
+export type ReviewerMatchFinalizedEmailInput = {
+  clientIdOrLeadId?: string | null;
+  agentId?: string | null;
+  clientName?: string | null;
+  clientEmail?: string | null;
+  agentName?: string | null;
+  agentEmail?: string | null;
+  /** buying, selling, general, both, or unknown. */
+  matchType?: string | null;
+  clientArchetype?: string | null;
+  agentArchetype?: string | null;
+  locationSummary?: string | null;
+  finalizedAt?: string | null;
+  reviewerEmail?: string | null;
+};
+
+/**
+ * Part 4: email the reviewer/admin when a match is finalized (event type
+ * "reviewer_match_finalized"). Deduped per client + agent + match type +
+ * recipient, never by agent alone.
+ */
+export async function sendReviewerMatchFinalizedEmail(
+  input: ReviewerMatchFinalizedEmailInput
+): Promise<EmailDeliveryResult> {
+  const id = (input.clientIdOrLeadId ?? "").trim();
+  const agentId = (input.agentId ?? "").trim();
+  const matchType = (input.matchType ?? "unknown").trim() || "unknown";
+  return sendReviewerNotification({
+    eventType: "reviewer_match_finalized",
+    dedupeBase:
+      id && agentId ? `reviewer_match_finalized:${id}:${agentId}:${matchType}` : null,
+    subject: EMAIL_SUBJECTS.reviewerMatchFinalized,
+    title: "Match finalized",
+    intro: `${input.clientName || "A client"} was matched with ${
+      input.agentName || "an agent"
+    }.`,
+    details: [
+      { label: "Client", value: input.clientName },
+      { label: "Client email", value: input.clientEmail },
+      { label: "Agent", value: input.agentName },
+      { label: "Agent email", value: input.agentEmail },
+      { label: "Match type", value: matchType },
+      { label: "Client archetype", value: input.clientArchetype },
+      { label: "Agent archetype", value: input.agentArchetype },
+      { label: "Location match", value: input.locationSummary },
+      { label: "Finalized", value: input.finalizedAt ?? new Date().toISOString() },
+      { label: "Finalized by", value: input.reviewerEmail },
+    ],
+    metadata: {
+      clientName: input.clientName ?? null,
+      agentName: input.agentName ?? null,
+      matchType,
+    },
+  });
+}
+
+export type ReviewerMatchReplacedEmailInput = {
+  clientIdOrLeadId?: string | null;
+  oldAgentId?: string | null;
+  newAgentId?: string | null;
+  clientName?: string | null;
+  oldAgentName?: string | null;
+  oldAgentEmail?: string | null;
+  newAgentName?: string | null;
+  newAgentEmail?: string | null;
+  matchType?: string | null;
+  replacedAt?: string | null;
+  reviewerEmail?: string | null;
+  reason?: string | null;
+};
+
+/**
+ * Part 4: email the reviewer/admin when an active match is replaced (event
+ * type "reviewer_match_replaced"). Deduped per client + old agent + new agent
+ * + match type + recipient.
+ */
+export async function sendReviewerMatchReplacedEmail(
+  input: ReviewerMatchReplacedEmailInput
+): Promise<EmailDeliveryResult> {
+  const id = (input.clientIdOrLeadId ?? "").trim();
+  const oldId = (input.oldAgentId ?? "").trim() || "none";
+  const newId = (input.newAgentId ?? "").trim();
+  const matchType = (input.matchType ?? "unknown").trim() || "unknown";
+  return sendReviewerNotification({
+    eventType: "reviewer_match_replaced",
+    dedupeBase:
+      id && newId
+        ? `reviewer_match_replaced:${id}:${oldId}:${newId}:${matchType}`
+        : null,
+    subject: EMAIL_SUBJECTS.reviewerMatchReplaced,
+    title: "Match replaced",
+    intro: `The active match for ${input.clientName || "a client"} was replaced. ${
+      input.newAgentName || "A new agent"
+    } is now the current match.`,
+    details: [
+      { label: "Client", value: input.clientName },
+      { label: "Previous agent", value: input.oldAgentName },
+      { label: "Previous agent email", value: input.oldAgentEmail },
+      { label: "New agent", value: input.newAgentName },
+      { label: "New agent email", value: input.newAgentEmail },
+      { label: "Match type", value: matchType },
+      { label: "Replaced", value: input.replacedAt ?? new Date().toISOString() },
+      { label: "Replaced by", value: input.reviewerEmail },
+      { label: "Reason", value: input.reason },
+    ],
+    metadata: {
+      clientName: input.clientName ?? null,
+      newAgentName: input.newAgentName ?? null,
+      matchType,
+    },
+  });
 }
 

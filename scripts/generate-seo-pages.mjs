@@ -49,10 +49,28 @@ const LOGO = `<a href="/" style="text-decoration:none;"><div class="logo"><div c
     <span class="rq-uity">UITY</span>
 </div></div></a>`;
 
+// Footer brand mark: the same animated REQUITY wordmark used in the header,
+// never plain text. External "helpful resources" links are intentionally NOT
+// part of the global footer; if a page needs them, use its additionalReading
+// section instead (rendered near the bottom of that page only).
+const FOOTER_LOGO = `<div class="footer-logo"><div class="requity-animated-logo" aria-label="REQUITY">
+    <span class="rq-re">RE</span>
+    <span class="rq-q-container" aria-hidden="true">
+        <span class="rq-q-ring"></span>
+        <span class="rq-q-tail"></span>
+        <svg class="rq-splash-wrap" viewBox="0 0 100 60">
+            <path class="rq-ripple rq-ripple-inner" d="M 35 15 Q 50 25 65 15" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+            <path class="rq-ripple rq-ripple-outer" d="M 20 25 Q 50 40 80 25" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+            <path class="rq-ripple rq-ripple-furthest" d="M 5 35 Q 50 55 95 35" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+        </svg>
+    </span>
+    <span class="rq-uity">UITY</span>
+</div></div>`;
+
 const FOOTER = `    <footer class="site-footer">
         <div class="footer-container" style="grid-template-columns: 1.4fr 1.2fr 1fr;">
             <div class="footer-brand">
-                <div class="footer-logo">REQUITY</div>
+                ${FOOTER_LOGO}
                 <p>REQUITY is a real estate agent matching and relationship platform. It helps home buyers and sellers find a real estate agent who fits their communication style.</p>
             </div>
             <div class="footer-column">
@@ -72,9 +90,6 @@ const FOOTER = `    <footer class="site-footer">
                 <a href="/client/assessment.html">Client Assessment</a>
                 <a href="/agent/index.html">For Real Estate Agents</a>
                 <a href="/agent/login.html">Agent Login</a>
-                <h4 style="margin-top: 28px;">Helpful Resources</h4>
-                <a href="https://www.nar.realtor/" rel="nofollow noopener noreferrer" target="_blank">National Association of Realtors</a>
-                <a href="https://www.consumerfinance.gov/owning-a-home/" rel="nofollow noopener noreferrer" target="_blank">CFPB home buying resources</a>
             </div>
         </div>
         <div class="footer-bottom">© 2026 REQUITY. All rights reserved.</div>
@@ -224,6 +239,23 @@ ${renderFaqItems(page.faqs)}
                     <ul style="color: var(--secondary-text); font-size: 1.05rem; line-height: 1.9; padding-left: 1.25rem;">
 ${page.related.map((r) => `                        <li><a href="${r.href}">${esc(r.label)}</a></li>`).join("\n")}
                         <li><a href="/resources.html">Browse all Requity resources</a></li>
+                    </ul>
+                </div>
+            </div>
+        </section>`);
+  }
+
+  // Optional per-page external reading. This is the ONLY place external links
+  // are allowed: a small brand-styled section near the bottom of a dedicated
+  // resource page, never the global footer or app pages. No endorsement implied.
+  if (page.additionalReading && page.additionalReading.length) {
+    parts.push(`        <section class="section">
+            <div class="container" style="max-width: 860px;">
+                <h2 class="section-title">Additional reading</h2>
+                <p class="support-copy">Independent, non-affiliated references for further research. Requity is not associated with these organizations.</p>
+                <div class="clean-card" style="margin-top: 1.5rem;">
+                    <ul style="color: var(--secondary-text); font-size: 1.05rem; line-height: 1.9; padding-left: 1.25rem;">
+${page.additionalReading.map((r) => `                        <li><a href="${r.href}" rel="nofollow noopener noreferrer" target="_blank">${esc(r.label)}</a>${r.desc ? `: ${r.desc}` : ""}</li>`).join("\n")}
                     </ul>
                 </div>
             </div>

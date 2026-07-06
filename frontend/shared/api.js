@@ -298,11 +298,13 @@
     return res.json();
   }
 
-  async function apiDelete(path) {
+  async function apiDelete(path, body) {
     var c = requireApi();
-    var headers = await withAuthHeaders({});
+    var headers = await withAuthHeaders(body ? { "Content-Type": "application/json" } : {});
     var hasAuth = !!headers.Authorization;
-    var res = await fetch(c.apiBaseUrl.replace(/\/$/, "") + path, { method: "DELETE", headers: headers });
+    var options = { method: "DELETE", headers: headers };
+    if (body) options.body = JSON.stringify(body);
+    var res = await fetch(c.apiBaseUrl.replace(/\/$/, "") + path, options);
     if (!res.ok) {
       var dtext = "";
       try { dtext = await res.text(); } catch (e) {}
@@ -681,6 +683,24 @@
    */
   async function approveReviewerMatch(payload) {
     return apiPost("/reviewer/approve-match", payload);
+  }
+
+  /**
+   * Reviewer: soft-delete (archive) an agent. The agent leaves matching and
+   * suggestions; historical match records are kept. Requires reviewer auth.
+   * payload: { agentId }
+   */
+  async function deleteReviewerAgent(payload) {
+    return apiDelete("/reviewer/agents", payload);
+  }
+
+  /**
+   * Reviewer: soft-delete (archive) a client and/or lead so it leaves the
+   * active reviewer views. History is kept. Requires reviewer auth.
+   * payload: { clientId?, leadId?, scope?: "paired"|"up_for_review"|"closed"|"any" }
+   */
+  async function deleteReviewerClient(payload) {
+    return apiDelete("/reviewer/clients", payload);
   }
 
   /**
@@ -1163,6 +1183,8 @@
     fetchReviewerLocations: fetchReviewerLocations,
     fetchReviewerMatchSuggestions: fetchReviewerMatchSuggestions,
     approveReviewerMatch: approveReviewerMatch,
+    deleteReviewerAgent: deleteReviewerAgent,
+    deleteReviewerClient: deleteReviewerClient,
     updateReviewerClientStatus: updateReviewerClientStatus,
     updateReviewerLocation: updateReviewerLocation,
     deleteReviewerLocation: deleteReviewerLocation,

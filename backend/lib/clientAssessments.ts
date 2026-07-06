@@ -11,6 +11,8 @@ import { createNotification } from "./messages.js";
 import {
   sendClientAssessmentCompletedEmail,
   sendClientMatchReviewStartedEmail,
+  sendReviewerAssessmentSubmittedEmail,
+  sendReviewerMatchReviewStartedEmail,
   type EmailTarget,
 } from "./email.js";
 import { completeAssessmentLead, upsertAssessmentLeadStart } from "./assessmentLeads.js";
@@ -890,6 +892,32 @@ export async function submitClientAssessmentWithContact(
     emailStatus = "failed";
   }
 
+  // Reviewer/admin notification: reviewer_assessment_submitted. Sent for EVERY
+  // submitted assessment (any source) so the reviewer never has to guess who
+  // submitted. Best-effort: a failed/skipped reviewer email never affects the
+  // saved assessment or the client-facing flow.
+  try {
+    await sendReviewerAssessmentSubmittedEmail({
+      clientIdOrLeadId: clientId ?? params.leadId ?? assessmentId ?? null,
+      clientName: fullName,
+      clientEmail: params.contact.email ?? null,
+      clientPhone: params.contact.phone ?? null,
+      transactionIntentLabel: transactionIntentLabel ?? transactionIntent ?? null,
+      buyingMarket: buyingMarketCity,
+      sellingMarket: sellingMarketCity,
+      generalMarket: !buyingMarketCity && !sellingMarketCity ? marketCity : null,
+      clientArchetype: result.archetype,
+      assignedAgentName: agentDisplayName ?? null,
+      source: params.source,
+      submittedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(
+      "[clientAssessments] reviewer submitted email failed:",
+      error instanceof Error ? error.message : error
+    );
+  }
+
   // Reviewer-queue clients (source != qr) move into an active review/matching
   // state on completion. Let the client know their match is being reviewed. This
   // is best-effort and never blocks the saved assessment.
@@ -903,6 +931,26 @@ export async function submitClientAssessmentWithContact(
     } catch (error) {
       console.error(
         "[clientAssessments] review-started email failed:",
+        error instanceof Error ? error.message : error
+      );
+    }
+
+    // Reviewer/admin counterpart: match review has started for this client.
+    // Deduped per client + recipient so it sends exactly once per client.
+    try {
+      await sendReviewerMatchReviewStartedEmail({
+        clientIdOrLeadId: clientId ?? params.leadId ?? assessmentId ?? null,
+        clientName: fullName,
+        clientEmail: params.contact.email ?? null,
+        transactionIntentLabel: transactionIntentLabel ?? transactionIntent ?? null,
+        buyingMarket: buyingMarketCity,
+        sellingMarket: sellingMarketCity,
+        generalMarket: !buyingMarketCity && !sellingMarketCity ? marketCity : null,
+        status: "In the reviewer queue for matching",
+      });
+    } catch (error) {
+      console.error(
+        "[clientAssessments] reviewer review-started email failed:",
         error instanceof Error ? error.message : error
       );
     }

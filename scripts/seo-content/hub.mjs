@@ -158,6 +158,20 @@ export const HUB_PAGES = [
       },
     ],
     related: [],
+    // External references live here on the resources hub only, never in the
+    // global footer or on client-facing app pages.
+    additionalReading: [
+      {
+        href: "https://www.nar.realtor/",
+        label: "National Association of Realtors",
+        desc: "industry association information about Realtors and standards of practice",
+      },
+      {
+        href: "https://www.consumerfinance.gov/owning-a-home/",
+        label: "CFPB home buying resources",
+        desc: "official consumer guidance on mortgages and the home buying process",
+      },
+    ],
   },
   {
     path: "real-estate-agent-faq.html",

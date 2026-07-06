@@ -8,7 +8,7 @@ import {
   sendJson,
   HttpError,
 } from "../_lib/http.js";
-import { assignReviewerMatch } from "../../backend/lib/reviewerMatches.js";
+import { assignReviewerMatch, isMatchLane } from "../../backend/lib/reviewerMatches.js";
 import { requireReviewer } from "../../backend/lib/auth.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
@@ -16,11 +16,15 @@ const ROUTE = "reviewer/approve-match";
 
 /**
  * POST /api/reviewer/approve-match
- * Body: { clientId?, leadId?, agentId, score?, reason?, reviewerId?, replaceExisting? }
+ * Body: { clientId?, leadId?, agentId, score?, reason?, reviewerId?,
+ *         matchLane?, replaceExisting?, replaceReason? }
  *
- * Requires reviewer/admin auth. Finalizes the match: the client (or lead) gets
- * exactly ONE active match; the same agent may be active for unlimited clients.
- * If the client already has a DIFFERENT active agent and replaceExisting is not
+ * Requires reviewer/admin auth. Finalizes the match. Uniqueness is per client
+ * (or lead) + lane: a standard client has one active general match; a
+ * buying-and-selling client may hold one active buying match AND one active
+ * selling match (matchLane: "buying" | "selling" | "both" | "general"). The
+ * same agent may be active for unlimited clients. If the target already has a
+ * conflicting active match in an overlapping lane and replaceExisting is not
  * set, responds 409 CLIENT_ALREADY_MATCHED so the reviewer can confirm a replace.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -39,6 +43,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
     const replaceExisting = body.replaceExisting === true;
 
+    const matchLaneRaw = optionalString(body, "matchLane") ?? null;
+    if (matchLaneRaw && !isMatchLane(matchLaneRaw)) {
+      throw new HttpError(400, "Invalid matchLane. Expected buying, selling, both, or general.");
+    }
+
     let score: number | undefined;
     if (body.score !== undefined) {
       const parsed = Number(body.score);
@@ -56,7 +65,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         score,
         reason: optionalString(body, "reason"),
         reviewerId: optionalString(body, "reviewerId") ?? reviewer.profileId,
+        matchLane: matchLaneRaw,
         replaceExisting,
+        replaceReason: optionalString(body, "replaceReason"),
       });
       if (result.ok === false) {
         // Client already has a different active match; reviewer must confirm replace.

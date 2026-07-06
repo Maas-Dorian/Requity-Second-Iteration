@@ -620,6 +620,84 @@ h1, h2, h3, h4 {
     line-height: 1.65;
 }
 
+/* Brand link styling for in-content links (body copy, cards, FAQ answers).
+   Replaces default browser blue underlined links with REQUITY navy links and
+   a subtle underline that strengthens on hover. Focus stays clearly visible
+   for keyboard users. Buttons and nav/footer links keep their own styles. */
+.support-copy a,
+.card-copy a,
+.faq-answer a,
+.clean-card a,
+.card-title a,
+.trust-copy a,
+.waiting-copy a {
+    color: var(--primary-blue);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid var(--blue-border);
+    transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.support-copy a:hover,
+.card-copy a:hover,
+.faq-answer a:hover,
+.clean-card a:hover,
+.card-title a:hover,
+.trust-copy a:hover,
+.waiting-copy a:hover {
+    color: var(--primary-text);
+    border-bottom-color: var(--primary-blue);
+}
+
+.support-copy a:focus-visible,
+.card-copy a:focus-visible,
+.faq-answer a:focus-visible,
+.clean-card a:focus-visible,
+.card-title a:focus-visible,
+.trust-copy a:focus-visible,
+.waiting-copy a:focus-visible,
+.guide-links a:focus-visible {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* Compact Popular Guides link list: keeps homepage SEO links present without
+   large card blocks crowding the client conversion path. */
+.guide-links {
+    list-style: none;
+    padding: 0;
+    margin: 0 auto;
+    max-width: 720px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem 0.75rem;
+}
+
+.guide-links li {
+    margin: 0;
+}
+
+.guide-links a {
+    display: inline-block;
+    background: var(--white);
+    border: 1px solid var(--blue-border);
+    border-radius: 999px;
+    padding: 0.5rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--primary-blue);
+    text-decoration: none;
+    box-shadow: var(--shadow-card);
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.guide-links a:hover {
+    background: var(--primary-blue);
+    color: var(--white);
+}
+
 @keyframes rqColorShift {
     0%, 15% { color: var(--requity-blue); transform: translateY(0.05em) scale(1); }
     22% { color: var(--requity-blue); transform: translateY(-0.1em) scale(1.05); }

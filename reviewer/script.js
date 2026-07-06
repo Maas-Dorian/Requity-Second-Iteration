@@ -221,6 +221,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // endpoint whether this row is a clients row or an assessment_leads row.
             pipelineStatus: normalizeStatus(c.pipelineStatus || c.pipeline_status),
             rowKind: c.rowKind === 'lead' ? 'lead' : 'client',
+            // Raw intent + per-lane match status (Part 5: buying-and-selling
+            // clients can hold one active match per lane).
+            intent: String(c.transaction_intent || '').toLowerCase(),
+            laneStatus: c.laneStatus || null,
             status: statusLabel(c.pipelineStatus || c.pipeline_status),
             highestMatch: fits.length ? fits[0].name : null,
             highestMatchAgentId: fits.length ? fits[0].agentId : null,
@@ -411,11 +415,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     '<div class="queue-info">' +
                         '<h3>' + esc(client.name) + '</h3>' +
                         '<div class="queue-meta">Transaction: ' + esc(client.transaction) + ' &bull; Market: ' + esc(client.market) + ' &bull; ' + esc(client.archetype) + '</div>' +
+                        laneStatusHtml(client) +
                     '</div>' +
                     statusPillHtml(client.pipelineStatus) +
                 '</div>';
             elQueueList.insertAdjacentHTML('beforeend', html);
         });
+    }
+
+    // Lane summary for buying-and-selling clients still in the queue (Part 5):
+    // shows which side is already matched and which side still needs a match.
+    function laneStatusHtml(client) {
+        var ls = client && client.laneStatus;
+        if (!ls || !ls.activeMatches || !ls.activeMatches.length || ls.fullyMatched) return '';
+        var matched = ls.activeMatches.map(function (m) {
+            return esc(m.laneLabel || 'Match') + ' matched' + (m.agentName ? (' with ' + esc(m.agentName)) : '');
+        }).join(' &bull; ');
+        var needs = (ls.unmatchedLaneLabels || []).map(esc).join(', ');
+        return '<div class="queue-meta" style="margin-top:0.2rem;">' + matched +
+            (needs ? (' &bull; Still needs: ' + needs + ' match') : '') + '</div>';
     }
 
     function renderActiveClient() {
@@ -433,6 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elDecisionActions.classList.add('hidden');
             elDecisionSuccess.classList.add('hidden');
             elDecisionAgent.textContent = ', ';
+            updateLanePicker(null);
             return;
         }
 
@@ -508,6 +527,30 @@ document.addEventListener('DOMContentLoaded', () => {
         elDecisionActions.classList.remove('hidden');
         elDecisionSuccess.classList.add('hidden');
         elDecisionAgent.textContent = state.selectedAgentName || ', ';
+        updateLanePicker(client);
+    }
+
+    // Show the match-lane picker only for buying-and-selling clients, defaulting
+    // to the first lane that still needs a match (Part 5).
+    function updateLanePicker(client) {
+        var wrap = document.getElementById('decision-lane-wrap');
+        var select = document.getElementById('decision-lane');
+        if (!wrap || !select) return;
+        var isBoth = !!client && (client.intent === 'both' ||
+            (client.laneStatus && (client.laneStatus.requiredLanes || []).length > 1));
+        wrap.classList.toggle('hidden', !isBoth);
+        if (!isBoth) return;
+        var unmatched = (client.laneStatus && client.laneStatus.unmatchedLanes) || [];
+        var preferred = unmatched.length ? unmatched[0] : 'buying';
+        if (['buying', 'selling', 'both'].indexOf(preferred) !== -1) select.value = preferred;
+    }
+
+    // The lane the reviewer picked, or null when the picker is hidden.
+    function selectedMatchLane() {
+        var wrap = document.getElementById('decision-lane-wrap');
+        var select = document.getElementById('decision-lane');
+        if (!wrap || !select || wrap.classList.contains('hidden')) return null;
+        return select.value || null;
     }
 
     function updateSummary() {
@@ -557,14 +600,23 @@ document.addEventListener('DOMContentLoaded', () => {
         var reviewWarning = (p.agentHasLocation === false)
             ? '<div class="loc-row-warning">This recommendation needs location review. The paired agent has no market on file.</div>'
             : '';
+        // Lane badge (Part 5): a buying-and-selling client can appear with one
+        // card per lane (Buying / Selling), or a single combined Both card.
+        var laneBadge = (p.matchLaneLabel && p.matchLaneLabel !== 'General')
+            ? '<span class="badge badge-internal">' + esc(p.matchLaneLabel) + ' match</span>'
+            : '';
+        var statusTarget = (!p.clientId && p.leadId)
+            ? { kind: 'lead', id: p.leadId }
+            : { kind: 'client', id: p.clientId };
         return reviewWarning + '<div class="lead-top">' +
                 '<div><div class="lead-name">' + esc(p.clientName || 'Unknown client') + '</div>' +
                 '<div class="lead-contact">' + esc(p.clientEmail || 'no email') +
                     (p.clientArchetype ? (' &middot; ' + esc(p.clientArchetype)) : '') + '</div></div>' +
                 '<div class="lead-badges">' +
+                    laneBadge +
                     (fit ? ('<span class="badge badge-source">' + esc(fit) + '</span>') : '') +
                     '<div class="status-control"><span class="status-control-label">Status</span>' +
-                        statusSelectHtml(p.pipelineStatus, { kind: 'client', id: p.clientId }) +
+                        statusSelectHtml(p.pipelineStatus, statusTarget) +
                     '</div>' +
                 '</div>' +
             '</div>' +
@@ -575,6 +627,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 (p.agentEmail ? ('<span>Agent email <strong>' + esc(p.agentEmail) + '</strong></span>') : '') +
                 (p.agentArchetype ? ('<span>Agent archetype <strong>' + esc(p.agentArchetype) + '</strong></span>') : '') +
                 '<span>Matched <strong>' + fmtPairedDate(p.matchedAt) + '</strong></span>' +
+            '</div>' +
+            '<div style="margin-top:0.6rem; text-align:right;">' +
+                '<button type="button" class="btn btn-outline btn-sm" onclick="removePairedClient(\'' + esc(p.clientId || '') + '\', \'' + esc(p.leadId || '') + '\')">Remove paired client</button>' +
             '</div>';
     }
 
@@ -726,19 +781,33 @@ document.addEventListener('DOMContentLoaded', () => {
         payload.agentId = fit.agentId;
         payload.score = fit.fit != null ? fit.fit : undefined;
         payload.reason = fit.reason || undefined;
+        const lane = selectedMatchLane();
+        if (lane) payload.matchLane = lane;
         if (replaceExisting) payload.replaceExisting = true;
 
-        return Promise.resolve(window.RequityAPI.approveReviewerMatch(payload)).then(function () {
-            addLog((replaceExisting ? 'Replaced match: ' : 'Reviewer approved ') + fit.name + ' for ' + client.name + '. Client assigned and the agent was notified.');
-            removeClientFromQueue(client.id);
+        return Promise.resolve(window.RequityAPI.approveReviewerMatch(payload)).then(function (res) {
+            res = res || {};
+            const laneNote = res.matchLane && res.matchLane !== 'general' ? (' (' + res.matchLane + ' side)') : '';
+            addLog((replaceExisting ? 'Replaced match: ' : 'Reviewer approved ') + fit.name + laneNote + ' for ' + client.name + '. The agent was notified.');
             state.counts.scheduled++;
+            if (res.fullyMatched === false) {
+                // Buying-and-selling client with another lane still open: keep them
+                // visible in the queue and refresh so lane status is current.
+                const needs = (res.unmatchedLanes || []).join(', ');
+                addLog(client.name + ' still needs a ' + (needs || 'second') + ' match and stays in the review queue.');
+                loadQueue();
+            } else {
+                removeClientFromQueue(client.id);
+            }
         }).catch(function (err) {
             if (err && err.code === 'CLIENT_ALREADY_MATCHED') {
                 const active = (err.data && err.data.activeMatch) || {};
                 const currentName = active.agentName || 'another agent';
+                const laneLabel = active.matchLaneLabel && active.matchLaneLabel !== 'General'
+                    ? (active.matchLaneLabel.toLowerCase() + ' ') : '';
                 const ok = window.confirm(
-                    'This client already has an active agent match with ' + currentName + '. ' +
-                    'Replacing it will archive the previous match and make ' + fit.name + ' the current match.'
+                    'This client already has an active ' + laneLabel + 'match with ' + currentName + '. ' +
+                    'Replacing it will archive that match and make ' + fit.name + ' the current ' + laneLabel + 'match.'
                 );
                 if (ok) {
                     setDecisionBusy(true);
@@ -755,6 +824,65 @@ document.addEventListener('DOMContentLoaded', () => {
         const client = clients.find(function (c) { return c.id === state.activeClientId; });
         if (!client) return;
         addLog('Profile held for review: ' + client.name);
+    };
+
+    // Confirm helper: uses the shared modal when present, window.confirm otherwise.
+    function confirmAction(opts) {
+        if (window.requityConfirm) return window.requityConfirm(opts);
+        return Promise.resolve(window.confirm(opts.body || 'Are you sure?'));
+    }
+
+    // Part 6: soft-delete (archive) the active up-for-review client. Assessment
+    // history and match records are kept; the client just leaves active views.
+    window.deleteActiveClient = function () {
+        const client = clients.find(function (c) { return c.id === state.activeClientId; });
+        if (!client) return;
+        if (!window.RequityAPI || !window.RequityAPI.deleteReviewerClient) return;
+        confirmAction({
+            title: 'Delete client from review?',
+            body: 'Are you sure you want to delete this client from review? This will remove them from active reviewer queues but keep assessment history unless permanent deletion is explicitly supported.',
+            confirmLabel: 'Delete from review'
+        }).then(function (ok) {
+            if (!ok) return;
+            setDecisionBusy(true);
+            const payload = client.rowKind === 'lead'
+                ? { leadId: client.clientId, scope: 'up_for_review' }
+                : { clientId: client.clientId, scope: 'up_for_review' };
+            Promise.resolve(window.RequityAPI.deleteReviewerClient(payload)).then(function () {
+                addLog('Deleted ' + client.name + ' from review. Assessment history is kept.');
+                removeClientFromQueue(client.id);
+            }).catch(function (err) {
+                addLog('Could not delete ' + client.name + ' from review. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
+            }).finally(function () {
+                setDecisionBusy(false);
+            });
+        });
+    };
+
+    // Part 6: soft-delete (archive) a paired client card. History is kept.
+    window.removePairedClient = function (clientId, leadId) {
+        if (!window.RequityAPI || !window.RequityAPI.deleteReviewerClient) return;
+        if (!clientId && !leadId) return;
+        confirmAction({
+            title: 'Remove paired client?',
+            body: 'Are you sure you want to remove this paired client? This will archive the client from active reviewer views and keep historical match records.',
+            confirmLabel: 'Remove paired client'
+        }).then(function (ok) {
+            if (!ok) return;
+            const payload = { scope: 'paired' };
+            if (clientId) payload.clientId = clientId;
+            if (leadId) payload.leadId = leadId;
+            Promise.resolve(window.RequityAPI.deleteReviewerClient(payload)).then(function () {
+                pairedClients = pairedClients.filter(function (p) {
+                    if (clientId) return p.clientId !== clientId;
+                    return p.leadId !== leadId;
+                });
+                addLog('Removed the paired client from active views. Match history is kept.');
+                renderPaired();
+            }).catch(function (err) {
+                addLog('Could not remove the paired client. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
+            });
+        });
     };
 
     window.openAutoModal = function () {

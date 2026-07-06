@@ -13,6 +13,8 @@ import {
 import {
   sendClientMatchedEmail,
   sendClientMatchedGetToKnowAgentEmail,
+  sendReviewerMatchFinalizedEmail,
+  sendReviewerMatchReplacedEmail,
   type EmailTarget,
 } from "./email.js";
 import { insertWithSchemaFallback } from "./supabaseWrite.js";
@@ -117,6 +119,85 @@ export type RankedAgent = MatchResult & {
  * kept so pairings created before the migration still count as current.
  */
 export const ACTIVE_MATCH_STATUSES = ["active", "assigned", "approved"] as const;
+
+// --- Match lanes (Part 5) ----------------------------------------------------
+// A buying-and-selling client may hold one active BUYING match and one active
+// SELLING match at the same time (or a single BOTH match when one agent covers
+// both sides). Standard clients use the GENERAL lane, preserving the original
+// one-active-match behavior exactly.
+
+export const MATCH_LANES = ["buying", "selling", "both", "general"] as const;
+export type MatchLane = (typeof MATCH_LANES)[number];
+
+export function isMatchLane(value: unknown): value is MatchLane {
+  return typeof value === "string" && (MATCH_LANES as readonly string[]).includes(value);
+}
+
+/** Reviewer-facing label for a lane. */
+export function matchLaneLabel(lane: string | null | undefined): string {
+  const v = (lane ?? "general").toString().toLowerCase();
+  if (v === "buying") return "Buying";
+  if (v === "selling") return "Selling";
+  if (v === "both") return "Buying and Selling";
+  return "General";
+}
+
+/** The lane of a match row, defaulting rows written before migration 0011. */
+function laneOfRow(row: any): MatchLane {
+  return isMatchLane(row?.match_lane) ? row.match_lane : "general";
+}
+
+/** The default lane for a client's transaction intent when none is specified. */
+export function defaultLaneForIntent(intent: string | null | undefined): MatchLane {
+  const v = (intent ?? "").toString().toLowerCase();
+  if (v === "buying") return "buying";
+  if (v === "selling") return "selling";
+  if (v === "both") return "both";
+  return "general";
+}
+
+/** The lanes a client needs covered before they are fully matched. */
+export function requiredLanesForIntent(intent: string | null | undefined): MatchLane[] {
+  const v = (intent ?? "").toString().toLowerCase();
+  if (v === "both") return ["buying", "selling"];
+  if (v === "buying") return ["buying"];
+  if (v === "selling") return ["selling"];
+  return ["general"];
+}
+
+/**
+ * True when two lanes cannot be active at the same time for one client.
+ * 'both' and 'general' cover everything (general is the legacy whole-client
+ * lane); 'buying' and 'selling' only conflict with themselves (+ both/general),
+ * which is exactly what allows a both-client to hold two lane matches.
+ */
+export function lanesOverlap(a: MatchLane, b: MatchLane): boolean {
+  if (a === b) return true;
+  if (a === "both" || a === "general") return true;
+  if (b === "both" || b === "general") return true;
+  return false;
+}
+
+/** The required lanes covered by a set of active lanes (both/general cover all). */
+function coveredLanes(required: MatchLane[], activeLanes: MatchLane[]): Set<MatchLane> {
+  const covered = new Set<MatchLane>();
+  for (const lane of required) {
+    if (activeLanes.some((active) => lanesOverlap(active, lane))) covered.add(lane);
+  }
+  return covered;
+}
+
+// --- Reviewer soft delete (Part 6/7) ----------------------------------------
+/**
+ * True when a row has been archived/soft-deleted by a reviewer. Checked in
+ * code (not in the query) so a live schema without the archived_at columns
+ * keeps working unchanged.
+ */
+export function isArchivedRow(row: any): boolean {
+  if (!row) return false;
+  if (row.archived_at || row.deleted_at) return true;
+  return (row.status ?? "") === "archived";
+}
 
 // --- Location-aware ranking -------------------------------------------------
 
@@ -359,7 +440,11 @@ export async function rankAgentsForClient(clientId: string): Promise<RankedAgent
     .not("archetype", "is", null);
   if (agentError) throw new Error(`rankAgentsForClient agents failed: ${agentError.message}`);
 
-  return rankAgentsForClientLocationAware(clientRow, agentRows ?? []);
+  // Archived agents are never suggested for new matches (Part 6/7).
+  return rankAgentsForClientLocationAware(
+    clientRow,
+    (agentRows ?? []).filter((a) => !isArchivedRow(a))
+  );
 }
 
 export type CreateReviewerClientMatchParams = {
@@ -423,6 +508,8 @@ export async function listReviewerQueue(): Promise<ReviewerQueueItem[]> {
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     for (const client of clients ?? []) {
+      // Archived (soft deleted) clients never appear in active views (Part 7).
+      if (isArchivedRow(client)) continue;
       const rankings = await rankAgentsForClient(client.id);
       const enriched = attachClientReport(client) as any;
       enriched.rowKind = "client";
@@ -443,6 +530,29 @@ export async function listReviewerQueue(): Promise<ReviewerQueueItem[]> {
   } catch (error) {
     // Never let the fallback break the primary queue.
     console.error("[reviewerMatches] lead-based queue fallback skipped:", error);
+  }
+
+  // --- Lane status (Part 5): partially matched both-clients stay visible ---
+  // Each queue row learns which lanes are already matched (and with whom) and
+  // which lanes still need a match, so the reviewer UI can show
+  // "Buying matched, selling still needs a match" instead of hiding the client.
+  try {
+    const clientIds = queue
+      .filter((i) => i.client?.rowKind !== "lead" && i.client?.id)
+      .map((i) => i.client.id as string);
+    const leadIds = queue
+      .filter((i) => i.client?.rowKind === "lead" && i.client?.id)
+      .map((i) => i.client.id as string);
+    const activeByTarget = await getActiveMatchRowsForTargets(clientIds, leadIds);
+    for (const item of queue) {
+      const key = `${item.client?.rowKind === "lead" ? "lead" : "client"}:${item.client?.id}`;
+      item.client.laneStatus = buildLaneStatus(
+        item.client?.transaction_intent ?? null,
+        activeByTarget.get(key) ?? []
+      );
+    }
+  } catch (error) {
+    console.error("[reviewerMatches] queue lane status unavailable:", error);
   }
 
   // Informational "currently matched with X client(s)" note on each agent card.
@@ -496,18 +606,34 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
     }
   }
 
-  // Fetch rankable agents once for all lead-derived items.
-  const { data: agentRows } = await supabase
+  // Fetch rankable agents once for all lead-derived items (archived excluded).
+  const { data: agentRowsRaw } = await supabase
     .from("agents")
     .select("*")
     .not("archetype", "is", null);
+  const agentRows = (agentRowsRaw ?? []).filter((a) => !isArchivedRow(a));
+
+  // Fully matched leads leave the queue; partially matched both-leads stay.
+  const leadIdsForStatus = (leads as any[])
+    .map((l) => l.id)
+    .filter(Boolean) as string[];
+  const activeByLead = await getActiveMatchRowsForTargets([], leadIdsForStatus);
 
   const items: ReviewerQueueItem[] = [];
   for (const lead of leads as any[]) {
+    // Archived (soft deleted) leads never appear in active views (Part 7).
+    if (isArchivedRow(lead)) continue;
     const email = lead.email ? String(lead.email).toLowerCase() : null;
     // Without an email we cannot dedupe reliably; skip to avoid resurfacing
     // assessments that were already assigned.
     if (!email || existingClientEmails.has(email)) continue;
+    // Skip leads whose required lanes are already fully covered by active
+    // matches (they belong in Paired Clients, not Up for Review).
+    const leadLaneStatus = buildLaneStatus(
+      lead.transaction_intent ?? null,
+      activeByLead.get(`lead:${lead.id}`) ?? []
+    );
+    if (leadLaneStatus.fullyMatched && leadLaneStatus.activeMatches.length) continue;
 
     const scored = assignArchetype((lead.partial_answers as Record<string, string>) || {});
     const archetype = isApprovedClientArchetype(lead.archetype) ? lead.archetype : scored.archetype;
@@ -559,6 +685,11 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
 export type PairedClientItem = {
   matchId: string | null;
   clientId: string | null;
+  /** Set when the pairing is backed by an assessment_leads row (no clients row). */
+  leadId?: string | null;
+  /** Which side of the transaction this match covers (Part 5). */
+  matchLane?: MatchLane;
+  matchLaneLabel?: string;
   clientName: string | null;
   clientEmail: string | null;
   clientArchetype: string | null;
@@ -597,13 +728,17 @@ function cleanText(value: unknown): string | null {
  */
 export async function listPairedClients(): Promise<PairedClientItem[]> {
   const supabase = getSupabaseAdmin();
-  const byClient = new Map<string, PairedClientItem>();
+  // Keyed by client (or lead) + lane so a buying-and-selling client with TWO
+  // active matches shows BOTH pairings (newest per lane wins). Archived clients,
+  // leads, and agents are excluded from this active view (Part 7).
+  const byClientLane = new Map<string, PairedClientItem>();
   // Only CURRENT/active pairings. Superseded/declined/archived never show here.
   const PAIRED_STATUSES = ACTIVE_MATCH_STATUSES as unknown as string[];
 
   const pushItem = (item: PairedClientItem) => {
-    const key = item.clientId ?? item.matchId ?? `${item.clientName}:${item.agentId}`;
-    if (key && !byClient.has(key)) byClient.set(key, item);
+    const target = item.clientId ?? item.leadId ?? item.matchId ?? `${item.clientName}:${item.agentId}`;
+    const key = `${target}:${item.matchLane ?? "general"}`;
+    if (target && !byClientLane.has(key)) byClientLane.set(key, item);
   };
 
   // --- Primary: match_recommendations joined to clients + agents ----------
@@ -614,12 +749,40 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
       .in("status", PAIRED_STATUSES)
       .order("reviewed_at", { ascending: false });
     if (error) throw new Error(error.message);
-    for (const row of (data ?? []) as any[]) {
-      const client = row.clients ?? {};
+
+    const rows = (data ?? []) as any[];
+
+    // Lead-backed pairings (lead_id, no clients row) get their contact fields
+    // from assessment_leads so the reviewer still sees who was paired.
+    const leadIds = Array.from(
+      new Set(rows.filter((r) => !r.clients && r.lead_id).map((r) => r.lead_id))
+    ) as string[];
+    const leadById = new Map<string, any>();
+    if (leadIds.length) {
+      try {
+        const { data: leadRows } = await supabase
+          .from("assessment_leads")
+          .select("*")
+          .in("id", leadIds);
+        for (const l of (leadRows ?? []) as any[]) leadById.set(l.id, l);
+      } catch {
+        /* lead fields stay empty; the pairing is still listed */
+      }
+    }
+
+    for (const row of rows) {
+      const lead = !row.clients && row.lead_id ? leadById.get(row.lead_id) ?? null : null;
+      const client = row.clients ?? lead ?? {};
       const agent = row.agents ?? {};
+      // Archived clients/leads/agents never show in the active paired view.
+      if (isArchivedRow(row.clients) || isArchivedRow(lead) || isArchivedRow(agent)) continue;
+      const lane = laneOfRow(row);
       pushItem({
         matchId: row.id ?? null,
-        clientId: client.id ?? row.client_id ?? null,
+        clientId: row.clients?.id ?? row.client_id ?? null,
+        leadId: row.lead_id ?? null,
+        matchLane: lane,
+        matchLaneLabel: matchLaneLabel(lane),
         clientName: cleanText(client.full_name),
         clientEmail: cleanText(client.email),
         clientArchetype: cleanText(client.archetype),
@@ -646,6 +809,11 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
   }
 
   // --- Resilience: assigned clients not already represented above ---------
+  const representedClients = new Set(
+    Array.from(byClientLane.values())
+      .map((i) => i.clientId)
+      .filter(Boolean) as string[]
+  );
   try {
     const { data, error } = await supabase
       .from("clients")
@@ -655,11 +823,17 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     for (const client of (data ?? []) as any[]) {
-      if (client.id && byClient.has(client.id)) continue;
+      if (client.id && representedClients.has(client.id)) continue;
+      if (isArchivedRow(client)) continue;
       const agent = client.agents ?? {};
+      if (isArchivedRow(agent)) continue;
+      const lane = defaultLaneForIntent(client.transaction_intent);
       pushItem({
         matchId: null,
         clientId: client.id ?? null,
+        leadId: null,
+        matchLane: lane,
+        matchLaneLabel: matchLaneLabel(lane),
         clientName: cleanText(client.full_name),
         clientEmail: cleanText(client.email),
         clientArchetype: cleanText(client.archetype),
@@ -685,7 +859,7 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
     console.error("[reviewerMatches] paired (clients fallback) unavailable:", error);
   }
 
-  return Array.from(byClient.values());
+  return Array.from(byClientLane.values());
 }
 
 export type ApproveReviewerMatchResult = {
@@ -694,14 +868,20 @@ export type ApproveReviewerMatchResult = {
   clientId: string | null;
   leadId: string | null;
   agentId: string;
+  /** The lane this match covers (buying / selling / both / general). */
+  matchLane: MatchLane;
   notified: boolean;
   emailed: boolean;
   clientEmailed: boolean;
-  /** True when this finalization replaced a previous active client match. */
+  /** True when this finalization replaced a previous active match in this lane. */
   replaced: boolean;
+  /** True when every required lane for this client is now covered. */
+  fullyMatched: boolean;
+  /** Lanes that still need a match (empty when fullyMatched). */
+  unmatchedLanes: MatchLane[];
 };
 
-/** Returned (never thrown) when a client already has a different active match. */
+/** Returned (never thrown) when a client already has a conflicting active match. */
 export type ClientAlreadyMatchedResult = {
   ok: false;
   code: "CLIENT_ALREADY_MATCHED";
@@ -710,6 +890,8 @@ export type ClientAlreadyMatchedResult = {
     agentId: string | null;
     agentName: string | null;
     matchedAt: string | null;
+    matchLane?: MatchLane;
+    matchLaneLabel?: string;
   };
 };
 
@@ -755,18 +937,19 @@ export async function getAgentActiveMatchCounts(): Promise<Map<string, number>> 
 }
 
 /**
- * The current active match for a client or lead (newest first), joined to the
- * agent so callers can report who the client is already matched with. Tolerates
- * an un-migrated schema by matching the historical statuses too.
+ * ALL current active matches for a client or lead (newest first), joined to the
+ * agent so callers can report who the client is already matched with. A client
+ * may legitimately hold multiple rows (one per lane). Tolerates an un-migrated
+ * schema by matching the historical statuses too.
  */
-async function findActiveMatchForTarget(target: {
+async function findActiveMatchesForTarget(target: {
   clientId?: string | null;
   leadId?: string | null;
-}): Promise<any | null> {
+}): Promise<any[]> {
   const supabase = getSupabaseAdmin();
   const column = target.clientId ? "client_id" : target.leadId ? "lead_id" : null;
   const value = target.clientId ?? target.leadId ?? null;
-  if (!column || !value) return null;
+  if (!column || !value) return [];
   try {
     const { data, error } = await supabase
       .from("match_recommendations")
@@ -776,37 +959,24 @@ async function findActiveMatchForTarget(target: {
       .order("finalized_at", { ascending: false })
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    const rows = (data ?? []) as any[];
-    return rows.length ? rows[0] : null;
+    return (data ?? []) as any[];
   } catch (error) {
     // lead_id may not exist on an un-migrated schema; degrade to "no active match".
-    console.error("[reviewerMatches] findActiveMatch unavailable:", error);
-    return null;
+    console.error("[reviewerMatches] findActiveMatches unavailable:", error);
+    return [];
   }
 }
 
-/** Supersede every current active match for a client/lead. Returns their ids. */
-async function supersedeActiveMatches(target: {
-  clientId?: string | null;
-  leadId?: string | null;
-}): Promise<string[]> {
+/**
+ * Supersede the given active match rows (used when a lane match is replaced).
+ * Only the rows passed in are touched, so replacing a buying match never
+ * supersedes an active selling match.
+ */
+async function supersedeMatchRows(rows: any[]): Promise<string[]> {
   const supabase = getSupabaseAdmin();
-  const column = target.clientId ? "client_id" : target.leadId ? "lead_id" : null;
-  const value = target.clientId ?? target.leadId ?? null;
-  if (!column || !value) return [];
-  const now = new Date().toISOString();
-  const ids: string[] = [];
-  try {
-    const { data } = await supabase
-      .from("match_recommendations")
-      .select("id")
-      .eq(column, value)
-      .in("status", ACTIVE_MATCH_STATUSES as unknown as string[]);
-    for (const r of (data ?? []) as any[]) if (r.id) ids.push(r.id);
-  } catch {
-    /* ignore lookup issues */
-  }
+  const ids = rows.map((r) => r?.id).filter(Boolean) as string[];
   if (!ids.length) return [];
+  const now = new Date().toISOString();
   // Try the canonical 'superseded' status; fall back to 'rejected' if the DB
   // has not been migrated to the widened status CHECK yet (both remove the row
   // from the active set so a new active match can be created).
@@ -820,6 +990,88 @@ async function supersedeActiveMatches(target: {
     console.error("[reviewerMatches] supersede failed:", error.message);
   }
   return ids;
+}
+
+// --- Per-client lane status (Part 5 reviewer visibility) --------------------
+
+export type ClientLaneMatch = {
+  matchId: string | null;
+  lane: MatchLane;
+  laneLabel: string;
+  agentId: string | null;
+  agentName: string | null;
+};
+
+export type ClientLaneStatus = {
+  requiredLanes: MatchLane[];
+  activeMatches: ClientLaneMatch[];
+  unmatchedLanes: MatchLane[];
+  /** Reviewer-facing labels of lanes still needing a match. */
+  unmatchedLaneLabels: string[];
+  fullyMatched: boolean;
+};
+
+/** Build the lane status for one client/lead row from its active match rows. */
+function buildLaneStatus(intent: string | null | undefined, activeRows: any[]): ClientLaneStatus {
+  const required = requiredLanesForIntent(intent);
+  const activeMatches: ClientLaneMatch[] = (activeRows ?? []).map((row) => ({
+    matchId: row.id ?? null,
+    lane: laneOfRow(row),
+    laneLabel: matchLaneLabel(laneOfRow(row)),
+    agentId: row.agent_id ?? null,
+    agentName: cleanText((row.agents as any)?.display_name),
+  }));
+  const covered = coveredLanes(required, activeMatches.map((m) => m.lane));
+  const unmatched = required.filter((lane) => !covered.has(lane));
+  return {
+    requiredLanes: required,
+    activeMatches,
+    unmatchedLanes: unmatched,
+    unmatchedLaneLabels: unmatched.map((l) => matchLaneLabel(l)),
+    fullyMatched: unmatched.length === 0,
+  };
+}
+
+/**
+ * Active match rows for many clients/leads in two bounded queries. Keys are
+ * `client:<id>` / `lead:<id>`. Missing table/columns degrade to an empty map.
+ */
+async function getActiveMatchRowsForTargets(
+  clientIds: string[],
+  leadIds: string[]
+): Promise<Map<string, any[]>> {
+  const supabase = getSupabaseAdmin();
+  const out = new Map<string, any[]>();
+  const push = (key: string, row: any) => {
+    const list = out.get(key) ?? [];
+    list.push(row);
+    out.set(key, list);
+  };
+  try {
+    if (clientIds.length) {
+      const { data } = await supabase
+        .from("match_recommendations")
+        .select("id, client_id, agent_id, match_lane, status, agents(display_name)")
+        .in("client_id", clientIds)
+        .in("status", ACTIVE_MATCH_STATUSES as unknown as string[]);
+      for (const row of (data ?? []) as any[]) {
+        if (row.client_id) push(`client:${row.client_id}`, row);
+      }
+    }
+    if (leadIds.length) {
+      const { data } = await supabase
+        .from("match_recommendations")
+        .select("id, lead_id, agent_id, match_lane, status, agents(display_name)")
+        .in("lead_id", leadIds)
+        .in("status", ACTIVE_MATCH_STATUSES as unknown as string[]);
+      for (const row of (data ?? []) as any[]) {
+        if (row.lead_id) push(`lead:${row.lead_id}`, row);
+      }
+    }
+  } catch (error) {
+    console.error("[reviewerMatches] active match lookup unavailable:", error);
+  }
+  return out;
 }
 
 /** Insert a new ACTIVE match row, tolerating missing columns / un-migrated status. */
@@ -858,16 +1110,24 @@ async function finalizeAssignment(
   party: any,
   agent: any,
   target: { clientId: string | null; leadId: string | null },
-  matchLabel?: string | null
+  matchLabel?: string | null,
+  options?: {
+    /**
+     * When false (a buying-and-selling client with a lane still unmatched) the
+     * clients row keeps status reviewer_matching so it stays in Up for Review
+     * until the remaining lane is matched. The agent assignment still happens.
+     */
+    markAssigned?: boolean;
+  }
 ): Promise<{ notified: boolean; emailed: boolean; clientEmailed: boolean }> {
   const supabase = getSupabaseAdmin();
   const targetId = target.clientId ?? target.leadId ?? party?.id ?? "unknown";
+  const markAssigned = options?.markAssigned !== false;
 
   if (target.clientId) {
-    await supabase
-      .from("clients")
-      .update({ assigned_agent_id: agent.id, status: "assigned" })
-      .eq("id", target.clientId);
+    const update: Record<string, unknown> = { assigned_agent_id: agent.id };
+    if (markAssigned) update.status = "assigned";
+    await supabase.from("clients").update(update).eq("id", target.clientId);
   }
 
   let notified = false;
@@ -960,16 +1220,58 @@ export type AssignReviewerMatchParams = {
   score?: number;
   reason?: string;
   reviewerId?: string | null;
-  /** Replace the client's existing active match instead of returning a 409. */
+  /**
+   * The lane this match covers (buying / selling / both / general). When
+   * omitted, it defaults from the client's transaction intent, so standard
+   * clients keep the original single-active-match behavior.
+   */
+  matchLane?: string | null;
+  /** Replace the conflicting active match(es) instead of returning a 409. */
   replaceExisting?: boolean;
+  /** Optional reviewer-entered reason shown in the replacement email. */
+  replaceReason?: string | null;
 };
 
+/** Best-effort lookup of the acting reviewer's email for reviewer emails. */
+async function reviewerEmailForProfile(reviewerId: string | null | undefined): Promise<string | null> {
+  const id = (reviewerId ?? "").trim();
+  if (!id) return null;
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase.from("profiles").select("email").eq("id", id).maybeSingle();
+    return (data?.email ?? "").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Short reviewer-facing location summary for the finalized email. */
+function locationMatchSummary(party: any, agent: any): string | null {
+  const agentMarket = [cleanText(agent?.market_city), cleanText(agent?.market_state)]
+    .filter(Boolean)
+    .join(", ");
+  const parts: string[] = [];
+  if (agentMarket) parts.push(`Agent market ${agentMarket}`);
+  const buy = cleanText(party?.buying_market_city);
+  const sell = cleanText(party?.selling_market_city);
+  const general = cleanText(party?.market_city);
+  if (buy) parts.push(`Client buying market ${buy}`);
+  if (sell) parts.push(`Client selling market ${sell}`);
+  if (!buy && !sell && general) parts.push(`Client market ${general}`);
+  return parts.length ? parts.join(". ") : null;
+}
+
 /**
- * Reviewer finalizes a match: the client (or lead) gets exactly ONE active
- * match; the same agent may be active for unlimited clients. If the client
- * already has a DIFFERENT active agent and `replaceExisting` is not set, returns
- * a CLIENT_ALREADY_MATCHED result (the API layer turns this into a 409). When
- * replacing, the previous active match is superseded first.
+ * Reviewer finalizes a match. Uniqueness is per client (or lead) + LANE:
+ *  - a standard client has one active general match,
+ *  - a buying-and-selling client may hold one active buying match and one
+ *    active selling match (or one combined "both" match),
+ *  - the same agent may be active for unlimited clients.
+ * If the target already has a conflicting active match in an overlapping lane
+ * and `replaceExisting` is not set, returns a CLIENT_ALREADY_MATCHED result
+ * (the API layer turns this into a 409). When replacing, ONLY the overlapping
+ * lane match(es) are superseded: replacing a buying match never touches an
+ * active selling match.
  */
 export async function assignReviewerMatch(
   params: AssignReviewerMatchParams
@@ -981,6 +1283,9 @@ export async function assignReviewerMatch(
   if (!clientId && !leadId) {
     throw new Error("assignReviewerMatch requires a clientId or leadId.");
   }
+  if (params.matchLane != null && params.matchLane !== "" && !isMatchLane(params.matchLane)) {
+    throw new Error("Invalid matchLane. Expected one of: buying, selling, both, general.");
+  }
 
   const { data: agent, error: agentError } = await supabase
     .from("agents")
@@ -988,6 +1293,9 @@ export async function assignReviewerMatch(
     .eq("id", params.agentId)
     .single();
   if (agentError) throw new Error(`assignReviewerMatch agent failed: ${agentError.message}`);
+  if (isArchivedRow(agent)) {
+    throw new Error("This agent has been deleted and can no longer be matched.");
+  }
 
   // Load the client (or lead) row for names/email/market. Missing is tolerated.
   let party: any = null;
@@ -1004,40 +1312,68 @@ export async function assignReviewerMatch(
     party = data ?? null;
   }
 
-  // Enforce single active match per client/lead.
-  const existing = await findActiveMatchForTarget({ clientId, leadId });
+  const lane: MatchLane = isMatchLane(params.matchLane)
+    ? params.matchLane
+    : defaultLaneForIntent(party?.transaction_intent);
+
+  // Enforce one active match per client/lead + lane. Only OVERLAPPING lanes
+  // conflict, so a both-client can hold a buying and a selling match at once.
+  const existingActive = await findActiveMatchesForTarget({ clientId, leadId });
+  const conflicting = existingActive.filter((row) => lanesOverlap(laneOfRow(row), lane));
   let replaced = false;
-  if (existing) {
-    if (existing.agent_id === params.agentId) {
-      // Same agent already active: idempotent success, do not duplicate.
-      console.log("MATCH_ALREADY_ACTIVE_SAME_AGENT", { clientId, leadId, agentId: params.agentId });
-      return {
-        ok: true,
-        matchId: existing.id,
+  let replacedRow: any = null;
+  if (conflicting.length) {
+    const newest = conflicting[0];
+    if (newest.agent_id === params.agentId && laneOfRow(newest) === lane) {
+      // Same agent already active in this lane: idempotent success.
+      console.log("MATCH_ALREADY_ACTIVE_SAME_AGENT", {
         clientId,
         leadId,
         agentId: params.agentId,
+        matchLane: lane,
+      });
+      const laneStatus = buildLaneStatus(party?.transaction_intent, existingActive);
+      return {
+        ok: true,
+        matchId: newest.id,
+        clientId,
+        leadId,
+        agentId: params.agentId,
+        matchLane: lane,
         notified: false,
         emailed: false,
         clientEmailed: false,
         replaced: false,
+        fullyMatched: laneStatus.fullyMatched,
+        unmatchedLanes: laneStatus.unmatchedLanes,
       };
     }
     if (!params.replaceExisting) {
-      console.log("MATCH_CLIENT_ALREADY_MATCHED", { clientId, leadId, existingAgentId: existing.agent_id });
+      console.log("MATCH_CLIENT_ALREADY_MATCHED", {
+        clientId,
+        leadId,
+        existingAgentId: newest.agent_id,
+        matchLane: lane,
+      });
       return {
         ok: false,
         code: "CLIENT_ALREADY_MATCHED",
-        message: "This client already has an active agent match.",
+        message:
+          lane === "general" || lane === "both"
+            ? "This client already has an active agent match."
+            : `This client already has an active ${matchLaneLabel(lane).toLowerCase()} match.`,
         activeMatch: {
-          agentId: existing.agent_id ?? null,
-          agentName: (existing.agents as any)?.display_name ?? null,
-          matchedAt: existing.finalized_at ?? existing.reviewed_at ?? existing.created_at ?? null,
+          agentId: newest.agent_id ?? null,
+          agentName: (newest.agents as any)?.display_name ?? null,
+          matchedAt: newest.finalized_at ?? newest.reviewed_at ?? newest.created_at ?? null,
+          matchLane: laneOfRow(newest),
+          matchLaneLabel: matchLaneLabel(laneOfRow(newest)),
         },
       };
     }
-    await supersedeActiveMatches({ clientId, leadId });
+    await supersedeMatchRows(conflicting);
     replaced = true;
+    replacedRow = newest;
   }
 
   const score = params.score ?? 0;
@@ -1049,38 +1385,103 @@ export async function assignReviewerMatch(
     label: labelForScore(score),
     reason: params.reason ?? null,
     reviewer_id: params.reviewerId ?? null,
+    match_lane: lane,
     reviewed_at: now,
     finalized_at: now,
   });
 
   if (replaced) {
     // Link the superseded rows to the new active match (best effort).
-    const col = clientId ? "client_id" : "lead_id";
-    const val = clientId ?? leadId;
-    await supabase
-      .from("match_recommendations")
-      .update({ superseded_by: matchId })
-      .eq(col, val)
-      .in("status", ["superseded"]);
+    const supersededIds = conflicting.map((r) => r.id).filter(Boolean) as string[];
+    if (supersededIds.length) {
+      await supabase
+        .from("match_recommendations")
+        .update({ superseded_by: matchId })
+        .in("id", supersededIds);
+    }
   }
+
+  // Lane coverage AFTER this match: remaining non-conflicting actives + new one.
+  const remainingActive = existingActive.filter((row) => !lanesOverlap(laneOfRow(row), lane));
+  const laneStatus = buildLaneStatus(party?.transaction_intent, [
+    ...remainingActive,
+    { id: matchId, agent_id: agent.id, match_lane: lane, agents: agent },
+  ]);
 
   const { notified, emailed, clientEmailed } = await finalizeAssignment(
     party ?? { id: clientId ?? leadId },
     agent,
     { clientId, leadId },
-    labelForScore(score)
+    labelForScore(score),
+    { markAssigned: laneStatus.fullyMatched }
   );
-  console.log("MATCH_FINALIZED_ACTIVE", { clientId, leadId, agentId: agent.id, replaced });
+
+  // Reviewer/admin matching-activity email (Part 4). Best-effort; never blocks
+  // the match. A replacement sends the "match replaced" email (with old + new
+  // agent); a first-time finalization sends "match finalized".
+  const reviewerEmail = await reviewerEmailForProfile(params.reviewerId);
+  const targetIdForEmail = clientId ?? leadId ?? null;
+  try {
+    if (replaced) {
+      const oldAgent = (replacedRow?.agents as any) ?? {};
+      await sendReviewerMatchReplacedEmail({
+        clientIdOrLeadId: targetIdForEmail,
+        oldAgentId: replacedRow?.agent_id ?? null,
+        newAgentId: agent.id ?? null,
+        clientName: party?.full_name ?? null,
+        oldAgentName: oldAgent.display_name ?? null,
+        oldAgentEmail: oldAgent.email ?? null,
+        newAgentName: agent.display_name ?? null,
+        newAgentEmail: agent.email ?? null,
+        matchType: lane,
+        replacedAt: now,
+        reviewerEmail,
+        reason: params.replaceReason ?? null,
+      });
+    } else {
+      await sendReviewerMatchFinalizedEmail({
+        clientIdOrLeadId: targetIdForEmail,
+        agentId: agent.id ?? null,
+        clientName: party?.full_name ?? null,
+        clientEmail: party?.email ?? null,
+        agentName: agent.display_name ?? null,
+        agentEmail: agent.email ?? null,
+        matchType: lane,
+        clientArchetype: party?.archetype ?? null,
+        agentArchetype: agent.archetype ?? null,
+        locationSummary: locationMatchSummary(party, agent),
+        finalizedAt: now,
+        reviewerEmail,
+      });
+    }
+  } catch (error) {
+    console.error(
+      "[reviewerMatches] reviewer match email failed:",
+      error instanceof Error ? error.message : error
+    );
+  }
+
+  console.log("MATCH_FINALIZED_ACTIVE", {
+    clientId,
+    leadId,
+    agentId: agent.id,
+    matchLane: lane,
+    replaced,
+    fullyMatched: laneStatus.fullyMatched,
+  });
   return {
     ok: true,
     matchId,
     clientId,
     leadId,
     agentId: agent.id,
+    matchLane: lane,
     notified,
     emailed,
     clientEmailed,
     replaced,
+    fullyMatched: laneStatus.fullyMatched,
+    unmatchedLanes: laneStatus.unmatchedLanes,
   };
 }
 
@@ -1110,6 +1511,7 @@ export async function approveReviewerMatch(
     score: typeof (match as any).score === "number" ? (match as any).score : undefined,
     reason: (match as any).reason ?? undefined,
     reviewerId: reviewerId ?? (match as any).reviewer_id ?? null,
+    matchLane: isMatchLane((match as any).match_lane) ? (match as any).match_lane : null,
     replaceExisting,
   });
 }
@@ -1281,7 +1683,7 @@ export async function listReviewerLocations(
   const eligibilityFilter = (filters.eligibility ?? "").trim();
   const stateAbbr = stateFilter ? (normalizeState(stateFilter) ?? stateFilter.toUpperCase()) : null;
 
-  // --- Load bounded source data ------------------------------------------
+  // --- Load bounded source data (archived rows excluded, Part 7) ----------
   const clientRows: any[] = [];
   try {
     const { data } = await supabase
@@ -1289,7 +1691,10 @@ export async function listReviewerLocations(
       .select("*, agents:assigned_agent_id(display_name)")
       .order("created_at", { ascending: false })
       .limit(1000);
-    for (const c of data ?? []) clientRows.push({ ...c, __rowKind: "client" });
+    for (const c of data ?? []) {
+      if (isArchivedRow(c)) continue;
+      clientRows.push({ ...c, __rowKind: "client" });
+    }
   } catch (error) {
     console.error("[reviewerMatches] locations clients load failed:", error);
   }
@@ -1307,6 +1712,7 @@ export async function listReviewerLocations(
       .order("last_activity_at", { ascending: false })
       .limit(500);
     for (const l of leads ?? []) {
+      if (isArchivedRow(l)) continue;
       const email = l.email ? String(l.email).toLowerCase() : null;
       if (email && existingEmails.has(email)) continue;
       clientRows.push({ ...l, __rowKind: "lead" });
@@ -1322,7 +1728,10 @@ export async function listReviewerLocations(
       .select("*")
       .not("archetype", "is", null)
       .limit(1000);
-    for (const a of data ?? []) agentRowsRaw.push(a);
+    for (const a of data ?? []) {
+      if (isArchivedRow(a)) continue;
+      agentRowsRaw.push(a);
+    }
   } catch (error) {
     console.error("[reviewerMatches] locations agents load failed:", error);
   }
@@ -1657,7 +2066,10 @@ export async function getReviewerMatchSuggestions(params: {
   if (!rankRow) return emptyResult;
 
   const { data: agentRows } = await supabase.from("agents").select("*").not("archetype", "is", null);
-  const ranked = await rankAgentsForClientLocationAware(rankRow, agentRows ?? []);
+  const ranked = await rankAgentsForClientLocationAware(
+    rankRow,
+    (agentRows ?? []).filter((a) => !isArchivedRow(a))
+  );
   const summary = summarizeMatchEligibility(rankRow, ranked);
   const matchCounts = await getAgentActiveMatchCounts();
 

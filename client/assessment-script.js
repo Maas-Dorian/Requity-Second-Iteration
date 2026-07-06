@@ -285,6 +285,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainCard = document.getElementById('mainCard');
 
 
+    // --- Scroll helper (Part 2) --------------------------------------------
+    // Scrolls the assessment card back to the top whenever the question changes,
+    // so a new question never appears halfway down the screen (especially on
+    // mobile, where a long option list can push the next question below the fold).
+    //
+    // Behavior:
+    // - Targets the question card (mainCard), not the raw page top, and accounts
+    //   for the sticky nav height.
+    // - Runs after the DOM update (requestAnimationFrame) so measurements are real.
+    // - Skips the jump when the user is actively typing in a field, unless forced
+    //   (view changes are always forced since the field they were typing in is gone).
+    // - Smooth scroll by default; instant when immediate positioning is needed.
+    function scrollAssessmentToTop(reason, opts) {
+        opts = opts || {};
+        const active = document.activeElement;
+        const isTyping = !!active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+        if (isTyping && !opts.force) return;
+        requestAnimationFrame(() => {
+            const target = opts.target || mainCard || document.body;
+            const nav = document.querySelector('.demo-nav');
+            const navHeight = nav ? nav.offsetHeight : 0;
+            const rect = target.getBoundingClientRect();
+            // Already comfortably at the top? Nothing to do.
+            if (!opts.force && rect.top >= 0 && rect.top <= navHeight + 24) return;
+            const top = Math.max(0, rect.top + window.pageYOffset - navHeight - 12);
+            window.scrollTo({ top: top, behavior: opts.behavior || 'smooth' });
+            try {
+                if (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1') {
+                    console.log('assessment:scroll-to-top', { reason: reason || 'unknown' });
+                }
+            } catch (e) { /* ignore */ }
+        });
+    }
+
     // --- View Controller ---
     function showView(viewName) {
         Object.values(views).forEach(v => {
@@ -297,7 +331,9 @@ document.addEventListener('DOMContentLoaded', () => {
         void views[viewName].offsetWidth; 
         views[viewName].classList.add('slide-enter');
         
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Force: the previous view is gone, so the card must reposition even if
+        // an input somewhere still holds focus.
+        scrollAssessmentToTop('view:' + viewName, { force: true });
     }
 
     // --- Contact Logic ---
@@ -354,6 +390,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedGoal !== 'both' && sameMarketToggle) sameMarketToggle.checked = false;
             updateMarketFields();
             checkContactValid();
+            // The conditional buying/selling market questions just rendered;
+            // gently bring them on screen if they landed below the fold. Skipped
+            // during prefill so page load keeps its immediate position.
+            if (!isPrefilling && marketSection && !marketSection.classList.contains('hidden')) {
+                requestAnimationFrame(() => {
+                    const rect = marketSection.getBoundingClientRect();
+                    if (rect.top < 0 || rect.bottom > window.innerHeight) {
+                        try { marketSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { /* ignore */ }
+                    }
+                });
+            }
         });
     });
 
@@ -361,6 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // The landing page may capture name/email/phone/intent/market first. We carry
     // those values forward here so the client never re-enters them, then clear the
     // one-time prefill so a later visit starts clean.
+    let isPrefilling = false;
     function applyPrefill() {
         let data = null;
         try { data = JSON.parse(localStorage.getItem('requity_prefill') || 'null'); }
@@ -377,8 +425,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setVal('birthday', data.birthday);
         const intent = (data.intent || '').toLowerCase();
         if (['buying', 'selling', 'both', 'other'].includes(intent)) {
+            isPrefilling = true;
             const card = document.querySelector('#goalOptions .option-card[data-goal="' + intent + '"]');
             if (card) card.click();
+            isPrefilling = false;
             const market = (data.marketCity || '').trim();
             if (market) {
                 if (intent === 'buying' || intent === 'both') setVal('buyingMarketCity', market);
@@ -579,6 +629,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         el.textContent = message;
         el.style.display = 'block';
+        // Validation/submit error: bring the first (only) error into view.
+        requestAnimationFrame(() => {
+            try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { /* ignore */ }
+        });
     }
     function clearSubmitError() {
         const el = document.getElementById('submitError');
@@ -589,6 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(currentStepIndex < consumerAssessmentQuestions.length - 1) {
             currentStepIndex++;
             renderQuestion(currentStepIndex);
+            scrollAssessmentToTop('next-question');
             return;
         }
         // Final step: the submission must succeed before we show the confirmation.
@@ -717,6 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(currentStepIndex > 0) {
             currentStepIndex--;
             renderQuestion(currentStepIndex);
+            scrollAssessmentToTop('back-question');
         } else {
             // Go back to Contact
             currentStepIndex = -1;

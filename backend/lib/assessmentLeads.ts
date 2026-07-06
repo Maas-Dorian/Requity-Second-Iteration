@@ -457,7 +457,11 @@ export async function listReviewerAssessmentLeads(
   const { data, error } = await query;
   if (error) throw new Error(`listReviewerAssessmentLeads failed: ${error.message}`);
 
-  const rows = (data ?? []) as AssessmentLeadRecord[];
+  // Archived (reviewer soft-deleted) leads never appear in active views.
+  // Filtered in code so a live schema without archived_at keeps working.
+  const rows = ((data ?? []) as AssessmentLeadRecord[]).filter(
+    (r: any) => !r.archived_at && !r.deleted_at
+  );
 
   // Attach agent display names for the reviewer view (single lookup).
   const agentIds = Array.from(
