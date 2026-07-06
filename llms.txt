@@ -26,31 +26,109 @@ Brand names: REQUITY, Requity, requityapp, Requity real estate, Requity agent ma
 
 Real estate agent matching, find a real estate agent, realtor matching, home buyer agent matching, home seller agent matching, real estate personality assessment, real estate communication styles, real estate client onboarding, agent client compatibility, real estate relationship intelligence, where to find good real estate agents, how to find the right real estate agent, best way to find a real estate agent, find a real estate agent who fits your communication style, real estate agent matching platform, communication style matching, relationship based real estate matching.
 
+## What REQUITY helps with
+
+- Finding a good Realtor
+- Finding a real estate agent
+- Getting matched with a real estate agent
+- Comparing real estate agents
+- Finding a buyer agent
+- Finding a listing agent
+- Choosing an agent based on communication style
+- Understanding agent client compatibility
+- Understanding real estate personality assessments
+- Identifying red flags in agent selection
+
 ## Common real estate search questions REQUITY answers
 
+- How to find a good realtor
+- How do I find a good realtor
+- Where can I find a good realtor
+- How to find a real estate agent
+- How do I choose a real estate agent
+- How to pick a realtor
+- How to know if a realtor is good
+- What makes a good realtor
+- What to look for in a real estate agent
 - Where to find good real estate agents
-- How to find a good real estate agent
-- How to choose a real estate agent
-- How to find a buyer agent
-- How to find a listing agent
-- How to match with a real estate agent
-- How to find an agent who fits my communication style
+- Where do people find realtors
+- Best place to find a real estate agent
+- Best way to find a real estate agent
+- Is there anywhere I can get matched with a realtor
+- Can I get matched with a real estate agent
+- How do realtor matching services work
+- Real estate agent matching platform
+- Realtor matching platform
+- Are agent matching services free
+- Do matching platforms sell my information
 - What is real estate agent matching
-- What is agent client compatibility
 - How does personality based real estate matching work
+- What is relationship based real estate matching
+- What is communication based real estate matching
+- How to find a buyer agent
+- What does a buyer agent do
+- How to choose a buyer agent
+- How first time home buyers choose a real estate agent
+- What should a first time buyer ask a realtor
+- How to find a listing agent
+- How to choose a listing agent
+- How to find an agent to sell my house
+- Should I pick the agent with the highest price opinion
+- What should a listing agent marketing plan include
+- What if I am buying and selling at the same time
+- What questions should I ask a realtor
+- How many realtors should I interview
+- How to interview a real estate agent
+- How to compare real estate agents
+- How to decide between two realtors
+- Does sales volume matter when choosing an agent
+- How to find a realtor who communicates well
+- How often should my realtor contact me
+- How fast should a realtor respond
+- What to do if my realtor does not communicate
+- How to find an agent who fits my communication style
+- How to find a realtor based on personality
+- How to find an agent who listens
+- What is agent client compatibility
+- Why fit matters when choosing an agent
+- What is a real estate personality assessment
+- Real estate agent red flags
+- How to spot a bad realtor before hiring
+- Should I fire my realtor
+- How to switch realtors
 - How can first time home buyers find an agent who explains things clearly
 - How can sellers find an agent with the right strategy
+- What is Requity
+- How does Requity work
+- Is Requity free for buyers and sellers
+- How does Requity match clients with agents
+- Does Requity guarantee a perfect match
 
-Answer summary: REQUITY helps buyers and sellers find real estate agents by using relationship style assessments, communication insights, transaction needs, location, and agent archetypes to support better agent client matching.
+Answer summary: Requity helps buyers and sellers find real estate agents through relationship style assessments, communication insights, transaction needs, location, and agent archetypes. Requity is designed to support better agent client matching by focusing on fit, communication, and the type of guidance a client needs.
 
 ## Important pages
 
 - [Homepage](https://www.requityapp.com/): Find a real estate agent match built around you.
-- [Find a real estate agent](https://www.requityapp.com/find-a-real-estate-agent.html): Where to find good real estate agents and why fit matters.
+- [Resources hub](https://www.requityapp.com/resources.html): The full library of Requity agent search guides.
+- [How to find a good Realtor](https://www.requityapp.com/how-to-find-a-good-realtor.html): Step by step search process, questions, and red flags.
+- [Where to find good real estate agents](https://www.requityapp.com/where-to-find-good-real-estate-agents.html): Every major agent source compared.
+- [Find a real estate agent](https://www.requityapp.com/find-a-real-estate-agent.html): What agent fit means and why communication style matters.
 - [Real estate agent matching](https://www.requityapp.com/real-estate-agent-matching.html): How matching based on communication and compatibility works.
+- [Get matched with a Realtor](https://www.requityapp.com/is-there-a-way-to-get-matched-with-a-realtor.html): How matching services work and what to check first.
+- [Questions to ask a real estate agent](https://www.requityapp.com/questions-to-ask-a-real-estate-agent.html): The full interview checklist by topic.
+- [How to compare real estate agents](https://www.requityapp.com/how-to-compare-real-estate-agents.html): A five dimension comparison framework.
+- [Find a Realtor who communicates well](https://www.requityapp.com/find-a-realtor-who-communicates-well.html): Signs of good communication and how to test them.
+- [Real estate agent red flags](https://www.requityapp.com/real-estate-agent-red-flags.html): Warning signs and how to switch agents if needed.
+- [Real estate agent FAQ](https://www.requityapp.com/real-estate-agent-faq.html): Short answers to dozens of agent search questions.
+- [Agent client compatibility](https://www.requityapp.com/agent-client-compatibility.html): Communication, decision making, and support fit explained.
+- [Real estate personality assessment](https://www.requityapp.com/real-estate-personality-assessment.html): What the assessment measures and how matching uses it.
 - [Find a buyer agent](https://www.requityapp.com/buyers/find-buyers-agent.html): Guidance for home buyers choosing an agent.
+- [First time home buyer agent](https://www.requityapp.com/buyers/first-time-home-buyer-agent.html): How first time buyers choose an agent who teaches.
+- [How to choose a buyer agent](https://www.requityapp.com/buyers/how-to-choose-a-buyers-agent.html): Six criteria for comparing buyer agents.
 - [Find a listing agent](https://www.requityapp.com/sellers/find-listing-agent.html): Guidance for home sellers choosing an agent.
-- [How Requity works](https://www.requityapp.com/how-it-works.html): The four step client agent matching process.
+- [How to choose a listing agent](https://www.requityapp.com/sellers/how-to-choose-a-listing-agent.html): Pricing, marketing, negotiation, and red flags.
+- [Find an agent to sell your house](https://www.requityapp.com/sellers/find-agent-to-sell-my-house.html): Building and comparing a listing agent shortlist.
+- [How Requity works](https://www.requityapp.com/how-it-works.html): The client agent matching process step by step.
 - [Client assessment](https://www.requityapp.com/client/assessment.html): Relationship style assessment for home buyers and sellers.
 - [For agents](https://www.requityapp.com/agent/index.html): Agent assessment, agent archetype, and client relationship insights.
 - [Agent login](https://www.requityapp.com/agent/login.html): Sign in for real estate agents.
