@@ -71,7 +71,7 @@ const FOOTER = `    <footer class="site-footer">
         <div class="footer-container" style="grid-template-columns: 1.4fr 1.2fr 1fr;">
             <div class="footer-brand">
                 ${FOOTER_LOGO}
-                <p>REQUITY is a real estate agent matching and relationship platform. It helps home buyers and sellers find a real estate agent who fits their communication style.</p>
+                <p>REQUITY is a real estate brokerage and referral based agent matching platform. It helps home buyers and sellers connect with a real estate agent who fits their communication style, needs, and market.</p>
             </div>
             <div class="footer-column">
                 <h4>Guides</h4>

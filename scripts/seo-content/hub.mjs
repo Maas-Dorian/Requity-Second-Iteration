@@ -372,7 +372,7 @@ export const HUB_PAGES = [
         faqs: [
           {
             q: "What is Requity?",
-            a: "Requity is a real estate agent matching and relationship platform. It helps home buyers and sellers find agents who fit their communication style and needs, and helps agents work with clients more effectively through relationship insights.",
+            a: "Requity is a real estate brokerage and referral based agent matching platform. It helps home buyers and sellers find agents who fit their communication style, needs, and market, and helps agents work with clients more effectively through relationship insights.",
           },
           {
             q: "How does Requity matching work?",
@@ -383,16 +383,28 @@ export const HUB_PAGES = [
             a: "Starting with the client assessment is free for buyers and sellers.",
           },
           {
-            q: "Does Requity work for people buying and selling at the same time?",
-            a: "Yes. The assessment adapts when you are doing both, and matching considers whether an agent can support both sides of your move.",
+            q: "Does Requity choose the agent for me?",
+            a: "REQUITY supports a reviewed matching process. The assessment helps identify the client's needs, market, communication style, and transaction type. REQUITY then helps connect the client with an agent who may be a fit for that market and client profile. You are never obligated to work with a proposed agent.",
           },
           {
-            q: "Is Requity a brokerage?",
-            a: "No. Requity is a matching and relationship intelligence platform. It helps clients and agents connect more thoughtfully, but it does not replace licensed real estate representation.",
+            q: "What happens if I am buying and selling?",
+            a: "If you are buying and selling, REQUITY may review each side of the move separately. You may be matched with an agent in the market where you want to buy, an agent in the market where you want to sell, or one agent if the same agent is appropriate for both sides.",
+          },
+          {
+            q: "Is REQUITY a real estate brokerage?",
+            a: "Yes. REQUITY operates as a real estate brokerage and referral based matching platform. REQUITY helps buyers and sellers complete an assessment, reviews their needs and market, and connects them with agents in the appropriate market. When a referred transaction closes, REQUITY receives a referral fee according to the applicable agent or broker agreement.",
+          },
+          {
+            q: "How does REQUITY make money?",
+            a: "REQUITY may earn revenue through agent network participation, referral fee agreements, and future partner relationships connected to the real estate transaction process. For referred real estate transactions, the workflow is based on a referral fee agreement with the participating agent or broker.",
           },
           {
             q: "How do agents join Requity?",
-            a: 'Agents complete their own assessment, receive an agent archetype describing their working style, and build a profile that is reviewed by the Requity team. Details are on the <a href="/agent/index.html">Requity for agents</a> page.',
+            a: 'Agents create an account, join the REQUITY network under the current participation terms, complete their own assessment, and receive an agent archetype describing their working style. Before being connected with a REQUITY client, the agent or broker signs the applicable referral fee agreement. Details are on the <a href="/agent/index.html">Requity for agents</a> page.',
+          },
+          {
+            q: "What referral fee applies to REQUITY referrals?",
+            a: "Participating agents or brokers may sign a referral fee agreement before being connected with a REQUITY client. The applicable referral fee is governed by that agreement.",
           },
         ],
       },

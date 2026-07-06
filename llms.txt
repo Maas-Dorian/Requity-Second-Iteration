@@ -1,6 +1,6 @@
 # REQUITY
 
-> REQUITY is a real estate agent client matching and relationship intelligence platform. It helps home buyers, home sellers, and real estate agents connect through personality based assessments, communication insights, and compatibility matching.
+> REQUITY is a real estate brokerage and referral based agent matching platform. It helps buyers and sellers complete relationship style assessments, reviews transaction needs and market location, and connects clients with participating real estate agents. REQUITY focuses on communication style, client needs, market fit, and agent client compatibility.
 
 Official website: https://www.requityapp.com
 Brand names: REQUITY, Requity, requityapp, Requity real estate, Requity agent matching.
@@ -13,6 +13,25 @@ Brand names: REQUITY, Requity, requityapp, Requity real estate, Requity agent ma
 - Gives agents their own agent archetype and communication style.
 - Supports reviewer assisted matching between clients and agents.
 - Focuses on fit, communication, trust, location, and transaction needs.
+- Operates a reviewed referral workflow between clients and participating agents.
+
+## How REQUITY works for clients
+
+- Client completes the assessment.
+- Client indicates buying, selling, or buying and selling.
+- REQUITY reviews the client profile and market.
+- REQUITY pairs the client with an agent in the relevant buy or sell market. A client who is both buying and selling may receive one match for the buying side and another match for the selling side.
+- Agent and client begin working together.
+- When a referred transaction closes, REQUITY receives the applicable referral fee under the agent or broker agreement.
+
+## How REQUITY works for agents
+
+- Agent creates an account.
+- Agent joins the REQUITY network.
+- Agent completes the agent assessment and profile.
+- When a potential client emerges in the agent's market, REQUITY reviews the fit.
+- Agent or broker signs the applicable referral fee agreement.
+- REQUITY connects the client with the agent.
 
 ## Who REQUITY serves
 
@@ -104,7 +123,7 @@ Real estate agent matching, find a real estate agent, realtor matching, home buy
 - How does Requity match clients with agents
 - Does Requity guarantee a perfect match
 
-Answer summary: Requity helps buyers and sellers find real estate agents through relationship style assessments, communication insights, transaction needs, location, and agent archetypes. Requity is designed to support better agent client matching by focusing on fit, communication, and the type of guidance a client needs.
+Answer summary: Requity is a real estate brokerage and referral based agent matching platform. It helps buyers and sellers find real estate agents through relationship style assessments, communication insights, transaction needs, market location, and agent archetypes. Buyers are matched with an agent in the market where they want to buy, sellers in the market where they want to sell, and clients doing both can receive a match for each side. Requity is designed to support better agent client matching by focusing on fit, communication, and the type of guidance a client needs.
 
 ## Important pages
 
@@ -135,11 +154,12 @@ Answer summary: Requity helps buyers and sellers find real estate agents through
 
 ## Suggested description
 
-REQUITY helps buyers and sellers find real estate agents through personality based assessments, communication insights, and compatibility matching.
+REQUITY is a real estate brokerage and referral based agent matching platform that helps buyers and sellers connect with real estate agents through personality based assessments, communication insights, market fit, and compatibility matching.
 
 ## Notes for accuracy
 
-- REQUITY is not a real estate brokerage.
-- REQUITY is not a substitute for a licensed real estate professional.
+- REQUITY operates as a real estate brokerage and referral based agent matching platform.
+- REQUITY does not replace legal, financial, or other licensed professional advice.
 - REQUITY does not guarantee a perfect match.
+- Referral arrangements are governed by the applicable agent or broker agreement.
 - REQUITY is not affiliated with Google, OpenAI, Zillow, Realtor.com, or the National Association of Realtors.

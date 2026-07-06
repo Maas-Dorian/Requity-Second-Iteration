@@ -48,7 +48,7 @@ export const AUDIENCE_PAGES = [
       {
         h2: "How Requity helps buyers find fit",
         paras: [
-          'Requity asks buyers to complete a short relationship style assessment covering how you communicate, how you decide, and what support you want during your purchase. Requity then supports <a href="/real-estate-agent-matching.html">agent matching</a> based on personality insights, your buying needs, and location, with a human reviewer confirming every match. First time buyer? There is a dedicated guide to <a href="/buyers/first-time-home-buyer-agent.html">choosing an agent as a first time home buyer</a>.',
+          'Requity asks buyers to complete a short relationship style assessment covering how you communicate, how you decide, and what support you want during your purchase. When a buyer completes the assessment, Requity can help review the buyer\'s needs and match them with an agent in the market where they want to buy, supporting <a href="/real-estate-agent-matching.html">agent matching</a> based on personality insights, buying needs, and market fit, with a human reviewer confirming every match. First time buyer? There is a dedicated guide to <a href="/buyers/first-time-home-buyer-agent.html">choosing an agent as a first time home buyer</a>.',
         ],
       },
     ],
@@ -129,7 +129,7 @@ export const AUDIENCE_PAGES = [
       {
         h2: "How Requity helps first time buyers",
         paras: [
-          'Requity\'s relationship style assessment captures exactly the things first time buyers need matched: how much explanation you want, how you make decisions, and what kind of support keeps you confident. Requity then supports matching with agents whose working style fits, considering <a href="/agent-client-compatibility.html">compatibility</a>, your buying needs, and location, with human review before the match is finalized.',
+          'Requity\'s relationship style assessment captures exactly the things first time buyers need matched: how much explanation you want, how you make decisions, and what kind of support keeps you confident. Requity then supports matching with an agent in the market where you want to buy whose working style fits, considering <a href="/agent-client-compatibility.html">compatibility</a>, your buying needs, and market coverage, with human review before the match is finalized.',
         ],
       },
     ],
@@ -286,7 +286,7 @@ export const AUDIENCE_PAGES = [
       {
         h2: "How Requity helps sellers",
         paras: [
-          'Requity asks sellers to complete a short relationship style assessment covering communication preferences, decision style, and the kind of guidance that helps. Requity then supports <a href="/real-estate-agent-matching.html">matching</a> based on personality insights, your selling goals, and location, with human review before a match is finalized. Selling and buying at the same time? The assessment adapts, and matching considers coverage of both markets.',
+          'Requity asks sellers to complete a short relationship style assessment covering communication preferences, decision style, and the kind of guidance that helps. When a seller completes the assessment, Requity can help review the seller\'s goals and match them with an agent in the market where they want to sell, supporting <a href="/real-estate-agent-matching.html">matching</a> based on personality insights, selling goals, and market fit, with human review before a match is finalized. Selling and buying at the same time? A client who is both buying and selling may need one match for the buying side and another match for the selling side, depending on market coverage and fit.',
         ],
       },
     ],
@@ -438,7 +438,7 @@ export const AUDIENCE_PAGES = [
       {
         h2: "How Requity helps sellers find fit",
         paras: [
-          'Requity captures your communication preferences, decision style, and support needs with a short relationship style assessment, then supports matching with listing agents whose working style fits, weighing <a href="/agent-client-compatibility.html">compatibility</a>, your selling goals, and location. A human reviewer looks at every match before it is finalized.',
+          'Requity captures your communication preferences, decision style, and support needs with a short relationship style assessment, then supports matching with a listing agent in the market where you want to sell, weighing <a href="/agent-client-compatibility.html">compatibility</a>, your selling goals, and market coverage. A human reviewer looks at every match before it is finalized.',
         ],
       },
     ],
