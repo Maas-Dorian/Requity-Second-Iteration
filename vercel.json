@@ -2,6 +2,17 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "redirects": [
     {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "requityapp.com"
+        }
+      ],
+      "destination": "https://www.requityapp.com/:path*",
+      "permanent": true
+    },
+    {
       "source": "/auth",
       "destination": "/agent/login.html",
       "permanent": true
@@ -13,6 +24,10 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/",
+      "destination": "/client/index.html"
+    },
     {
       "source": "/:slug([^/]*-requityapp-relational-assessment)",
       "destination": "/client/assessment.html"

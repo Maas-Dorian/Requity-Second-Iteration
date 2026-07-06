@@ -6,7 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Single source of truth: every landing CTA opens the REAL assessment.
     // We preserve the agent token and source params so attribution survives.
     function buildAssessmentHref() {
-        const base = 'assessment.html';
+        // Root-absolute so CTAs work whether this page is served at
+        // /client/index.html or rewritten to the site root "/".
+        const base = '/client/assessment.html';
         try {
             const current = new URLSearchParams(window.location.search);
             const keep = new URLSearchParams();
