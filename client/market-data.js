@@ -38,7 +38,7 @@ window.REQUITY_MARKETS = [
     "statewide": true,
     "lat": 37.4316,
     "lng": -78.6569,
-    "radiusMiles": 160,
+    "radiusMiles": 180,
     "url": "/virginia-real-estate-agent.html"
   },
   {

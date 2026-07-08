@@ -3,8 +3,10 @@
  *
  * Market landing page themes. Each page's <body> carries exactly one
  * market-theme-* class, so the browser downloads only that page's skyline
- * SVG. If the SVG is missing the hero falls back to the soft overlay color
- * over white and nothing breaks. This stylesheet is loaded only by market
+ * image. If the image file is missing, the CSS background simply does not
+ * paint and the hero falls back to the normal clean homepage hero over the
+ * soft tint; nothing breaks and no broken-image icon can appear (CSS
+ * backgrounds never render one). This stylesheet is loaded only by market
  * pages, never by the homepage.
  */
 
@@ -13,7 +15,7 @@ body.market-theme-dallas {
     --market-soft: #FBF3EA;
     --market-deep: #16305C;
     --market-overlay: rgba(251, 243, 234, 0.84);
-    --market-skyline: url("/assets/markets/dallas-skyline.svg");
+    --market-skyline: url("/assets/markets/dallas-skyline.jpg");
 }
 
 body.market-theme-kansas-city {
@@ -21,7 +23,7 @@ body.market-theme-kansas-city {
     --market-soft: #F0F5FB;
     --market-deep: #16305C;
     --market-overlay: rgba(240, 245, 251, 0.84);
-    --market-skyline: url("/assets/markets/kansas-city-skyline.svg");
+    --market-skyline: url("/assets/markets/kansas-city-skyline.jpg");
 }
 
 body.market-theme-washington-dc {
@@ -29,7 +31,7 @@ body.market-theme-washington-dc {
     --market-soft: #F2F5F9;
     --market-deep: #16305C;
     --market-overlay: rgba(242, 245, 249, 0.84);
-    --market-skyline: url("/assets/markets/washington-dc-skyline.svg");
+    --market-skyline: url("/assets/markets/washington-dc-skyline.jpg");
 }
 
 body.market-theme-virginia {
@@ -37,7 +39,7 @@ body.market-theme-virginia {
     --market-soft: #F1F7F3;
     --market-deep: #16305C;
     --market-overlay: rgba(241, 247, 243, 0.84);
-    --market-skyline: url("/assets/markets/virginia-skyline.svg");
+    --market-skyline: url("/assets/markets/virginia-skyline.jpg");
 }
 
 body.market-theme-denver {
@@ -45,7 +47,7 @@ body.market-theme-denver {
     --market-soft: #F2F6FB;
     --market-deep: #16305C;
     --market-overlay: rgba(242, 246, 251, 0.84);
-    --market-skyline: url("/assets/markets/denver-skyline.svg");
+    --market-skyline: url("/assets/markets/denver-skyline.jpg");
 }
 
 body.market-theme-seattle {
@@ -53,7 +55,7 @@ body.market-theme-seattle {
     --market-soft: #EEF3F7;
     --market-deep: #16305C;
     --market-overlay: rgba(238, 243, 247, 0.86);
-    --market-skyline: url("/assets/markets/seattle-skyline.svg");
+    --market-skyline: url("/assets/markets/seattle-skyline.jpg");
 }
 
 body.market-theme-tampa {
@@ -61,7 +63,7 @@ body.market-theme-tampa {
     --market-soft: #FBF6EC;
     --market-deep: #16305C;
     --market-overlay: rgba(251, 246, 236, 0.84);
-    --market-skyline: url("/assets/markets/tampa-skyline.svg");
+    --market-skyline: url("/assets/markets/tampa-skyline.jpg");
 }
 
 body.market-theme-atlanta {
@@ -69,7 +71,7 @@ body.market-theme-atlanta {
     --market-soft: #FCF6F0;
     --market-deep: #16305C;
     --market-overlay: rgba(252, 246, 240, 0.84);
-    --market-skyline: url("/assets/markets/atlanta-skyline.svg");
+    --market-skyline: url("/assets/markets/atlanta-skyline.jpg");
 }
 
 body.market-theme-chicago {
@@ -77,7 +79,7 @@ body.market-theme-chicago {
     --market-soft: #EEF4F9;
     --market-deep: #16305C;
     --market-overlay: rgba(238, 244, 249, 0.84);
-    --market-skyline: url("/assets/markets/chicago-skyline.svg");
+    --market-skyline: url("/assets/markets/chicago-skyline.jpg");
 }
 
 body.market-theme-portland {
@@ -85,7 +87,7 @@ body.market-theme-portland {
     --market-soft: #F0F6F1;
     --market-deep: #16305C;
     --market-overlay: rgba(240, 246, 241, 0.84);
-    --market-skyline: url("/assets/markets/portland-skyline.svg");
+    --market-skyline: url("/assets/markets/portland-skyline.jpg");
 }
 
 body.market-theme-phoenix {
@@ -93,7 +95,7 @@ body.market-theme-phoenix {
     --market-soft: #FAF3E9;
     --market-deep: #16305C;
     --market-overlay: rgba(250, 243, 233, 0.84);
-    --market-skyline: url("/assets/markets/phoenix-skyline.svg");
+    --market-skyline: url("/assets/markets/phoenix-skyline.jpg");
 }
 
 body.market-theme-las-vegas {
@@ -101,7 +103,7 @@ body.market-theme-las-vegas {
     --market-soft: #FAF1F0;
     --market-deep: #16305C;
     --market-overlay: rgba(250, 241, 240, 0.84);
-    --market-skyline: url("/assets/markets/las-vegas-skyline.svg");
+    --market-skyline: url("/assets/markets/las-vegas-skyline.jpg");
 }
 
 body.market-theme-san-diego {
@@ -109,7 +111,7 @@ body.market-theme-san-diego {
     --market-soft: #F0F7F8;
     --market-deep: #16305C;
     --market-overlay: rgba(240, 247, 248, 0.84);
-    --market-skyline: url("/assets/markets/san-diego-skyline.svg");
+    --market-skyline: url("/assets/markets/san-diego-skyline.jpg");
 }
 
 body.market-theme-salt-lake-city {
@@ -117,7 +119,7 @@ body.market-theme-salt-lake-city {
     --market-soft: #F1F4FA;
     --market-deep: #16305C;
     --market-overlay: rgba(241, 244, 250, 0.84);
-    --market-skyline: url("/assets/markets/salt-lake-city-skyline.svg");
+    --market-skyline: url("/assets/markets/salt-lake-city-skyline.jpg");
 }
 
 body.market-theme-cincinnati {
@@ -125,7 +127,7 @@ body.market-theme-cincinnati {
     --market-soft: #F9F2F0;
     --market-deep: #16305C;
     --market-overlay: rgba(249, 242, 240, 0.84);
-    --market-skyline: url("/assets/markets/cincinnati-skyline.svg");
+    --market-skyline: url("/assets/markets/cincinnati-skyline.jpg");
 }
 
 body.market-theme-boston {
@@ -133,7 +135,7 @@ body.market-theme-boston {
     --market-soft: #F3F5F8;
     --market-deep: #142B52;
     --market-overlay: rgba(243, 245, 248, 0.84);
-    --market-skyline: url("/assets/markets/boston-skyline.svg");
+    --market-skyline: url("/assets/markets/boston-skyline.jpg");
 }
 
 body.market-theme-nashville {
@@ -141,7 +143,7 @@ body.market-theme-nashville {
     --market-soft: #FAF5EC;
     --market-deep: #16305C;
     --market-overlay: rgba(250, 245, 236, 0.84);
-    --market-skyline: url("/assets/markets/nashville-skyline.svg");
+    --market-skyline: url("/assets/markets/nashville-skyline.jpg");
 }
 
 body.market-theme-louisville {
@@ -149,7 +151,7 @@ body.market-theme-louisville {
     --market-soft: #F1F6F2;
     --market-deep: #16305C;
     --market-overlay: rgba(241, 246, 242, 0.84);
-    --market-skyline: url("/assets/markets/louisville-skyline.svg");
+    --market-skyline: url("/assets/markets/louisville-skyline.jpg");
 }
 
 body.market-theme-lexington {
@@ -157,15 +159,15 @@ body.market-theme-lexington {
     --market-soft: #F0F5F6;
     --market-deep: #16305C;
     --market-overlay: rgba(240, 245, 246, 0.84);
-    --market-skyline: url("/assets/markets/lexington-skyline.svg");
+    --market-skyline: url("/assets/markets/lexington-skyline.jpg");
 }
 
-/* Skyline hero: overlay gradient is layered over the skyline so text stays
-   readable. Applies only to the hero section, not the whole page. */
+/* Skyline hero: the image sits behind a soft overlay gradient so the navy
+   headline stays readable. Applies only to the first hero section. */
 .market-hero {
     background-color: var(--market-soft, #F3F7FC);
     background-image:
-        linear-gradient(180deg, var(--market-overlay, rgba(255, 255, 255, 0.85)) 0%, rgba(255, 255, 255, 0.68) 60%, rgba(255, 255, 255, 0.9) 100%),
+        linear-gradient(180deg, var(--market-overlay, rgba(255, 255, 255, 0.85)) 0%, rgba(255, 255, 255, 0.66) 55%, rgba(255, 255, 255, 0.92) 100%),
         var(--market-skyline, none);
     background-size: cover, cover;
     background-position: center bottom, center bottom;
@@ -176,8 +178,26 @@ body.market-theme-lexington {
 
 .market-hero .hero-trust-pills .trust-pill svg { color: var(--market-accent, #FF6A00); }
 
-/* Local fit section */
+/* Keep the "Your Review" journey card clean white and readable on top of
+   the skyline. */
+.market-hero .journey-card {
+    background: var(--white, #FFFFFF);
+    box-shadow: 0 10px 30px rgba(30, 63, 122, 0.12);
+}
+
+/* Local fit section (additive, market pages only) */
 .market-local { background-color: var(--market-soft, #F3F7FC); }
+
+.market-badge {
+    display: inline-block;
+    padding: 0.3rem 0.75rem;
+    margin-bottom: 0.9rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #FFFFFF;
+    background: var(--market-accent, #FF6A00);
+}
 
 .market-bullets {
     list-style: none;
@@ -205,24 +225,12 @@ body.market-theme-lexington {
     opacity: 0.85;
 }
 
-/* Small accent underline under the local section title keeps each market
-   feeling distinct without going off-brand. */
-.market-local .section-title::after {
-    content: "";
-    display: block;
-    width: 56px;
-    height: 4px;
-    border-radius: 2px;
-    margin-top: 0.6rem;
-    background: var(--market-accent, #FF6A00);
-}
-
-/* Mobile readability: slightly stronger overlay so the headline stays clear
-   over busier skyline areas on narrow screens. */
+/* Mobile readability: stronger overlay so the headline stays clear over
+   busier skyline areas on narrow screens. */
 @media (max-width: 768px) {
     .market-hero {
         background-image:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.8) 60%, rgba(255, 255, 255, 0.94) 100%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.93) 0%, rgba(255, 255, 255, 0.82) 55%, rgba(255, 255, 255, 0.95) 100%),
             var(--market-skyline, none);
     }
 }

@@ -16,6 +16,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const v = current.get(key);
                 if (v) keep.set(key, v);
             });
+            // Market landing pages (generated clones of this template) set
+            // window.REQUITY_PAGE_MARKET so every CTA carries the market slug
+            // into the assessment. Unset on the generic homepage.
+            const market = typeof window.REQUITY_PAGE_MARKET === 'string' ? window.REQUITY_PAGE_MARKET : '';
+            if (market) {
+                keep.set('market', market);
+                try { localStorage.setItem('requity_selected_market', market); } catch (e) { /* ignore */ }
+            }
             const qs = keep.toString();
             return qs ? (base + '?' + qs) : base;
         } catch (e) {

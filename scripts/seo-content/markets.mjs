@@ -39,14 +39,14 @@ function market({
     radiusMiles,
     url: `/${slug}-real-estate-agent.html`,
     assessmentUrl: `/client/assessment.html?market=${slug}`,
-    skylineImage: `/assets/markets/${slug}-skyline.svg`,
+    skylineImage: `/assets/markets/${slug}-skyline.jpg`,
     themeClass: `market-theme-${slug}`,
     theme: { accent, soft, deep, overlay: overlay || "rgba(255, 255, 255, 0.84)" },
     title: `Find a Real Estate Agent in ${name} | REQUITY`,
     metaDescription: `Find a real estate agent in ${name} who fits your communication style, goals, and buying or selling needs. Start your free REQUITY assessment.`,
-    h1: `Find a real estate agent ${inPhrase.replace("across", "in")} who fits how you communicate.`,
-    subheadline: `REQUITY uses personality based assessments and relationship insights to help buyers and sellers ${inPhrase} connect with real estate agents whose working style fits their needs.`,
-    ctaLabel: `Find your ${name} agent match`,
+    heroHeadline: `Find a real estate agent in ${name} who fits how you communicate.`,
+    heroSubheadline: `REQUITY uses personality based assessments and relationship insights to help buyers and sellers ${inPhrase} connect with real estate agents whose working style fits their needs.`,
+    primaryCta: `Find your ${name} agent match`,
     localTitle: `Real estate agent matching built around fit in ${name}`,
     localBody: `Choosing a real estate agent is not only about finding someone nearby. It is about finding someone whose communication style, pace, and guidance match how you make decisions. REQUITY helps buyers and sellers ${inPhrase} start with a short assessment, then uses human review to support a better agent match.`,
     localBullets: [
@@ -79,7 +79,7 @@ export const MARKETS = {
     lat: 37.4316, lng: -78.6569,
     // Statewide page: a wide radius from the state centroid approximates
     // "the user appears to be in Virginia" without any heavy geo lookup.
-    radiusMiles: 160, statewide: true,
+    radiusMiles: 180, statewide: true,
     accent: "#3A7A5E", soft: "#F1F7F3", overlay: "rgba(241, 247, 243, 0.84)",
   }),
   denver: market({
