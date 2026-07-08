@@ -261,6 +261,46 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedGoal === 'other') return otherIntentText();
         return '';
     }
+    // --- Market landing page prefill (?market=slug) -------------------------
+    // Market landing pages (e.g. /dallas-real-estate-agent.html) link here with
+    // ?market=dallas. If the slug maps to a known market in
+    // window.REQUITY_MARKETS (client/market-data.js), we prefill the market
+    // city/state fields once they become visible, but never overwrite anything
+    // the client already typed. Unknown or missing slugs are ignored entirely.
+    const marketPrefill = (function () {
+        try {
+            const slug = new URLSearchParams(window.location.search).get('market');
+            if (!slug) return null;
+            const list = Array.isArray(window.REQUITY_MARKETS) ? window.REQUITY_MARKETS : [];
+            const m = list.find((entry) => entry && entry.slug === slug) || null;
+            if (m) {
+                try { localStorage.setItem('requity_selected_market', slug); } catch (e) { /* ignore */ }
+            }
+            return m;
+        } catch (e) { return null; }
+    })();
+    function applyMarketPrefill() {
+        if (!marketPrefill || !selectedGoal) return;
+        // Statewide markets (Virginia) prefill only the state field.
+        const city = marketPrefill.statewide ? '' : marketPrefill.name;
+        const state = marketPrefill.stateCode || '';
+        const fillIfEmpty = (el, val) => {
+            if (el && val && !String(el.value || '').trim()) el.value = val;
+        };
+        if (needsBuyingMarket()) {
+            fillIfEmpty(buyingMarketInput, city);
+            fillIfEmpty(buyingStateInput, state);
+        }
+        if (needsSellingMarket() && !sameMarketChecked()) {
+            fillIfEmpty(sellingMarketInput, city);
+            fillIfEmpty(sellingStateInput, state);
+        }
+        if (isOtherIntent()) {
+            fillIfEmpty(marketCityInput, city);
+            fillIfEmpty(marketStateInput, state);
+        }
+    }
+
     // Reveal the right market fields for the chosen intent.
     function updateMarketFields() {
         if (marketSection) marketSection.classList.toggle('hidden', !selectedGoal);
@@ -271,6 +311,8 @@ document.addEventListener('DOMContentLoaded', () => {
         var hideSelling = !needsSellingMarket() || sameMarketChecked();
         if (sellingMarketWrap) sellingMarketWrap.classList.toggle('hidden', hideSelling);
         if (otherMarketWrap) otherMarketWrap.classList.toggle('hidden', !isOtherIntent());
+        // Fill visible, still-empty market fields from the landing page market.
+        applyMarketPrefill();
     }
     
     // Assessment Elements

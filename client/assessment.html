@@ -268,6 +268,9 @@
     <!-- Supabase config (copy frontend/shared/config.example.js to config.js with real public values). -->
     <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
     <script src="../frontend/shared/api.js"></script>
+    <!-- Market landing page config: used only to prefill market fields when
+         the visitor arrives via ?market=slug. Missing file is harmless. -->
+    <script src="/client/market-data.js"></script>
     <script src="assessment-script.js"></script>
 </body>
 </html>
