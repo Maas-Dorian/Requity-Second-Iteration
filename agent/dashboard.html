@@ -905,6 +905,46 @@
       font-size: 0.78rem; font-weight: 600;
     }
     .deal-chip.fit { background: rgba(255,117,0,0.1); border-color: rgba(255,117,0,0.3); color: #b35200; }
+    .deal-chip.lane { background: rgba(30,63,122,0.08); border-color: rgba(30,63,122,0.25); color: var(--primary-blue); font-weight: 700; }
+    .deal-card .deal-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+    /* Match filter tabs (New / Active / Closed / Buying / Selling). */
+    .match-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    .match-tab {
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--secondary-text);
+      background: rgba(255,255,255,0.85);
+      border: 1px solid var(--blue-border);
+      border-radius: 999px;
+      padding: 0.35rem 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .match-tab:hover { background: var(--soft-blue); color: var(--primary-blue); }
+    .match-tab.is-active { background: var(--primary-blue); border-color: var(--primary-blue); color: #fff; }
+
+    /* Payment status pill (the agent's OWN status with REQUITY). */
+    .pay-pill {
+      display: inline-flex; align-items: center; white-space: nowrap;
+      border-radius: 999px; padding: 0.3rem 0.75rem;
+      font-size: 0.8rem; font-weight: 700; border: 1px solid transparent;
+    }
+    .pay-pill.pay-unpaid { background: #FDECEA; color: #C0392B; border-color: #F5C6CB; }
+    .pay-pill.pay-invoice_sent { background: #FEF7E0; color: #B06000; border-color: #FFE0B2; }
+    .pay-pill.pay-paid { background: #E6F4EA; color: #137333; border-color: #C8E6C9; }
+    .pay-pill.pay-waived, .pay-pill.pay-not_required { background: var(--soft-blue); color: var(--secondary-text); border-color: var(--blue-border); }
+    .pay-pill.pay-refunded { background: #E8F0FE; color: #1967D2; border-color: #BBDEFB; }
+
+    /* Brief highlight when a deep link lands on a client assessment card. */
+    @keyframes clientCardFlash {
+      0% { box-shadow: 0 0 0 3px rgba(255,117,0,0.55); }
+      100% { box-shadow: var(--shadow-md); }
+    }
+    .client-detail-card.deep-link-target { animation: clientCardFlash 1.6s ease-out 1; }
+
+    .notification-message .msg-actions { margin-top: 0.6rem; }
 
     .client-detail-card,
     .settings-card,
@@ -1562,12 +1602,20 @@
       <section class="view-section" id="matches-view">
         <div class="section-title-row">
           <div>
-            <h2>Matches</h2>
-            <p>Clients matched to you, with their archetype, transaction, market(s), and fit.</p>
+            <h2>Client Matches</h2>
+            <p>Clients matched to you. Each card shows the match lane, market, and key details. Open the full assessment for everything else.</p>
           </div>
         </div>
+        <div class="match-tabs" id="match-tabs" role="group" aria-label="Filter matches">
+          <button type="button" class="match-tab is-active" data-match-filter="all">All</button>
+          <button type="button" class="match-tab" data-match-filter="new">New</button>
+          <button type="button" class="match-tab" data-match-filter="active">Active</button>
+          <button type="button" class="match-tab" data-match-filter="closed">Closed</button>
+          <button type="button" class="match-tab" data-match-filter="buying">Buying</button>
+          <button type="button" class="match-tab" data-match-filter="selling">Selling</button>
+        </div>
         <div class="deal-list" id="matches-list">
-          <p class="card-desc" id="matches-empty">No matches yet. Matched clients will appear here.</p>
+          <p class="card-desc" id="matches-empty">No client matches yet.</p>
         </div>
       </section>
 
@@ -1616,6 +1664,12 @@
             <h3>Market</h3>
             <p>The city or market you primarily work in, from your agent assessment.</p>
             <div class="settings-field" id="settings-market">Not specified</div>
+          </article>
+          <article class="settings-card card" id="settings-payment-card" hidden>
+            <h3>REQUITY payment status</h3>
+            <p>Your own payment status with REQUITY. This is separate from any client payment and is managed by the REQUITY team.</p>
+            <div style="margin-bottom:0.5rem;"><span class="pay-pill pay-unpaid" id="settings-payment-pill">Unpaid</span></div>
+            <p id="settings-payment-updated" style="margin-bottom:0;"></p>
           </article>
           <article class="settings-card card">
             <h3>Password</h3>
@@ -2434,14 +2488,56 @@
         thread.innerHTML = messages.map((m) => {
           const priority = (m.type === 'reviewer_match') ? ' priority' : '';
           const when = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+          // Messages tied to a client assessment deep link to that assessment,
+          // so a match notice is never a dead end.
+          const clientId = m.client_id ? String(m.client_id) : '';
+          const related = clientId
+            ? (__clientsCache.find((x) => String(x.id) === clientId) || null)
+            : null;
+          const relatedLine = related
+            ? '<p class="deal-sub" style="margin-top:0.25rem;">Client: ' + esc(related.full_name || 'Client') + '</p>'
+            : '';
+          const actions = clientId
+            ? '<div class="msg-actions"><button type="button" class="btn-secondary btn-sm" data-open-assessment="' + esc(clientId) + '">View assessment</button></div>'
+            : '';
           return (
             '<div class="notification-message' + priority + '">' +
               '<span class="message-time">' + esc(when) + '</span>' +
               '<h3>' + esc(m.title) + '</h3>' +
               '<p>' + esc(m.body) + '</p>' +
+              relatedLine +
+              actions +
             '</div>'
           );
         }).join('');
+      }
+
+      // Delegated "View assessment" clicks inside the Messages thread.
+      const messagesThreadEl = document.querySelector('#messages-view .notification-thread');
+      if (messagesThreadEl) {
+        messagesThreadEl.addEventListener('click', (ev) => {
+          const btn = ev.target.closest ? ev.target.closest('[data-open-assessment]') : null;
+          if (btn) openClientAssessment(btn.getAttribute('data-open-assessment'));
+        });
+      }
+
+      // The agent's OWN payment status with REQUITY (never a client's status).
+      function renderAgentPaymentStatus(pay) {
+        const card = document.getElementById('settings-payment-card');
+        const pill = document.getElementById('settings-payment-pill');
+        const updated = document.getElementById('settings-payment-updated');
+        if (!card) return;
+        if (!pay || !pay.status) { card.hidden = true; return; }
+        card.hidden = false;
+        if (pill) {
+          pill.textContent = pay.label || pay.status;
+          pill.className = 'pay-pill pay-' + String(pay.status).toLowerCase();
+        }
+        if (updated) {
+          updated.textContent = pay.updatedAt
+            ? 'Last updated ' + new Date(pay.updatedAt).toLocaleDateString()
+            : '';
+        }
       }
 
       function renderRecent(recent) {
@@ -2465,31 +2561,126 @@
         return '<span class="deal-chip">' + esc(label) + ': ' + esc(String(value)) + '</span>';
       }
 
-      function renderMatches(matches) {
+      // --- Client Matches: compact, lane-aware cards with tab filters ---------
+      let __matchesCache = [];
+      let __matchFilter = 'all';
+
+      function matchPipeline(m) {
+        const s = String(m && m.pipelineStatus || '').toLowerCase();
+        return PIPELINE_VALID.indexOf(s) !== -1 ? s : 'potential';
+      }
+
+      function matchPassesFilter(m, filter) {
+        const s = matchPipeline(m);
+        const lane = String(m && m.lane || 'general').toLowerCase();
+        if (filter === 'new') return s === 'potential';
+        if (filter === 'active') return s === 'active' || s === 'under_contract';
+        if (filter === 'closed') return s === 'closed';
+        if (filter === 'buying') return lane === 'buying' || lane === 'both';
+        if (filter === 'selling') return lane === 'selling' || lane === 'both';
+        return true;
+      }
+
+      // Lane-aware market chips: a buying match shows the buying market, a
+      // selling match the selling market, and both/general show what exists.
+      function matchMarketChips(m) {
+        const lane = String(m && m.lane || 'general').toLowerCase();
+        if (lane === 'buying') return dealChip('Buying market', m.buyingMarket || m.market || 'Not specified');
+        if (lane === 'selling') return dealChip('Selling market', m.sellingMarket || m.market || 'Not specified');
+        let out = dealChip('Buying', m.buyingMarket) + dealChip('Selling', m.sellingMarket);
+        if (!out) out = dealChip('Market', m.market || 'Not specified');
+        return out;
+      }
+
+      function buildMatchCard(m) {
+        const pipeline = matchPipeline(m);
+        const pipelineBadge = '<span class="status-badge ' +
+          (pipeline === 'closed' ? 'neutral' : pipeline === 'potential' ? 'pending' : 'success') + '">' +
+          esc(PIPELINE_LABELS[pipeline] || 'Potential') + '</span>';
+        const laneChip = '<span class="deal-chip lane">' + esc(m.laneLabel || 'General') + '</span>';
+        const when = m.receivedAt ? new Date(m.receivedAt).toLocaleDateString() : '';
+        const fit = (m.fit !== null && m.fit !== undefined)
+          ? '<span class="deal-chip fit">Fit: ' + esc(String(m.fit)) + '%</span>' : '';
+        const meta =
+          laneChip +
+          (m.archetype ? '<span class="deal-chip">' + esc(m.archetype) + '</span>' : '') +
+          matchMarketChips(m) +
+          fit +
+          pipelineBadge;
+        return '<div class="deal-card" data-match-client-id="' + esc(String(m.id || '')) + '">' +
+          '<div class="deal-main"><div class="deal-name">' + esc(m.name || 'Unknown client') + '</div>' +
+          (when ? '<div class="deal-sub">Received ' + esc(when) + '</div>' : '') + '</div>' +
+          '<div class="deal-meta">' + meta + '</div>' +
+          '<div class="deal-actions">' +
+            '<button type="button" class="btn-secondary btn-sm" data-open-assessment="' + esc(String(m.id || '')) + '">View assessment</button>' +
+            '<button type="button" class="btn-outline btn-sm" data-open-messages="1">Messages</button>' +
+          '</div>' +
+        '</div>';
+      }
+
+      function renderMatchList() {
         const wrap = document.getElementById('matches-list');
         if (!wrap) return;
-        if (!Array.isArray(matches) || !matches.length) {
-          wrap.innerHTML = '<p class="card-desc" id="matches-empty">No matches yet. Matched clients will appear here.</p>';
+        if (!__matchesCache.length) {
+          wrap.innerHTML = '<p class="card-desc" id="matches-empty">No client matches yet.</p>';
           return;
         }
-        wrap.innerHTML = matches.map((m) => {
-          const st = STATUS_MAP[m.status] || STATUS_MAP.draft;
-          const when = m.date ? new Date(m.date).toLocaleDateString() : '';
-          const fit = (m.fit !== null && m.fit !== undefined)
-            ? '<span class="deal-chip fit">Fit: ' + esc(String(m.fit)) + '%</span>' : '';
-          const meta =
-            (m.archetype ? '<span class="deal-chip">' + esc(m.archetype) + '</span>' : '') +
-            dealChip('Transaction', m.transaction) +
-            dealChip('Buying', m.buyingMarket) +
-            dealChip('Selling', m.sellingMarket) +
-            (!m.buyingMarket && !m.sellingMarket ? dealChip('Market', m.market || 'Not specified') : '') +
-            fit +
-            '<span class="status-badge ' + st.cls + '">' + st.label + '</span>';
-          return '<div class="deal-card">' +
-            '<div class="deal-main"><div class="deal-name">' + esc(m.name || 'Unknown client') + '</div>' +
-            (when ? '<div class="deal-sub">' + esc(when) + '</div>' : '') + '</div>' +
-            '<div class="deal-meta">' + meta + '</div></div>';
-        }).join('');
+        const rows = __matchesCache.filter((m) => matchPassesFilter(m, __matchFilter));
+        wrap.innerHTML = rows.length
+          ? rows.map(buildMatchCard).join('')
+          : '<p class="card-desc">No client matches in this filter.</p>';
+      }
+
+      function renderMatches(matches) {
+        __matchesCache = Array.isArray(matches) ? matches.slice() : [];
+        renderMatchList();
+      }
+
+      const matchTabsEl = document.getElementById('match-tabs');
+      if (matchTabsEl) {
+        matchTabsEl.addEventListener('click', (ev) => {
+          const tab = ev.target.closest ? ev.target.closest('[data-match-filter]') : null;
+          if (!tab) return;
+          __matchFilter = tab.getAttribute('data-match-filter') || 'all';
+          matchTabsEl.querySelectorAll('.match-tab').forEach((b) => b.classList.toggle('is-active', b === tab));
+          renderMatchList();
+        });
+      }
+
+      // Switch the main view by nav data-view id (reuses the nav wiring).
+      function switchView(viewId) {
+        const nav = document.querySelector('.nav-item[data-view="' + viewId + '"]');
+        if (nav) nav.click();
+      }
+
+      // Deep link into one client's full assessment: switch to the right
+      // section, expand the report, and briefly highlight the card.
+      function openClientAssessment(clientId) {
+        if (!clientId) return;
+        const item = __clientsCache.find((x) => String(x.id) === String(clientId));
+        const status = item ? clientPipelineStatus(item) : 'potential';
+        switchView(status === 'closed' ? 'closings-view' : 'clients-view');
+        // The card is rendered synchronously; find it after the view switch.
+        const card = document.querySelector('.client-detail-card[data-client-id="' + CSS.escape(String(clientId)) + '"]');
+        if (!card) return;
+        const details = card.querySelector('details.client-report-details');
+        if (details) details.open = true;
+        card.classList.remove('deep-link-target');
+        void card.offsetWidth;
+        card.classList.add('deep-link-target');
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      window.__requityOpenClientAssessment = openClientAssessment;
+
+      // Delegated actions for match cards (list re-renders on filter changes).
+      const matchesListEl = document.getElementById('matches-list');
+      if (matchesListEl) {
+        matchesListEl.addEventListener('click', (ev) => {
+          const openBtn = ev.target.closest ? ev.target.closest('[data-open-assessment]') : null;
+          if (openBtn) { openClientAssessment(openBtn.getAttribute('data-open-assessment')); return; }
+          const msgBtn = ev.target.closest ? ev.target.closest('[data-open-messages]') : null;
+          if (msgBtn) switchView('messages-view');
+        });
       }
 
       function renderClosings(closings) {
@@ -2584,6 +2775,7 @@
         if (linkInput && dash.assessmentLink) linkInput.value = dash.assessmentLink;
         renderClients(dash.clientAssessmentDetail);
         renderMatches(dash.matches);
+        renderAgentPaymentStatus(dash.agentPaymentStatus);
         // The Closed section is rendered by renderClients() from the pipeline
         // status of each client, so a card can move between sections live.
         renderMessages(dash.messages);
@@ -2614,6 +2806,16 @@
           const m = dash.agent && dash.agent.marketCity ? String(dash.agent.marketCity).trim() : '';
           marketField.textContent = m || 'Not specified';
         }
+        // Deep link support: ?view=matches-view (or clients-view/messages-view)
+        // and ?clientId=<id> opens that client's full assessment directly, e.g.
+        // dashboard.html?clientId=[id] from an email or message link.
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const wantView = params.get('view');
+          const wantClient = params.get('clientId') || params.get('matchId');
+          if (wantClient) openClientAssessment(wantClient);
+          else if (wantView && document.getElementById(wantView)) switchView(wantView);
+        } catch (e) { /* deep link is best-effort only */ }
       } catch (e) {
         console.warn('[dashboard] failed to load live data:', e.message);
         const clientsEmpty = document.getElementById('clients-empty');

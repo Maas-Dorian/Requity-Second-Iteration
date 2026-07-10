@@ -50,6 +50,7 @@
             <button type="button" class="reviewer-tab is-active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
             <button type="button" class="reviewer-tab" data-tab="review" role="tab" aria-selected="false">Up for Review <span class="tab-count" id="tabcount-review" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="paired" role="tab" aria-selected="false">Paired Clients <span class="tab-count" id="tabcount-paired" hidden>0</span></button>
+            <button type="button" class="reviewer-tab" data-tab="payments" role="tab" aria-selected="false">Payments <span class="tab-count" id="tabcount-payments" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="incomplete" role="tab" aria-selected="false">Incomplete <span class="tab-count" id="tabcount-incomplete" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="closed" role="tab" aria-selected="false">Closed <span class="tab-count" id="tabcount-closed" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="locations" role="tab" aria-selected="false">Locations</button>
@@ -58,22 +59,30 @@
 
         <!-- ===== Overview ===== -->
         <section class="tab-panel is-active" id="tab-overview" role="tabpanel">
-            <section class="summary-row">
-                <div class="summary-card">
-                    <div class="summary-value" id="count-pending">0</div>
-                    <div class="summary-label">Pending Profiles</div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-value" id="count-fits">0</div>
-                    <div class="summary-label">Recommended Fits</div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-value" id="count-scheduled">0</div>
-                    <div class="summary-label">Scheduled Matches</div>
-                </div>
+            <section class="summary-row summary-row-6">
                 <div class="summary-card">
                     <div class="summary-value" id="count-needs-review">0</div>
-                    <div class="summary-label">Needs Reviewer</div>
+                    <div class="summary-label">Needs review</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="count-pending">0</div>
+                    <div class="summary-label">Pending lane match</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="count-paired-clients">0</div>
+                    <div class="summary-label">Paired clients</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="count-unpaid-agents">0</div>
+                    <div class="summary-label">Unpaid agents</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="count-unpaid-clients">0</div>
+                    <div class="summary-label">Unpaid clients</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="count-changed-week">0</div>
+                    <div class="summary-label">Matches changed this week</div>
                 </div>
             </section>
 
@@ -112,7 +121,19 @@
             <main class="main-grid">
                 <div class="column-main">
                     <section id="queue-section" class="section">
-                        <h2 class="section-title">Pending Client Queue</h2>
+                        <div class="leads-header">
+                            <h2 class="section-title">Pending Client Queue</h2>
+                            <div class="leads-filters">
+                                <input id="queue-search" class="leads-search" type="search" placeholder="Search name, email, market">
+                            </div>
+                        </div>
+                        <div class="queue-filter-pills" id="queue-filter-pills" role="group" aria-label="Filter queue by intent">
+                            <button type="button" class="filter-pill is-active" data-queue-filter="all">All</button>
+                            <button type="button" class="filter-pill" data-queue-filter="buying">Buying</button>
+                            <button type="button" class="filter-pill" data-queue-filter="selling">Selling</button>
+                            <button type="button" class="filter-pill" data-queue-filter="both">Buying and selling</button>
+                            <button type="button" class="filter-pill" data-queue-filter="general">General</button>
+                        </div>
                         <div id="queue-list" class="queue-list"></div>
                     </section>
 
@@ -135,14 +156,17 @@
                                 <span class="detail-label">Selected real estate agent:</span>
                                 <strong class="text-blue text-large" id="decision-selected-agent">, </strong>
                             </div>
-                            <!-- Match lane picker: only shown for buying-and-selling clients. -->
-                            <div id="decision-lane-wrap" class="detail-row mb-3 hidden">
+                            <!-- Match lane picker: the lane is always explicit. It is preset
+                                 from the client's intent and never silently defaults to buying. -->
+                            <div id="decision-lane-wrap" class="detail-row mb-3">
                                 <span class="detail-label">Match lane:</span>
-                                <select id="decision-lane" class="form-input" style="max-width:240px;">
+                                <select id="decision-lane" class="form-input" style="max-width:240px;" aria-label="Match lane">
                                     <option value="buying">Buying</option>
                                     <option value="selling">Selling</option>
                                     <option value="both">Both (same agent covers both)</option>
+                                    <option value="general">General</option>
                                 </select>
+                                <div class="helper-text" id="decision-lane-hint" style="margin-top:0.35rem;"></div>
                             </div>
                             <div id="decision-actions" class="action-stack">
                                 <button class="btn btn-primary w-100" onclick="approveSelected()">Approve Selected</button>
@@ -160,9 +184,55 @@
         <!-- ===== Paired Clients ===== -->
         <section class="tab-panel" id="tab-paired" role="tabpanel" hidden>
             <section id="paired-section" class="section">
-                <h2 class="section-title">Paired Clients</h2>
-                <p class="helper-text mb-3">Clients who have been matched and assigned to a real estate agent.</p>
+                <div class="leads-header">
+                    <h2 class="section-title">Paired Clients</h2>
+                    <div class="leads-filters">
+                        <select id="paired-filter-lane" class="leads-select" aria-label="Filter by match lane">
+                            <option value="">All lanes</option>
+                            <option value="buying">Buying</option>
+                            <option value="selling">Selling</option>
+                            <option value="both">Both</option>
+                            <option value="general">General</option>
+                        </select>
+                        <select id="paired-filter-payment" class="leads-select" aria-label="Filter by client payment">
+                            <option value="">All payment states</option>
+                            <option value="paid">Client paid</option>
+                            <option value="unpaid">Client unpaid</option>
+                        </select>
+                        <input id="paired-search" class="leads-search" type="search" placeholder="Search client or agent">
+                    </div>
+                </div>
+                <p class="helper-text mb-3">Clients who have been matched and assigned to a real estate agent. Each lane (buying, selling, both) shows as its own card.</p>
                 <div id="paired-list" class="leads-list"></div>
+            </section>
+        </section>
+
+        <!-- ===== Payments ===== -->
+        <section class="tab-panel" id="tab-payments" role="tabpanel" hidden>
+            <section class="section">
+                <div class="leads-header">
+                    <h2 class="section-title">Payments</h2>
+                    <div class="leads-filters">
+                        <select id="pay-filter-status" class="leads-select" aria-label="Filter by payment status">
+                            <option value="">All statuses</option>
+                            <option value="unpaid">Unpaid</option>
+                            <option value="invoice_sent">Invoice sent</option>
+                            <option value="paid">Paid</option>
+                            <option value="waived">Waived</option>
+                            <option value="refunded">Refunded</option>
+                            <option value="not_required">Not required</option>
+                        </select>
+                        <select id="pay-filter-type" class="leads-select" aria-label="Filter by record type">
+                            <option value="">Agents and clients</option>
+                            <option value="agent">Agents</option>
+                            <option value="client">Clients</option>
+                        </select>
+                        <input id="pay-search" class="leads-search" type="search" placeholder="Search name or email">
+                    </div>
+                </div>
+                <p class="helper-text mb-3">Track payment status for agents and consumer clients. Agents are also REQUITY clients, so their own payment status is tracked here. Every update is kept as history.</p>
+                <div id="pay-summary" class="helper-text mb-3"></div>
+                <div id="payments-list" class="leads-list"></div>
             </section>
         </section>
 
@@ -400,6 +470,68 @@
             <div class="modal-actions">
                 <button class="btn btn-outline" id="loc-delete-cancel" type="button">Cancel</button>
                 <button class="btn btn-primary" id="loc-delete-confirm" type="button">Delete location</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change match editor: replace the paired agent for ONE explicit lane. -->
+    <div id="change-match-modal" class="modal-overlay hidden">
+        <div class="modal-card change-match-card">
+            <h2 class="section-title text-xl mb-1">Update this match?</h2>
+            <p class="helper-text mb-3">REQUITY will keep the old match in history and make the new agent active for this lane.</p>
+            <div id="cm-error" class="helper-text mb-3" style="color:#C0392B; display:none;"></div>
+
+            <div class="form-group">
+                <label class="detail-label" for="cm-lane">Match lane</label>
+                <select id="cm-lane" class="form-input" aria-label="Match lane">
+                    <option value="buying">Buying</option>
+                    <option value="selling">Selling</option>
+                    <option value="both">Both (same agent covers both)</option>
+                    <option value="general">General</option>
+                </select>
+            </div>
+
+            <div class="cm-compare">
+                <div class="cm-compare-col">
+                    <span class="detail-label">Current agent</span>
+                    <div id="cm-current-agent" class="cm-agent-line">None</div>
+                </div>
+                <div class="cm-compare-col">
+                    <span class="detail-label">New agent</span>
+                    <div id="cm-new-agent" class="cm-agent-line">Not selected</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="detail-label" for="cm-agent-search">Search agents</label>
+                <input type="search" id="cm-agent-search" class="form-input" placeholder="Search by name, email, market, or archetype">
+            </div>
+            <div id="cm-agent-results" class="cm-agent-results" aria-live="polite"></div>
+
+            <div class="form-group">
+                <label class="detail-label" for="cm-reason">Reason for change</label>
+                <select id="cm-reason" class="form-input">
+                    <option value="">Select a reason</option>
+                    <option value="client_request">Client request</option>
+                    <option value="agent_unavailable">Agent unavailable</option>
+                    <option value="better_fit">Better fit</option>
+                    <option value="location_change">Location change</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="detail-label" for="cm-notes">Reviewer notes</label>
+                <textarea id="cm-notes" class="form-input" rows="2" placeholder="Optional notes kept on the match record"></textarea>
+            </div>
+
+            <div class="checkbox-group"><input type="checkbox" id="cm-notify-client" checked><label for="cm-notify-client">Notify client</label></div>
+            <div class="checkbox-group"><input type="checkbox" id="cm-notify-new" checked><label for="cm-notify-new">Notify new agent</label></div>
+            <div class="checkbox-group mb-4"><input type="checkbox" id="cm-notify-prev"><label for="cm-notify-prev">Notify previous agent</label></div>
+
+            <div class="modal-actions">
+                <button class="btn btn-outline" id="cm-cancel" type="button">Cancel</button>
+                <button class="btn btn-primary" id="cm-confirm" type="button" disabled>Update match</button>
             </div>
         </div>
     </div>
@@ -843,7 +975,7 @@
                 b.classList.toggle('is-active', on);
                 b.setAttribute('aria-selected', on ? 'true' : 'false');
             });
-            ['overview', 'review', 'paired', 'incomplete', 'closed', 'locations', 'reference'].forEach(function (t) {
+            ['overview', 'review', 'paired', 'payments', 'incomplete', 'closed', 'locations', 'reference'].forEach(function (t) {
                 var panel = document.getElementById('tab-' + t);
                 if (!panel) return;
                 var on = t === name;
@@ -851,9 +983,12 @@
                 panel.hidden = !on;
             });
             dbg('reviewer:tab-change', { tab: name });
-            // Lazy-load the Locations tab the first time it is opened.
+            // Lazy-load heavier tabs the first time they are opened.
             if (name === 'locations' && typeof window.__reviewerLoadLocations === 'function') {
                 window.__reviewerLoadLocations();
+            }
+            if (name === 'payments' && typeof window.__reviewerLoadPayments === 'function') {
+                window.__reviewerLoadPayments();
             }
         }
 
@@ -1409,6 +1544,177 @@
         if (ldConfirm) ldConfirm.addEventListener('click', confirmDeleteLocation);
         if (formModal) formModal.addEventListener('click', function (ev) { if (ev.target === formModal) closeLocationForm(); });
         if (deleteModal) deleteModal.addEventListener('click', function (ev) { if (ev.target === deleteModal) closeDeleteLocation(); });
+    })();
+    </script>
+
+    <!-- Payments tab: agent + client payment statuses (append-only history). -->
+    <script>
+    (function () {
+        var listEl = document.getElementById('payments-list');
+        if (!listEl) return;
+        var statusEl = document.getElementById('pay-filter-status');
+        var typeEl = document.getElementById('pay-filter-type');
+        var searchEl = document.getElementById('pay-search');
+        var summaryEl = document.getElementById('pay-summary');
+
+        var allRecords = [];
+        var summary = null;
+        var tableAvailable = true;
+        var loadedOnce = false;
+        var searchTimer = null;
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+        function fmtDate(s) { if (!s) return 'Never'; try { var d = new Date(s); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) { return s; } }
+        function fmtAmount(cents) {
+            if (cents == null) return null;
+            return '$' + (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        function payPill(status, label) {
+            return '<span class="status-pill pay-' + esc(status) + '">' + esc(label || status) + '</span>';
+        }
+
+        function setCard(id, value) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = Number(value) || 0;
+        }
+
+        function applySummary() {
+            if (!summary) return;
+            setCard('count-unpaid-agents', summary.unpaidAgents);
+            setCard('count-unpaid-clients', summary.unpaidClients);
+            setCard('count-changed-week', summary.matchesChangedThisWeek);
+            if (typeof window.__reviewerSetTabCount === 'function') {
+                window.__reviewerSetTabCount('payments', (summary.unpaidAgents || 0) + (summary.unpaidClients || 0));
+            }
+            if (summaryEl) {
+                summaryEl.textContent = (summary.unpaidAgents || 0) + ' unpaid agents · ' +
+                    (summary.unpaidClients || 0) + ' unpaid clients · ' +
+                    (summary.invoiceSent || 0) + ' invoices sent · ' + (summary.paid || 0) + ' paid';
+            }
+        }
+
+        function filteredRecords() {
+            var status = (statusEl && statusEl.value) || '';
+            var type = (typeEl && typeEl.value) || '';
+            var q = ((searchEl && searchEl.value) || '').trim().toLowerCase();
+            return allRecords.filter(function (r) {
+                if (status && r.status !== status) return false;
+                if (type === 'agent' && r.entityType !== 'agent') return false;
+                if (type === 'client' && r.entityType === 'agent') return false;
+                if (q) {
+                    var hay = ((r.name || '') + ' ' + (r.email || '')).toLowerCase();
+                    if (hay.indexOf(q) === -1) return false;
+                }
+                return true;
+            });
+        }
+
+        function rowHtml(r) {
+            var amount = fmtAmount(r.amountCents);
+            return '<div class="lead-card" data-pay-key="' + esc(r.entityType + ':' + r.entityId) + '">' +
+                '<div class="lead-top">' +
+                    '<div><div class="lead-name">' + esc(r.name || 'Unknown') + '</div>' +
+                    '<div class="lead-contact">' + esc(r.email || 'no email') + '</div></div>' +
+                    '<div class="lead-badges">' +
+                        '<span class="badge badge-internal">' + esc(r.typeLabel) + '</span>' +
+                        payPill(r.status, r.statusLabel) +
+                    '</div>' +
+                '</div>' +
+                '<div class="lead-meta">' +
+                    (r.relatedMatch ? ('<span>Match <strong>' + esc(r.relatedMatch) + '</strong></span>') : '') +
+                    (amount ? ('<span>Amount <strong>' + esc(amount) + '</strong></span>') : '') +
+                    '<span>Last updated <strong>' + fmtDate(r.updatedAt) + '</strong></span>' +
+                '</div>' +
+                (r.note ? ('<div class="lead-note">' + esc(r.note) + '</div>') : '') +
+                '<div class="lead-actions">' +
+                    '<button class="btn btn-outline btn-sm" data-pay-act="paid">Mark paid</button>' +
+                    '<button class="btn btn-outline btn-sm" data-pay-act="unpaid">Mark unpaid</button>' +
+                    '<button class="btn btn-outline btn-sm" data-pay-act="invoice_sent">Mark invoice sent</button>' +
+                    '<button class="btn btn-outline btn-sm" data-pay-act="note">Add note</button>' +
+                '</div>' +
+            '</div>';
+        }
+
+        function render() {
+            if (!tableAvailable) {
+                listEl.innerHTML = '<div class="leads-empty">Payment tracking is not available yet. Apply migration 0012_reviewer_payment_statuses.sql to enable it.</div>';
+                return;
+            }
+            var rows = filteredRecords();
+            if (!rows.length) {
+                listEl.innerHTML = '<div class="leads-empty">No payment records match these filters.</div>';
+                return;
+            }
+            listEl.innerHTML = rows.map(rowHtml).join('');
+        }
+
+        function onAction(record, act, btn) {
+            if (!window.RequityAPI || !window.RequityAPI.setReviewerPaymentStatus) return;
+            var payload = { entityType: record.entityType, entityId: record.entityId };
+            if (act === 'note') {
+                var note = prompt('Payment note for ' + (record.name || 'this record') + ':', record.note || '');
+                if (note === null) return;
+                payload.status = record.status;
+                payload.note = note;
+            } else {
+                payload.status = act;
+                payload.note = record.note || null;
+            }
+            if (btn) btn.disabled = true;
+            Promise.resolve(window.RequityAPI.setReviewerPaymentStatus(payload)).then(function () {
+                loadInner();
+            }).catch(function (err) {
+                if (btn) btn.disabled = false;
+                alert((err && (err.serverError || err.message)) || 'Could not update the payment status.');
+            });
+        }
+
+        listEl.addEventListener('click', function (ev) {
+            var btn = ev.target.closest ? ev.target.closest('[data-pay-act]') : null;
+            if (!btn) return;
+            var card = btn.closest('[data-pay-key]');
+            if (!card) return;
+            var key = card.getAttribute('data-pay-key');
+            var record = allRecords.find(function (r) { return (r.entityType + ':' + r.entityId) === key; });
+            if (record) onAction(record, btn.getAttribute('data-pay-act'), btn);
+        });
+
+        function loadInner() {
+            if (!window.RequityAPI || !window.RequityAPI.fetchReviewerPayments) {
+                listEl.innerHTML = '<div class="leads-empty">Payments are not available.</div>';
+                return;
+            }
+            Promise.resolve(window.RequityAPI.fetchReviewerPayments()).then(function (result) {
+                allRecords = (result && result.records) || [];
+                summary = (result && result.summary) || null;
+                tableAvailable = !result || result.paymentsTableAvailable !== false;
+                applySummary();
+                render();
+            }).catch(function () {
+                listEl.innerHTML = '<div class="leads-empty">We could not load payments. Please try again.</div>';
+            });
+        }
+
+        function loadGated() {
+            var gate = window.__reviewerGate || Promise.resolve({ ok: false });
+            Promise.resolve(gate).then(function (g) {
+                if (!g || g.ok === false) return;
+                loadedOnce = true;
+                loadInner();
+            });
+        }
+
+        // Lazy entry point for the tab switcher; refresh hook for other views.
+        window.__reviewerLoadPayments = function () { if (!loadedOnce) loadGated(); };
+        window.__reviewerRefreshPayments = function () { if (loadedOnce) loadInner(); else loadGated(); };
+
+        if (statusEl) statusEl.addEventListener('change', render);
+        if (typeEl) typeEl.addEventListener('change', render);
+        if (searchEl) searchEl.addEventListener('input', function () { if (searchTimer) clearTimeout(searchTimer); searchTimer = setTimeout(render, 250); });
+
+        // Load once up front so the Overview summary cards have real counts.
+        listEl.innerHTML = '<div class="leads-empty">Loading payments…</div>';
+        loadGated();
     })();
     </script>
 </body>

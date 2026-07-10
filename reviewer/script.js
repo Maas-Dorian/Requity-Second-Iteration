@@ -25,7 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedAgentId: null,
         selectedAgentName: null,
         counts: { pending: 0, fits: 0, scheduled: 0, needsReview: 0 },
-        autoMode: 'off' // 'off', 'running', 'complete'
+        autoMode: 'off', // 'off', 'running', 'complete'
+        queueFilter: 'all',       // all | buying | selling | both | general
+        queueSearch: '',
+        pairedLaneFilter: '',     // '' | buying | selling | both | general
+        pairedPaymentFilter: '',  // '' | paid | unpaid
+        pairedSearch: ''
     };
 
     // --- DOM Elements ------------------------------------------------------
@@ -44,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const elCountFits = document.getElementById('count-fits');
     const elCountScheduled = document.getElementById('count-scheduled');
     const elCountNeedsReview = document.getElementById('count-needs-review');
+    const elCountPairedClients = document.getElementById('count-paired-clients');
 
     const elDecisionAgent = document.getElementById('decision-selected-agent');
     const elDecisionActions = document.getElementById('decision-actions');
@@ -382,9 +388,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function recomputeCounts() {
-        state.counts.pending = clients.length;
-        state.counts.fits = clients.reduce(function (sum, c) { return sum + (c.fits ? c.fits.length : 0); }, 0);
         state.counts.needsReview = clients.length;
+        // "Pending lane match": buying-and-selling clients with one lane matched
+        // and the other lane still open.
+        state.counts.pending = clients.filter(function (c) {
+            var ls = c.laneStatus;
+            return !!(ls && ls.activeMatches && ls.activeMatches.length && !ls.fullyMatched);
+        }).length;
+        state.counts.fits = clients.reduce(function (sum, c) { return sum + (c.fits ? c.fits.length : 0); }, 0);
         // scheduled is incremented as the reviewer approves matches this session.
     }
 
@@ -393,6 +404,27 @@ document.addEventListener('DOMContentLoaded', () => {
         elQueueList.innerHTML = '<div class="leads-empty">' + LOADING_MSG + '</div>';
         elProfileCard.innerHTML = '<div class="leads-empty">' + LOADING_MSG + '</div>';
         elFitsList.innerHTML = '<div class="leads-empty">' + LOADING_MSG + '</div>';
+    }
+
+    // Client-side queue filters: intent lane pills + a name/email/market search.
+    function queueIntentOf(client) {
+        var v = String(client.intent || '').toLowerCase();
+        if (v === 'buying' || v === 'selling' || v === 'both') return v;
+        return 'general';
+    }
+
+    function filteredQueueClients() {
+        var f = state.queueFilter || 'all';
+        var q = (state.queueSearch || '').toLowerCase();
+        return clients.filter(function (c) {
+            if (f !== 'all' && queueIntentOf(c) !== f) return false;
+            if (q) {
+                var hay = ((c.name || '') + ' ' + (c.email || '') + ' ' + (c.market || '') +
+                    ' ' + (c.buyingMarket || '') + ' ' + (c.sellingMarket || '')).toLowerCase();
+                if (hay.indexOf(q) === -1) return false;
+            }
+            return true;
+        });
     }
 
     function renderQueue() {
@@ -404,11 +436,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (!clients.length) {
             elQueueList.innerHTML =
-                '<div class="leads-empty"><strong>' + EMPTY_QUEUE_TITLE + '</strong><br>' + EMPTY_QUEUE_SUB + '</div>';
+                '<div class="leads-empty"><strong>No clients need review right now.</strong><br>' + EMPTY_QUEUE_SUB + '</div>';
+            return;
+        }
+        var visible = filteredQueueClients();
+        if (!visible.length) {
+            elQueueList.innerHTML = '<div class="leads-empty">No clients match these filters.</div>';
             return;
         }
 
-        clients.forEach(function (client) {
+        visible.forEach(function (client) {
             const isActive = client.id === state.activeClientId ? 'active' : '';
             const html =
                 '<div class="queue-item ' + isActive + '" onclick="selectClient(\'' + esc(client.id) + '\')" id="q-' + esc(client.id) + '">' +
@@ -530,22 +567,37 @@ document.addEventListener('DOMContentLoaded', () => {
         updateLanePicker(client);
     }
 
-    // Show the match-lane picker only for buying-and-selling clients, defaulting
-    // to the first lane that still needs a match (Part 5).
+    // The lane picker is ALWAYS visible and explicit. It is preset from the
+    // client's own intent (a selling client presets to Selling, a general
+    // client to General); it never silently defaults to buying.
     function updateLanePicker(client) {
         var wrap = document.getElementById('decision-lane-wrap');
         var select = document.getElementById('decision-lane');
+        var hint = document.getElementById('decision-lane-hint');
         if (!wrap || !select) return;
-        var isBoth = !!client && (client.intent === 'both' ||
-            (client.laneStatus && (client.laneStatus.requiredLanes || []).length > 1));
-        wrap.classList.toggle('hidden', !isBoth);
-        if (!isBoth) return;
-        var unmatched = (client.laneStatus && client.laneStatus.unmatchedLanes) || [];
-        var preferred = unmatched.length ? unmatched[0] : 'buying';
-        if (['buying', 'selling', 'both'].indexOf(preferred) !== -1) select.value = preferred;
+        wrap.classList.toggle('hidden', !client);
+        if (!client) return;
+        var intent = queueIntentOf(client);
+        var preset = intent; // buying -> buying, selling -> selling, general -> general
+        var hintText = '';
+        if (intent === 'both') {
+            // Buying-and-selling client: preset the first lane that still needs
+            // a match so the reviewer works the open side, not a hidden default.
+            var unmatched = (client.laneStatus && client.laneStatus.unmatchedLanes) || [];
+            preset = unmatched.length ? unmatched[0] : 'both';
+            hintText = 'This client is buying and selling. Match each lane separately, or pick Both if one agent covers both sides.';
+        } else if (intent === 'buying') {
+            hintText = 'This client is buying.';
+        } else if (intent === 'selling') {
+            hintText = 'This client is selling.';
+        } else {
+            hintText = 'This client has a general intent.';
+        }
+        if (['buying', 'selling', 'both', 'general'].indexOf(preset) !== -1) select.value = preset;
+        if (hint) hint.textContent = hintText;
     }
 
-    // The lane the reviewer picked, or null when the picker is hidden.
+    // The lane the reviewer explicitly has selected in the picker.
     function selectedMatchLane() {
         var wrap = document.getElementById('decision-lane-wrap');
         var select = document.getElementById('decision-lane');
@@ -558,6 +610,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elCountFits) elCountFits.textContent = state.counts.fits;
         if (elCountScheduled) elCountScheduled.textContent = state.counts.scheduled;
         if (elCountNeedsReview) elCountNeedsReview.textContent = state.counts.needsReview;
+        if (elCountPairedClients) {
+            elCountPairedClients.textContent = pairedClients.filter(function (p) {
+                return normalizeStatus(p.pipelineStatus) !== 'closed';
+            }).length;
+        }
+        // Unpaid agents/clients + matches-changed cards are owned by the
+        // Payments loader in index.html (applySummary).
     }
 
     function renderAll() {
@@ -591,6 +650,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return '<span>Market <strong>' + esc(general || 'Not specified') + '</strong></span>';
     }
 
+    // Payment pill for a paired card: explicit status when set, Unpaid otherwise.
+    var PAYMENT_LABELS = {
+        unpaid: 'Unpaid', invoice_sent: 'Invoice sent', paid: 'Paid',
+        waived: 'Waived', refunded: 'Refunded', not_required: 'Not required'
+    };
+    function payPillHtml(status, label) {
+        var v = status || 'unpaid';
+        return '<span class="status-pill pay-' + esc(v) + '">' + esc(label || PAYMENT_LABELS[v] || 'Unpaid') + '</span>';
+    }
+
+    function pairedKey(p) {
+        return (p.clientId || p.leadId || p.matchId || '') + ':' + (p.matchLane || 'general');
+    }
+
     function pairedCardHtml(p) {
         var fit = (typeof p.score === 'number' && p.score > 0)
             ? (p.label ? (p.label + ' · ' + p.score + '%') : (p.score + '%'))
@@ -600,14 +673,13 @@ document.addEventListener('DOMContentLoaded', () => {
         var reviewWarning = (p.agentHasLocation === false)
             ? '<div class="loc-row-warning">This recommendation needs location review. The paired agent has no market on file.</div>'
             : '';
-        // Lane badge (Part 5): a buying-and-selling client can appear with one
-        // card per lane (Buying / Selling), or a single combined Both card.
-        var laneBadge = (p.matchLaneLabel && p.matchLaneLabel !== 'General')
-            ? '<span class="badge badge-internal">' + esc(p.matchLaneLabel) + ' match</span>'
-            : '';
+        // Lane badge: every card names its lane explicitly (including General).
+        var laneBadge = '<span class="badge badge-internal">' + esc(p.matchLaneLabel || 'General') + ' match</span>';
         var statusTarget = (!p.clientId && p.leadId)
             ? { kind: 'lead', id: p.leadId }
             : { kind: 'client', id: p.clientId };
+        var clientPaid = (p.clientPaymentStatus === 'paid');
+        var lastEmail = p.lastEmailAt ? fmtPairedDate(p.lastEmailAt) : 'Not sent';
         return reviewWarning + '<div class="lead-top">' +
                 '<div><div class="lead-name">' + esc(p.clientName || 'Unknown client') + '</div>' +
                 '<div class="lead-contact">' + esc(p.clientEmail || 'no email') +
@@ -627,15 +699,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 (p.agentEmail ? ('<span>Agent email <strong>' + esc(p.agentEmail) + '</strong></span>') : '') +
                 (p.agentArchetype ? ('<span>Agent archetype <strong>' + esc(p.agentArchetype) + '</strong></span>') : '') +
                 '<span>Matched <strong>' + fmtPairedDate(p.matchedAt) + '</strong></span>' +
+                '<span>Last agent email <strong>' + esc(lastEmail) + '</strong></span>' +
             '</div>' +
-            '<div style="margin-top:0.6rem; text-align:right;">' +
-                '<button type="button" class="btn btn-outline btn-sm" onclick="removePairedClient(\'' + esc(p.clientId || '') + '\', \'' + esc(p.leadId || '') + '\')">Remove paired client</button>' +
+            '<div class="paired-pay-row">' +
+                '<span>Client payment ' + payPillHtml(p.clientPaymentStatus, p.clientPaymentLabel) + '</span>' +
+                '<span>Agent payment ' + payPillHtml(p.agentPaymentStatus, p.agentPaymentLabel) + '</span>' +
+            '</div>' +
+            '<div class="paired-actions">' +
+                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="change" data-paired-key="' + esc(pairedKey(p)) + '">Change match</button>' +
+                (p.matchId ? ('<button type="button" class="btn btn-outline btn-sm" data-paired-act="resend" data-paired-key="' + esc(pairedKey(p)) + '">Resend email</button>') : '') +
+                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="pay" data-paired-key="' + esc(pairedKey(p)) + '">' + (clientPaid ? 'Mark client unpaid' : 'Mark client paid') + '</button>' +
+                '<button type="button" class="btn btn-outline btn-sm" onclick="removePairedClient(\'' + esc(p.clientId || '') + '\', \'' + esc(p.leadId || '') + '\')">Archive</button>' +
             '</div>';
     }
 
     // Active (non-closed) pairings render in Paired Clients; Closed pairings move
     // to the Closed tab. Both keep the editable status control so a reviewer can
     // move a client back and forth.
+    // Client-side Paired filters: lane, client payment state, and search.
+    function pairedMatchesFilters(p) {
+        if (state.pairedLaneFilter && (p.matchLane || 'general') !== state.pairedLaneFilter) return false;
+        if (state.pairedPaymentFilter === 'paid' && p.clientPaymentStatus !== 'paid') return false;
+        if (state.pairedPaymentFilter === 'unpaid' && p.clientPaymentStatus === 'paid') return false;
+        var q = (state.pairedSearch || '').toLowerCase();
+        if (q) {
+            var hay = ((p.clientName || '') + ' ' + (p.clientEmail || '') + ' ' +
+                (p.agentName || '') + ' ' + (p.agentEmail || '')).toLowerCase();
+            if (hay.indexOf(q) === -1) return false;
+        }
+        return true;
+    }
+
     function renderPaired() {
         var active = [];
         var closed = [];
@@ -644,11 +738,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (elPairedList) {
-            if (!active.length) {
-                elPairedList.innerHTML = '<div class="leads-empty">No pairings yet.</div>';
+            var visible = active.filter(pairedMatchesFilters);
+            var hasFilters = !!(state.pairedLaneFilter || state.pairedPaymentFilter || state.pairedSearch);
+            if (!visible.length) {
+                elPairedList.innerHTML = '<div class="leads-empty">' +
+                    (hasFilters ? 'No paired clients match these filters.' : 'No pairings yet.') + '</div>';
             } else {
                 elPairedList.innerHTML = '';
-                active.forEach(function (p) {
+                visible.forEach(function (p) {
                     var card = document.createElement('div');
                     card.className = 'lead-card';
                     card.innerHTML = pairedCardHtml(p);
@@ -798,6 +895,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadQueue();
             } else {
                 removeClientFromQueue(client.id);
+                // Refresh so the new pairing shows in Paired Clients right away.
+                loadQueue();
             }
         }).catch(function (err) {
             if (err && err.code === 'CLIENT_ALREADY_MATCHED') {
@@ -884,6 +983,271 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     };
+
+    // --- Paired card actions: change match, resend email, mark paid ---------
+    function findPairedByKey(key) {
+        return pairedClients.find(function (p) { return pairedKey(p) === key; }) || null;
+    }
+
+    function handlePairedAction(act, key, btn) {
+        var p = findPairedByKey(key);
+        if (!p) return;
+        if (act === 'change') { openChangeMatch(p); return; }
+        if (act === 'resend') {
+            if (!window.RequityAPI || !window.RequityAPI.resendReviewerMatchEmail || !p.matchId) return;
+            btn.disabled = true;
+            btn.textContent = 'Sending…';
+            Promise.resolve(window.RequityAPI.resendReviewerMatchEmail(p.matchId)).then(function (res) {
+                p.lastEmailAt = new Date().toISOString();
+                var laneWord = (p.matchLaneLabel || 'General').toLowerCase();
+                addLog('Resent the ' + laneWord + ' match email to ' + (p.agentName || 'the agent') + '.');
+                renderPaired();
+            }).catch(function (err) {
+                btn.disabled = false;
+                btn.textContent = 'Resend email';
+                addLog('Could not resend the match email. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
+            });
+            return;
+        }
+        if (act === 'pay') {
+            if (!window.RequityAPI || !window.RequityAPI.setReviewerPaymentStatus) return;
+            var entityType = p.clientId ? 'client' : 'lead';
+            var entityId = p.clientId || p.leadId;
+            if (!entityId) return;
+            var next = (p.clientPaymentStatus === 'paid') ? 'unpaid' : 'paid';
+            btn.disabled = true;
+            Promise.resolve(window.RequityAPI.setReviewerPaymentStatus({
+                entityType: entityType, entityId: entityId, status: next
+            })).then(function () {
+                // Keep every lane card for this client in sync.
+                pairedClients.forEach(function (row) {
+                    var same = (p.clientId && row.clientId === p.clientId) || (!p.clientId && p.leadId && row.leadId === p.leadId);
+                    if (same) { row.clientPaymentStatus = next; row.clientPaymentLabel = PAYMENT_LABELS[next]; }
+                });
+                addLog('Marked ' + (p.clientName || 'client') + ' as ' + PAYMENT_LABELS[next].toLowerCase() + '.');
+                renderPaired();
+                if (typeof window.__reviewerRefreshPayments === 'function') window.__reviewerRefreshPayments();
+            }).catch(function (err) {
+                btn.disabled = false;
+                addLog('Could not update the payment status. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
+            });
+        }
+    }
+
+    function bindPairedActions(container) {
+        if (!container) return;
+        container.addEventListener('click', function (ev) {
+            var btn = ev.target.closest ? ev.target.closest('[data-paired-act]') : null;
+            if (!btn) return;
+            handlePairedAction(btn.getAttribute('data-paired-act'), btn.getAttribute('data-paired-key'), btn);
+        });
+    }
+    bindPairedActions(elPairedList);
+    bindPairedActions(elClosedList);
+
+    // --- Change match editor -------------------------------------------------
+    // Replaces the paired agent for ONE explicit lane. The lane the reviewer
+    // clicked is preselected; it never falls back to buying on its own.
+    var cmState = { paired: null, agents: [], selectedAgent: null, busy: false };
+    var cmModal = document.getElementById('change-match-modal');
+    var cmLane = document.getElementById('cm-lane');
+    var cmError = document.getElementById('cm-error');
+    var cmCurrentAgent = document.getElementById('cm-current-agent');
+    var cmNewAgent = document.getElementById('cm-new-agent');
+    var cmSearch = document.getElementById('cm-agent-search');
+    var cmResults = document.getElementById('cm-agent-results');
+    var cmReason = document.getElementById('cm-reason');
+    var cmNotes = document.getElementById('cm-notes');
+    var cmNotifyClient = document.getElementById('cm-notify-client');
+    var cmNotifyNew = document.getElementById('cm-notify-new');
+    var cmNotifyPrev = document.getElementById('cm-notify-prev');
+    var cmCancel = document.getElementById('cm-cancel');
+    var cmConfirm = document.getElementById('cm-confirm');
+    var cmSearchTimer = null;
+
+    function cmShowError(msg) {
+        if (cmError) { cmError.textContent = msg; cmError.style.display = 'block'; }
+    }
+
+    function openChangeMatch(p) {
+        if (!cmModal) return;
+        cmState.paired = p;
+        cmState.agents = [];
+        cmState.selectedAgent = null;
+        cmState.busy = false;
+        if (cmError) { cmError.style.display = 'none'; cmError.textContent = ''; }
+        // Explicit lane: exactly the lane of the card the reviewer clicked.
+        if (cmLane) cmLane.value = p.matchLane || 'general';
+        if (cmCurrentAgent) cmCurrentAgent.textContent = (p.agentName || 'None') + (p.agentEmail ? (' · ' + p.agentEmail) : '');
+        if (cmNewAgent) cmNewAgent.textContent = 'Not selected';
+        if (cmSearch) cmSearch.value = '';
+        if (cmReason) cmReason.value = '';
+        if (cmNotes) cmNotes.value = '';
+        if (cmNotifyClient) cmNotifyClient.checked = true;
+        if (cmNotifyNew) cmNotifyNew.checked = true;
+        if (cmNotifyPrev) cmNotifyPrev.checked = false;
+        if (cmConfirm) { cmConfirm.disabled = true; cmConfirm.textContent = 'Update match'; }
+        if (cmResults) cmResults.innerHTML = '<div class="leads-empty">Loading agents…</div>';
+        cmModal.classList.remove('hidden');
+        loadChangeMatchAgents(p);
+    }
+
+    function closeChangeMatch() {
+        if (cmState.busy) return;
+        if (cmModal) cmModal.classList.add('hidden');
+        cmState.paired = null;
+    }
+
+    function loadChangeMatchAgents(p) {
+        if (!window.RequityAPI || !window.RequityAPI.fetchReviewerMatchSuggestions) {
+            if (cmResults) cmResults.innerHTML = '<div class="leads-empty">Agent search is not available.</div>';
+            return;
+        }
+        var params = p.clientId ? { clientId: p.clientId } : { leadId: p.leadId };
+        Promise.resolve(window.RequityAPI.fetchReviewerMatchSuggestions(params)).then(function (result) {
+            result = result || {};
+            cmState.agents = result.eligibleAgents || result.suggestions || [];
+            renderChangeMatchAgents();
+        }).catch(function () {
+            if (cmResults) cmResults.innerHTML = '<div class="leads-empty">Could not load agents. Please try again.</div>';
+        });
+    }
+
+    function renderChangeMatchAgents() {
+        if (!cmResults) return;
+        var q = ((cmSearch && cmSearch.value) || '').trim().toLowerCase();
+        var rows = cmState.agents.filter(function (s) {
+            if (!q) return true;
+            var hay = ((s.agentName || '') + ' ' + (s.agentEmail || '') + ' ' +
+                (s.agentArchetype || '') + ' ' + (s.marketCity || '') + ' ' + (s.marketState || '')).toLowerCase();
+            return hay.indexOf(q) !== -1;
+        });
+        if (!rows.length) {
+            cmResults.innerHTML = '<div class="leads-empty">No agents match this search.</div>';
+            return;
+        }
+        cmResults.innerHTML = rows.map(function (s) {
+            var isSel = cmState.selectedAgent && cmState.selectedAgent.agentId === s.agentId;
+            var bits = [];
+            if (s.agentArchetype) bits.push(esc(s.agentArchetype));
+            if (s.marketCity) bits.push(esc(s.marketCity) + (s.marketState ? (', ' + esc(s.marketState)) : ''));
+            if (s.distanceMiles != null) bits.push(s.distanceMiles + ' mi');
+            if (typeof s.totalScore === 'number') bits.push('Total ' + s.totalScore + '%');
+            if (typeof s.activeMatchCount === 'number' && s.activeMatchCount > 0) bits.push(s.activeMatchCount + ' active match' + (s.activeMatchCount === 1 ? '' : 'es'));
+            return '<div class="cm-agent-card' + (isSel ? ' is-selected' : '') + '">' +
+                '<div class="cm-agent-main">' +
+                    '<span class="cm-agent-name">' + esc(s.agentName || 'Agent') + '</span>' +
+                    '<span class="cm-agent-sub">' + bits.join(' · ') + '</span>' +
+                '</div>' +
+                '<button type="button" class="btn btn-outline btn-sm" data-cm-select="' + esc(s.agentId || '') + '">' + (isSel ? 'Selected' : 'Select') + '</button>' +
+            '</div>';
+        }).join('');
+    }
+
+    if (cmResults) cmResults.addEventListener('click', function (ev) {
+        var btn = ev.target.closest ? ev.target.closest('[data-cm-select]') : null;
+        if (!btn) return;
+        var id = btn.getAttribute('data-cm-select');
+        var agent = cmState.agents.find(function (s) { return s.agentId === id; });
+        if (!agent) return;
+        cmState.selectedAgent = agent;
+        if (cmNewAgent) cmNewAgent.textContent = agent.agentName || 'Agent';
+        if (cmConfirm) cmConfirm.disabled = false;
+        renderChangeMatchAgents();
+    });
+
+    if (cmSearch) cmSearch.addEventListener('input', function () {
+        if (cmSearchTimer) clearTimeout(cmSearchTimer);
+        cmSearchTimer = setTimeout(renderChangeMatchAgents, 200);
+    });
+
+    function confirmChangeMatch() {
+        var p = cmState.paired;
+        var agent = cmState.selectedAgent;
+        if (!p || !agent || cmState.busy) return;
+        if (!window.RequityAPI || !window.RequityAPI.approveReviewerMatch) return;
+        var lane = (cmLane && cmLane.value) || p.matchLane || 'general';
+        var payload = p.clientId ? { clientId: p.clientId } : { leadId: p.leadId };
+        payload.agentId = agent.agentId;
+        payload.matchLane = lane;
+        payload.replaceExisting = true;
+        if (typeof agent.compatibilityScore === 'number') payload.score = agent.compatibilityScore;
+        if (agent.matchReason) payload.reason = agent.matchReason;
+        var reason = (cmReason && cmReason.value) || '';
+        if (reason) {
+            var reasonLabels = {
+                client_request: 'Client request', agent_unavailable: 'Agent unavailable',
+                better_fit: 'Better fit', location_change: 'Location change', other: 'Other'
+            };
+            payload.replaceReason = reasonLabels[reason] || reason;
+        }
+        var notes = ((cmNotes && cmNotes.value) || '').trim();
+        if (notes) payload.reviewerNotes = notes;
+        payload.notifyClient = !cmNotifyClient || cmNotifyClient.checked;
+        payload.notifyNewAgent = !cmNotifyNew || cmNotifyNew.checked;
+        payload.notifyPreviousAgent = !!(cmNotifyPrev && cmNotifyPrev.checked);
+
+        cmState.busy = true;
+        if (cmError) { cmError.style.display = 'none'; cmError.textContent = ''; }
+        if (cmConfirm) { cmConfirm.disabled = true; cmConfirm.textContent = 'Updating…'; }
+        Promise.resolve(window.RequityAPI.approveReviewerMatch(payload)).then(function () {
+            cmState.busy = false;
+            closeChangeMatch();
+            var laneWord = lane === 'general' ? 'general' : lane;
+            addLog('Updated the ' + laneWord + ' match for ' + (p.clientName || 'client') + ': ' +
+                (agent.agentName || 'new agent') + ' is now active. The old match is kept in history.');
+            loadQueue();
+        }).catch(function (err) {
+            cmState.busy = false;
+            if (cmConfirm) { cmConfirm.disabled = false; cmConfirm.textContent = 'Update match'; }
+            cmShowError((err && (err.serverError || err.message)) || 'Could not update the match. Please try again.');
+        });
+    }
+
+    if (cmCancel) cmCancel.addEventListener('click', closeChangeMatch);
+    if (cmConfirm) cmConfirm.addEventListener('click', confirmChangeMatch);
+    if (cmModal) cmModal.addEventListener('click', function (ev) { if (ev.target === cmModal) closeChangeMatch(); });
+
+    // --- Queue + Paired filter wiring ---------------------------------------
+    var queuePillsEl = document.getElementById('queue-filter-pills');
+    if (queuePillsEl) queuePillsEl.addEventListener('click', function (ev) {
+        var pill = ev.target.closest ? ev.target.closest('[data-queue-filter]') : null;
+        if (!pill) return;
+        state.queueFilter = pill.getAttribute('data-queue-filter') || 'all';
+        queuePillsEl.querySelectorAll('.filter-pill').forEach(function (b) {
+            b.classList.toggle('is-active', b === pill);
+        });
+        renderQueue();
+    });
+    var queueSearchEl = document.getElementById('queue-search');
+    var queueSearchTimer = null;
+    if (queueSearchEl) queueSearchEl.addEventListener('input', function () {
+        if (queueSearchTimer) clearTimeout(queueSearchTimer);
+        queueSearchTimer = setTimeout(function () {
+            state.queueSearch = (queueSearchEl.value || '').trim();
+            renderQueue();
+        }, 250);
+    });
+
+    var pairedLaneEl = document.getElementById('paired-filter-lane');
+    var pairedPaymentEl = document.getElementById('paired-filter-payment');
+    var pairedSearchEl = document.getElementById('paired-search');
+    var pairedSearchTimer = null;
+    if (pairedLaneEl) pairedLaneEl.addEventListener('change', function () {
+        state.pairedLaneFilter = pairedLaneEl.value || '';
+        renderPaired();
+    });
+    if (pairedPaymentEl) pairedPaymentEl.addEventListener('change', function () {
+        state.pairedPaymentFilter = pairedPaymentEl.value || '';
+        renderPaired();
+    });
+    if (pairedSearchEl) pairedSearchEl.addEventListener('input', function () {
+        if (pairedSearchTimer) clearTimeout(pairedSearchTimer);
+        pairedSearchTimer = setTimeout(function () {
+            state.pairedSearch = (pairedSearchEl.value || '').trim();
+            renderPaired();
+        }, 250);
+    });
 
     window.openAutoModal = function () {
         if (state.autoMode !== 'off') return;

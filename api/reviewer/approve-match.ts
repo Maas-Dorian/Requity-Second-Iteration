@@ -17,7 +17,8 @@ const ROUTE = "reviewer/approve-match";
 /**
  * POST /api/reviewer/approve-match
  * Body: { clientId?, leadId?, agentId, score?, reason?, reviewerId?,
- *         matchLane?, replaceExisting?, replaceReason? }
+ *         matchLane?, replaceExisting?, replaceReason?, reviewerNotes?,
+ *         notifyClient?, notifyNewAgent?, notifyPreviousAgent? }
  *
  * Requires reviewer/admin auth. Finalizes the match. Uniqueness is per client
  * (or lead) + lane: a standard client has one active general match; a
@@ -26,6 +27,10 @@ const ROUTE = "reviewer/approve-match";
  * same agent may be active for unlimited clients. If the target already has a
  * conflicting active match in an overlapping lane and replaceExisting is not
  * set, responds 409 CLIENT_ALREADY_MATCHED so the reviewer can confirm a replace.
+ *
+ * Notify flags (all optional): notifyClient / notifyNewAgent default TRUE,
+ * notifyPreviousAgent defaults FALSE. Emails are lane-specific: the buying
+ * agent gets the buying email, the selling agent the selling email.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runHandler(req, res, async () => {
@@ -68,6 +73,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         matchLane: matchLaneRaw,
         replaceExisting,
         replaceReason: optionalString(body, "replaceReason"),
+        reviewerNotes: optionalString(body, "reviewerNotes"),
+        notifyClient: body.notifyClient !== false,
+        notifyNewAgent: body.notifyNewAgent !== false,
+        notifyPreviousAgent: body.notifyPreviousAgent === true,
       });
       if (result.ok === false) {
         // Client already has a different active match; reviewer must confirm replace.

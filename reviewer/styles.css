@@ -796,6 +796,69 @@ body.demo-active {
 .loc-actions li { margin: 0.15rem 0; }
 .loc-row-warning { font-size: 0.8rem; color: #9a5b00; margin-top: 0.25rem; }
 
+/* ===== Reviewer redesign: summary cards, filter pills, payments, change match ===== */
+.summary-row-6 { grid-template-columns: repeat(6, 1fr); gap: 1rem; }
+@media (max-width: 1100px) { .summary-row-6 { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 640px) { .summary-row-6 { grid-template-columns: repeat(2, 1fr); } }
+.summary-row-6 .summary-card { padding: 1rem 1.1rem; }
+.summary-row-6 .summary-value { font-size: 1.6rem; }
+.summary-row-6 .summary-label { font-size: 0.78rem; }
+
+.queue-filter-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0 1rem; }
+.filter-pill {
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary, #4A607C);
+    background: var(--white, #fff);
+    border: 1px solid var(--blue-border, #D3E0F2);
+    border-radius: 999px;
+    padding: 0.35rem 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.filter-pill:hover { background: rgba(30, 63, 122, 0.06); color: var(--primary-blue, #1E3F7A); }
+.filter-pill.is-active { background: var(--primary-blue, #1E3F7A); border-color: var(--primary-blue, #1E3F7A); color: #fff; }
+
+/* Payment status pills (Unpaid / Invoice sent / Paid / Waived / Refunded / Not required). */
+.pay-unpaid { background-color: #FDECEA; color: var(--soft-red, #C0392B); border-color: #F5C6CB; }
+.pay-invoice_sent { background-color: #FFF8E1; color: var(--warning-amber, #B7791F); border-color: #FFE0B2; }
+.pay-paid { background-color: #E8F5E9; color: var(--success-green, #2E7D32); border-color: #C8E6C9; }
+.pay-waived { background-color: #EDEFF3; color: var(--text-secondary, #4A607C); border-color: #D8DEE8; }
+.pay-refunded { background-color: #E3F2FD; color: var(--primary-blue, #1E3F7A); border-color: #BBDEFB; }
+.pay-not_required { background-color: #EDEFF3; color: var(--text-secondary, #4A607C); border-color: #D8DEE8; }
+
+/* Change match editor modal. */
+.change-match-card { max-width: 560px; width: 100%; max-height: 88vh; overflow-y: auto; }
+.cm-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
+@media (max-width: 640px) { .cm-compare { grid-template-columns: 1fr; } }
+.cm-compare-col {
+    border: 1px solid var(--blue-border, #D3E0F2);
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    background: #F8FAFD;
+}
+.cm-agent-line { font-size: 0.88rem; font-weight: 600; color: var(--text-primary, #10233F); margin-top: 0.25rem; }
+.cm-agent-results { display: flex; flex-direction: column; gap: 0.5rem; max-height: 260px; overflow-y: auto; margin-bottom: 1rem; }
+.cm-agent-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border: 1px solid var(--blue-border, #D3E0F2);
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+    background: var(--white, #fff);
+}
+.cm-agent-card.is-selected { border-color: var(--accent-orange, #FF7500); background: #FFF7F0; }
+.cm-agent-main { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.cm-agent-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary, #10233F); }
+.cm-agent-sub { font-size: 0.78rem; color: var(--text-secondary, #4A607C); }
+
+/* Paired card action + payment rows. */
+.paired-pay-row { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: center; margin-top: 0.6rem; font-size: 0.8rem; color: var(--text-secondary, #4A607C); }
+.paired-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; margin-top: 0.6rem; }
+
 /* Mobile fit pass */
 * { max-width: 100%; }
 html, body { overflow-x: hidden; }

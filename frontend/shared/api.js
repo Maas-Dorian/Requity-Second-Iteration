@@ -733,6 +733,42 @@
     return apiPatch("/reviewer/client-status", payload);
   }
 
+  /**
+   * Reviewer: Payments tab payload. filters: { status?, type? } where type is
+   * "agent" or "client". Returns { records, summary, paymentsTableAvailable }.
+   */
+  async function fetchReviewerPayments(filters) {
+    var f = filters || {};
+    var qs = [];
+    if (f.status) qs.push("status=" + encodeURIComponent(f.status));
+    if (f.type) qs.push("type=" + encodeURIComponent(f.type));
+    var data = (await apiGet("/reviewer/payments" + (qs.length ? "?" + qs.join("&") : ""))) || {};
+    return {
+      records: data.records || [],
+      summary: data.summary || {
+        unpaidAgents: 0, unpaidClients: 0, paid: 0, invoiceSent: 0, matchesChangedThisWeek: 0,
+      },
+      paymentsTableAvailable: data.paymentsTableAvailable !== false,
+    };
+  }
+
+  /**
+   * Reviewer: append one payment status update for an agent, client, lead, or
+   * match. payload: { entityType, entityId, status, amountCents?, note? }.
+   * History is kept server-side; nothing is overwritten. Requires reviewer auth.
+   */
+  async function setReviewerPaymentStatus(payload) {
+    return apiPost("/reviewer/payments", payload);
+  }
+
+  /**
+   * Reviewer: re-send the lane-specific agent match email for a match.
+   * payload: { matchId }. Returns { ok, emailed, emailStatus, matchLane }.
+   */
+  async function resendReviewerMatchEmail(matchId) {
+    return apiPost("/reviewer/resend-match-email", { matchId: matchId });
+  }
+
   // --- Auth (Supabase Auth via REST) -------------------------------------
   function requireSupabaseAuth() {
     var c = getSupabaseConfig();
@@ -1186,6 +1222,9 @@
     deleteReviewerAgent: deleteReviewerAgent,
     deleteReviewerClient: deleteReviewerClient,
     updateReviewerClientStatus: updateReviewerClientStatus,
+    fetchReviewerPayments: fetchReviewerPayments,
+    setReviewerPaymentStatus: setReviewerPaymentStatus,
+    resendReviewerMatchEmail: resendReviewerMatchEmail,
     updateReviewerLocation: updateReviewerLocation,
     deleteReviewerLocation: deleteReviewerLocation,
     copyAssessmentLink: copyAssessmentLink,

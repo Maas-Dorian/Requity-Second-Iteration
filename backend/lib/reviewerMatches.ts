@@ -13,6 +13,7 @@ import {
 import {
   sendClientMatchedEmail,
   sendClientMatchedGetToKnowAgentEmail,
+  sendPreviousAgentMatchEndedEmail,
   sendReviewerMatchFinalizedEmail,
   sendReviewerMatchReplacedEmail,
   type EmailTarget,
@@ -710,7 +711,49 @@ export type PairedClientItem = {
   matchedAt: string | null;
   /** Part 12: false when the paired agent has no usable location (needs review). */
   agentHasLocation: boolean;
+  /** Newest agent match email send time for this pairing (null when none logged). */
+  lastEmailAt?: string | null;
 };
+
+/**
+ * Newest successful agent match email per (target, agent[, lane]), read from
+ * email_events. Keys use the dedupe event_key prefix
+ * `agent_match_notification:<target>:<agent>[:<lane>]`. Resilient: any
+ * error (missing table/columns) returns an empty map.
+ */
+async function getMatchEmailTimes(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from("email_events")
+      .select("event_key, sent_at, created_at")
+      .eq("event_type", "client_matched")
+      .eq("status", "sent")
+      .like("event_key", "agent_match_notification:%")
+      .order("created_at", { ascending: false })
+      .limit(2000);
+    if (error) throw error;
+    for (const row of (data ?? []) as any[]) {
+      const key = String(row.event_key ?? "");
+      const parts = key.split(":");
+      // parts: [prefix, target, agent, (lane), recipientEmail]
+      if (parts.length < 4) continue;
+      const when = row.sent_at ?? row.created_at ?? null;
+      if (!when) continue;
+      const base = `${parts[1]}:${parts[2]}`;
+      if (!out.has(base) || out.get(base)! < when) out.set(base, when);
+      // Lane-scoped key too (new format includes the lane before the email).
+      if (parts.length >= 5 && isMatchLane(parts[3])) {
+        const laneKey = `${base}:${parts[3]}`;
+        if (!out.has(laneKey) || out.get(laneKey)! < when) out.set(laneKey, when);
+      }
+    }
+  } catch (error) {
+    console.error("[reviewerMatches] match email times unavailable:", error);
+  }
+  return out;
+}
 
 function cleanText(value: unknown): string | null {
   if (value == null) return null;
@@ -735,9 +778,19 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
   // Only CURRENT/active pairings. Superseded/declined/archived never show here.
   const PAIRED_STATUSES = ACTIVE_MATCH_STATUSES as unknown as string[];
 
+  const emailTimes = await getMatchEmailTimes();
+
   const pushItem = (item: PairedClientItem) => {
     const target = item.clientId ?? item.leadId ?? item.matchId ?? `${item.clientName}:${item.agentId}`;
     const key = `${target}:${item.matchLane ?? "general"}`;
+    if (item.lastEmailAt === undefined) {
+      const emailTarget = item.clientId ?? item.leadId ?? null;
+      item.lastEmailAt = emailTarget && item.agentId
+        ? emailTimes.get(`${emailTarget}:${item.agentId}:${item.matchLane ?? "general"}`) ??
+          emailTimes.get(`${emailTarget}:${item.agentId}`) ??
+          null
+        : null;
+    }
     if (target && !byClientLane.has(key)) byClientLane.set(key, item);
   };
 
@@ -1118,11 +1171,22 @@ async function finalizeAssignment(
      * until the remaining lane is matched. The agent assignment still happens.
      */
     markAssigned?: boolean;
+    /** The lane this match covers; drives the lane-specific email + dedupe key. */
+    matchLane?: MatchLane;
+    /** The new active match row id (recorded in the email metadata). */
+    matchId?: string | null;
+    /** When false, skip the agent match email (reviewer unchecked "Notify new agent"). */
+    notifyNewAgent?: boolean;
+    /** When false, skip the client "get to know your agent" email. */
+    notifyClient?: boolean;
   }
 ): Promise<{ notified: boolean; emailed: boolean; clientEmailed: boolean }> {
   const supabase = getSupabaseAdmin();
   const targetId = target.clientId ?? target.leadId ?? party?.id ?? "unknown";
   const markAssigned = options?.markAssigned !== false;
+  const lane: MatchLane = options?.matchLane ?? defaultLaneForIntent(party?.transaction_intent);
+  const notifyNewAgent = options?.notifyNewAgent !== false;
+  const notifyClient = options?.notifyClient !== false;
 
   if (target.clientId) {
     const update: Record<string, unknown> = { assigned_agent_id: agent.id };
@@ -1146,14 +1210,16 @@ async function finalizeAssignment(
   }
 
   // Email the matched agent, plus the reviewer/admin fallback when configured
-  // (and not a duplicate of the agent address). Dedupe is per client+agent so an
-  // agent DOES receive a separate email for every different client they match.
+  // (and not a duplicate of the agent address). Dedupe is per client + agent +
+  // LANE (+ recipient), so an agent receives a separate email for every
+  // different client AND for each side (buying vs selling) of the same client.
   const recipients: EmailTarget[] = [];
-  if (agent.email) {
+  if (notifyNewAgent && agent.email) {
     recipients.push({ email: agent.email, name: agent.display_name, role: "agent" });
   }
   const reviewEmail = env.reviewNotificationEmail;
   if (
+    notifyNewAgent &&
     reviewEmail &&
     (!agent.email || reviewEmail.toLowerCase() !== String(agent.email).toLowerCase())
   ) {
@@ -1164,7 +1230,7 @@ async function finalizeAssignment(
   if (recipients.length) {
     try {
       const delivery = await sendClientMatchedEmail({
-        eventKey: `agent_match_notification:${targetId}:${agent.id}`,
+        eventKey: `agent_match_notification:${targetId}:${agent.id}:${lane}`,
         recipients,
         clientName: party?.full_name ?? null,
         clientArchetype: party?.archetype ?? null,
@@ -1172,6 +1238,11 @@ async function finalizeAssignment(
         matchLabel: matchLabel ?? null,
         transactionIntentLabel: party?.transaction_intent_label ?? null,
         marketCity: party?.market_city ?? null,
+        matchLane: lane,
+        laneMarketSummary: laneMarketSummary(party, lane),
+        clientId: target.clientId ?? target.leadId ?? null,
+        agentId: agent.id ?? null,
+        matchId: options?.matchId ?? null,
       });
       emailed = delivery.emailed;
     } catch (error) {
@@ -1186,7 +1257,7 @@ async function finalizeAssignment(
   // intro for the new agent. Agent phone is only shown when the agent approved
   // public display (agents.phone_public).
   let clientEmailed = false;
-  const clientEmail = (party?.email ?? "").trim();
+  const clientEmail = notifyClient ? (party?.email ?? "").trim() : "";
   if (clientEmail) {
     try {
       const delivery = await sendClientMatchedGetToKnowAgentEmail({
@@ -1230,6 +1301,14 @@ export type AssignReviewerMatchParams = {
   replaceExisting?: boolean;
   /** Optional reviewer-entered reason shown in the replacement email. */
   replaceReason?: string | null;
+  /** Reviewer notes stored on the new match row. */
+  reviewerNotes?: string | null;
+  /** Email the client their "get to know your agent" intro. Default true. */
+  notifyClient?: boolean;
+  /** Email the new agent their lane-specific match email. Default true. */
+  notifyNewAgent?: boolean;
+  /** Email the PREVIOUS agent that their match was reassigned. Default false. */
+  notifyPreviousAgent?: boolean;
 };
 
 /** Best-effort lookup of the acting reviewer's email for reviewer emails. */
@@ -1243,6 +1322,24 @@ async function reviewerEmailForProfile(reviewerId: string | null | undefined): P
   } catch {
     return null;
   }
+}
+
+/**
+ * The market copy relevant to ONE lane of a match email: the buying agent sees
+ * the buying market, the selling agent the selling market, and a both/general
+ * match sees the combined summary. Never leaks the wrong side to an agent.
+ */
+function laneMarketSummary(party: any, lane: MatchLane): string | null {
+  const buy = cleanText(party?.buying_market_city);
+  const sell = cleanText(party?.selling_market_city);
+  const general = cleanText(party?.market_city);
+  if (lane === "buying") return buy ?? general;
+  if (lane === "selling") return sell ?? general;
+  const parts: string[] = [];
+  if (buy) parts.push(`Buying: ${buy}`);
+  if (sell) parts.push(`Selling: ${sell}`);
+  if (!parts.length && general) parts.push(general);
+  return parts.length ? parts.join(". ") : null;
 }
 
 /** Short reviewer-facing location summary for the finalized email. */
@@ -1385,6 +1482,7 @@ export async function assignReviewerMatch(
     label: labelForScore(score),
     reason: params.reason ?? null,
     reviewer_id: params.reviewerId ?? null,
+    reviewer_notes: params.reviewerNotes ?? null,
     match_lane: lane,
     reviewed_at: now,
     finalized_at: now,
@@ -1413,8 +1511,37 @@ export async function assignReviewerMatch(
     agent,
     { clientId, leadId },
     labelForScore(score),
-    { markAssigned: laneStatus.fullyMatched }
+    {
+      markAssigned: laneStatus.fullyMatched,
+      matchLane: lane,
+      matchId,
+      notifyClient: params.notifyClient !== false,
+      notifyNewAgent: params.notifyNewAgent !== false,
+    }
   );
+
+  // Optional courtesy email to the PREVIOUS agent (default off). Best-effort.
+  if (replaced && params.notifyPreviousAgent === true && replacedRow) {
+    const oldAgent = (replacedRow.agents as any) ?? {};
+    if (oldAgent.email) {
+      try {
+        await sendPreviousAgentMatchEndedEmail({
+          eventKey: `match_superseded_agent:${clientId ?? leadId}:${replacedRow.agent_id}:${lane}:${matchId}`,
+          agentEmail: oldAgent.email,
+          agentName: oldAgent.display_name ?? null,
+          clientName: party?.full_name ?? null,
+          matchLane: lane,
+          clientId: clientId ?? leadId ?? null,
+          agentId: replacedRow.agent_id ?? null,
+        });
+      } catch (error) {
+        console.error(
+          "[reviewerMatches] previous agent email failed:",
+          error instanceof Error ? error.message : error
+        );
+      }
+    }
+  }
 
   // Reviewer/admin matching-activity email (Part 4). Best-effort; never blocks
   // the match. A replacement sends the "match replaced" email (with old + new
@@ -1482,6 +1609,77 @@ export async function assignReviewerMatch(
     replaced,
     fullyMatched: laneStatus.fullyMatched,
     unmatchedLanes: laneStatus.unmatchedLanes,
+  };
+}
+
+/**
+ * Re-send the lane-specific agent match email for an existing match. Used by
+ * the reviewer "Resend email" control. Uses a fresh, timestamped event key so
+ * the dedupe layer never blocks an explicit resend, while the email_events
+ * audit trail still records every send.
+ */
+export async function resendMatchEmail(matchId: string): Promise<{
+  ok: true;
+  matchId: string;
+  matchLane: MatchLane;
+  emailed: boolean;
+  emailStatus: string;
+  recipients: string[];
+}> {
+  const supabase = getSupabaseAdmin();
+  const { data: match, error } = await supabase
+    .from("match_recommendations")
+    .select("*, clients(*), agents(*)")
+    .eq("id", matchId)
+    .single();
+  if (error) throw new Error(`resendMatchEmail lookup failed: ${error.message}`);
+
+  const agent = (match as any).agents ?? null;
+  if (!agent || !agent.email) {
+    throw Object.assign(new Error("This match has no agent email on file."), { status: 400 });
+  }
+  if (isArchivedRow(agent)) {
+    throw Object.assign(new Error("This agent has been deleted; email not sent."), { status: 400 });
+  }
+
+  // Party: clients row, or the backing assessment_leads row for lead matches.
+  let party: any = (match as any).clients ?? null;
+  if (!party && (match as any).lead_id) {
+    const { data: lead } = await supabase
+      .from("assessment_leads")
+      .select("*")
+      .eq("id", (match as any).lead_id)
+      .maybeSingle();
+    party = lead ?? null;
+  }
+
+  const lane = laneOfRow(match);
+  const targetId = (match as any).client_id ?? (match as any).lead_id ?? matchId;
+  const delivery = await sendClientMatchedEmail({
+    // Timestamped key: explicit resends always go out, and are still audited.
+    eventKey: `agent_match_notification:${targetId}:${agent.id}:${lane}:resend:${Date.now()}`,
+    recipients: [{ email: agent.email, name: agent.display_name ?? null, role: "agent" }],
+    clientName: party?.full_name ?? null,
+    clientArchetype: party?.archetype ?? null,
+    agentName: agent.display_name ?? null,
+    matchLabel: cleanText((match as any).label),
+    transactionIntentLabel: party?.transaction_intent_label ?? null,
+    marketCity: party?.market_city ?? null,
+    matchLane: lane,
+    laneMarketSummary: laneMarketSummary(party, lane),
+    clientId: targetId,
+    agentId: agent.id ?? null,
+    matchId,
+  });
+
+  console.log("MATCH_EMAIL_RESENT", { matchId, agentId: agent.id, matchLane: lane, emailed: delivery.emailed });
+  return {
+    ok: true,
+    matchId,
+    matchLane: lane,
+    emailed: delivery.emailed,
+    emailStatus: delivery.emailStatus,
+    recipients: delivery.recipients,
   };
 }
 

@@ -174,7 +174,7 @@ function toDeliveryResult(res: SendAppEmailResult): EmailDeliveryResult {
 /** REQUITY email subjects (no cross dashes). */
 export const EMAIL_SUBJECTS = {
   assessmentCompleted: "New client assessment completed on REQUITY",
-  clientMatched: "New REQUITY match available",
+  clientMatched: "New REQUITY client match",
   agentAssessmentCompleted: "Your REQUITY agent archetype is ready",
   matchReviewStarted: "Your REQUITY match is being reviewed",
   getToKnowAgent: "Get to know your REQUITY agent",
@@ -498,8 +498,30 @@ export async function sendClientAssessmentCompletedEmail(
 // client-facing get-to-know-agent email).
 // ---------------------------------------------------------------------------
 
+/**
+ * Lane-aware subject for the agent match email. The lane is ALWAYS explicit in
+ * the subject so a buying agent and a selling agent for the same client can
+ * never confuse their emails. The general lane keeps the neutral subject.
+ */
+export function matchLaneEmailSubject(lane: string | null | undefined): string {
+  const v = (lane ?? "").toString().toLowerCase();
+  if (v === "buying") return "New REQUITY buying client match";
+  if (v === "selling") return "New REQUITY selling client match";
+  if (v === "both") return "New REQUITY buying and selling client match";
+  return EMAIL_SUBJECTS.clientMatched;
+}
+
+/** Reviewer/agent-facing label for a match lane (email copy). */
+export function matchLaneEmailLabel(lane: string | null | undefined): string {
+  const v = (lane ?? "").toString().toLowerCase();
+  if (v === "buying") return "Buying";
+  if (v === "selling") return "Selling";
+  if (v === "both") return "Buying and Selling";
+  return "General";
+}
+
 export type ClientMatchedEmailInput = {
-  /** Idempotency key, e.g. `client_matched:<clientId>:<agentId>`. */
+  /** Idempotency key, e.g. `agent_match_notification:<clientId>:<agentId>:<lane>`. */
   eventKey?: string | null;
   recipients: EmailTarget[];
   clientName?: string | null;
@@ -508,20 +530,38 @@ export type ClientMatchedEmailInput = {
   matchLabel?: string | null;
   transactionIntentLabel?: string | null;
   marketCity?: string | null;
+  /** The lane this match covers: buying | selling | both | general. */
+  matchLane?: string | null;
+  /** Lane-relevant market copy (buying market for buying lane, etc). */
+  laneMarketSummary?: string | null;
+  /** Event metadata for the email audit trail. */
+  clientId?: string | null;
+  agentId?: string | null;
+  matchId?: string | null;
 };
 
 /**
  * Email the matched agent (and optional reviewer/admin) that a REQUITY match is
- * ready to review (event type "client_matched"). Dedupes per recipient.
+ * ready to review (event type "client_matched"). The subject AND body carry the
+ * match lane so buying and selling agents for the same client receive clearly
+ * different, lane-specific emails. Dedupes per client + agent + lane + recipient.
  */
 export async function sendClientMatchedEmail(
   input: ClientMatchedEmailInput
 ): Promise<EmailDeliveryResult> {
+  const lane = (input.matchLane ?? "").toString().toLowerCase() || null;
+  const laneLabel = matchLaneEmailLabel(lane);
+  const subject = matchLaneEmailSubject(lane);
   return sendBuiltToRecipients({
     eventType: "client_matched",
     baseEventKey: input.eventKey ?? null,
     recipients: input.recipients,
     metadata: {
+      clientId: input.clientId ?? null,
+      agentId: input.agentId ?? null,
+      matchId: input.matchId ?? null,
+      lane: lane ?? "general",
+      eventType: "client_matched",
       clientName: input.clientName ?? null,
       agentName: input.agentName ?? null,
       matchLabel: input.matchLabel ?? null,
@@ -529,21 +569,73 @@ export async function sendClientMatchedEmail(
       market: input.marketCity ?? null,
     },
     build: (r) =>
-      builtFromContent(EMAIL_SUBJECTS.clientMatched, {
-        title: "A new REQUITY match is ready",
+      builtFromContent(subject, {
+        title:
+          lane && lane !== "general"
+            ? `A new REQUITY ${laneLabel.toLowerCase()} match is ready`
+            : "A new REQUITY match is ready",
         intro: `${
           input.clientName || "A client"
         } has been matched and is ready for your review. Open your dashboard to see the match details.`,
         details: [
+          { label: "Match lane", value: laneLabel },
           { label: "Client", value: input.clientName },
           { label: "Client archetype", value: input.clientArchetype },
           { label: "Agent", value: input.agentName },
           { label: "Match", value: input.matchLabel },
           { label: "Transaction", value: input.transactionIntentLabel },
-          { label: "Market", value: input.marketCity },
+          { label: "Market", value: input.laneMarketSummary ?? input.marketCity },
         ],
         ctaLabel: "View match in REQUITY",
         ctaUrl: dashboardUrlForRole(r.role),
+      }),
+  });
+}
+
+export type PreviousAgentMatchEndedEmailInput = {
+  eventKey?: string | null;
+  agentEmail?: string | null;
+  agentName?: string | null;
+  clientName?: string | null;
+  matchLane?: string | null;
+  clientId?: string | null;
+  agentId?: string | null;
+};
+
+/**
+ * Optional courtesy email to the PREVIOUS agent when a reviewer replaces their
+ * match (event type "match_superseded_agent"). Sent only when the reviewer
+ * explicitly checks "Notify previous agent" (default off).
+ */
+export async function sendPreviousAgentMatchEndedEmail(
+  input: PreviousAgentMatchEndedEmailInput
+): Promise<EmailDeliveryResult> {
+  const laneLabel = matchLaneEmailLabel(input.matchLane);
+  return sendBuiltToRecipients({
+    eventType: "match_superseded_agent",
+    baseEventKey: input.eventKey ?? null,
+    recipients: [
+      { email: (input.agentEmail ?? "").trim(), name: input.agentName ?? null, role: "agent" },
+    ],
+    metadata: {
+      clientId: input.clientId ?? null,
+      agentId: input.agentId ?? null,
+      lane: (input.matchLane ?? "general").toString().toLowerCase(),
+      eventType: "match_superseded_agent",
+      clientName: input.clientName ?? null,
+    },
+    build: () =>
+      builtFromContent("A REQUITY match has been updated", {
+        title: "A REQUITY match has been updated",
+        intro: `The REQUITY review team has reassigned ${
+          input.clientName || "a client"
+        } to a different agent for the ${laneLabel.toLowerCase()} side. No action is needed from you. If you have questions, reply to this email.`,
+        details: [
+          { label: "Match lane", value: laneLabel },
+          { label: "Client", value: input.clientName },
+        ],
+        ctaLabel: "Open your REQUITY dashboard",
+        ctaUrl: dashboardUrlForRole("agent"),
       }),
   });
 }

@@ -300,7 +300,20 @@ export type AgentDashboard = {
     fit: number | null;
     status: string;
     date: string | null;
+    /** Which side this agent covers: buying | selling | both | general | null. */
+    lane: string | null;
+    laneLabel: string | null;
+    /** When the active match was finalized (falls back to the client date). */
+    receivedAt: string | null;
+    /** Agent-controlled pipeline status (potential/active/under_contract/closed). */
+    pipelineStatus: string;
   }>;
+  /**
+   * The agent's OWN payment status with REQUITY (agents are also REQUITY
+   * clients). Null when no reviewer has set one yet. This is never a consumer
+   * client's payment status.
+   */
+  agentPaymentStatus: { status: string; label: string; updatedAt: string | null } | null;
   /** Closing/closed deals for this agent (live data; empty when none). */
   closings: Array<{
     id: string;
@@ -493,24 +506,33 @@ export async function getAgentDashboard(
     updatedAt: c.updated_at ?? c.created_at,
   }));
 
-  // Match fit scores (optional enrichment). A drifted DB without
+  // Match fit scores + lanes (optional enrichment). A drifted DB without
   // match_recommendations must NOT break the dashboard.
   const fitByClient = new Map<string, number>();
+  const laneByClient = new Map<string, { lane: string; receivedAt: string | null }>();
   try {
     const clientIds = list.map((c) => c.id).filter(Boolean);
     if (clientIds.length) {
       const { data: recs, error: recError } = await supabase
         .from("match_recommendations")
-        .select("client_id, score")
+        .select("client_id, score, match_lane, status, finalized_at, created_at")
         .eq("agent_id", agentId)
         .in("client_id", clientIds);
       if (!recError) {
-        for (const r of recs ?? []) {
-          const cid = (r as { client_id?: string }).client_id;
-          const score = (r as { score?: number }).score;
+        for (const r of (recs ?? []) as any[]) {
+          const cid = r.client_id as string | undefined;
+          const score = r.score as number | undefined;
           if (cid && typeof score === "number") {
             // Keep the highest score per client.
             fitByClient.set(cid, Math.max(fitByClient.get(cid) ?? 0, score));
+          }
+          // Lane comes from the ACTIVE match row for this agent + client.
+          const status = String(r.status ?? "").toLowerCase();
+          if (cid && (status === "active" || status === "assigned" || status === "approved")) {
+            laneByClient.set(cid, {
+              lane: typeof r.match_lane === "string" && r.match_lane ? r.match_lane : "general",
+              receivedAt: r.finalized_at ?? r.created_at ?? null,
+            });
           }
         }
       }
@@ -518,6 +540,41 @@ export async function getAgentDashboard(
   } catch (error) {
     if (!isMissingTableError(error)) {
       console.error("[dashboard] match scores load failed:", error);
+    }
+  }
+
+  // The agent's OWN payment status with REQUITY (migration 0012). Resilient:
+  // a missing table means "not set" and the dashboard loads normally.
+  let agentPaymentStatus: { status: string; label: string; updatedAt: string | null } | null = null;
+  try {
+    const { data: payRow, error: payError } = await supabase
+      .from("reviewer_payment_statuses")
+      .select("status, updated_at, created_at")
+      .eq("entity_type", "agent")
+      .eq("entity_id", agentId)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!payError && payRow) {
+      const PAY_LABELS: Record<string, string> = {
+        unpaid: "Unpaid",
+        invoice_sent: "Invoice sent",
+        paid: "Paid",
+        waived: "Waived",
+        refunded: "Refunded",
+        not_required: "Not required",
+      };
+      const s = String((payRow as any).status ?? "unpaid");
+      agentPaymentStatus = {
+        status: s,
+        label: PAY_LABELS[s] ?? "Unpaid",
+        updatedAt: (payRow as any).updated_at ?? (payRow as any).created_at ?? null,
+      };
+    }
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      console.error("[dashboard] agent payment status load failed:", error);
     }
   }
 
@@ -531,18 +588,32 @@ export async function getAgentDashboard(
 
   // Matches: clients matched/assigned to this agent (all clients in `list` are
   // assigned to this agent). Live data only, never fabricated.
-  const matches = list.map((c) => ({
-    id: c.id,
-    name: c.full_name,
-    archetype: c.archetype ?? null,
-    transaction: txnLabel(c),
-    buyingMarket: cleanCity(c.buying_market_city),
-    sellingMarket: cleanCity(c.selling_market_city),
-    market: cleanCity(c.market_city),
-    fit: fitByClient.has(c.id) ? fitByClient.get(c.id)! : null,
-    status: c.status,
-    date: c.updated_at ?? c.created_at ?? null,
-  }));
+  const LANE_LABELS: Record<string, string> = {
+    buying: "Buying",
+    selling: "Selling",
+    both: "Buying and Selling",
+    general: "General",
+  };
+  const matches = list.map((c) => {
+    const laneInfo = laneByClient.get(c.id) ?? null;
+    const pipeline = derivePipelineStatus(c);
+    return {
+      id: c.id,
+      name: c.full_name,
+      archetype: c.archetype ?? null,
+      transaction: txnLabel(c),
+      buyingMarket: cleanCity(c.buying_market_city),
+      sellingMarket: cleanCity(c.selling_market_city),
+      market: cleanCity(c.market_city),
+      fit: fitByClient.has(c.id) ? fitByClient.get(c.id)! : null,
+      status: c.status,
+      date: c.updated_at ?? c.created_at ?? null,
+      lane: laneInfo ? laneInfo.lane : null,
+      laneLabel: laneInfo ? LANE_LABELS[laneInfo.lane] ?? "General" : null,
+      receivedAt: laneInfo?.receivedAt ?? c.created_at ?? null,
+      pipelineStatus: pipeline === "hidden" ? "potential" : pipeline,
+    };
+  });
 
   // Closings: status-based. `deal_status` / `close_date` may be absent on a
   // not-yet-migrated DB (select * simply omits them) → no closings, clean state.
@@ -590,6 +661,7 @@ export async function getAgentDashboard(
       pipelineStatus: derivePipelineStatus(c),
     })),
     matches,
+    agentPaymentStatus,
     closings,
     settings: {
       accountEmail: agent?.email ?? null,
