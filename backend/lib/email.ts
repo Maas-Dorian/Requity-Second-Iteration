@@ -183,6 +183,7 @@ export const EMAIL_SUBJECTS = {
   reviewerMatchReviewStarted: "Match review started on REQUITY",
   reviewerMatchFinalized: "REQUITY match finalized",
   reviewerMatchReplaced: "REQUITY match replaced",
+  passwordReset: "Reset your REQUITY password",
 } as const;
 
 // --- Unified provider-based send (Part 2 deliverable) ----------------------

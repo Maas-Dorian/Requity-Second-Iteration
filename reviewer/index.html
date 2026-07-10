@@ -50,7 +50,7 @@
             <button type="button" class="reviewer-tab is-active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
             <button type="button" class="reviewer-tab" data-tab="review" role="tab" aria-selected="false">Up for Review <span class="tab-count" id="tabcount-review" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="paired" role="tab" aria-selected="false">Paired Clients <span class="tab-count" id="tabcount-paired" hidden>0</span></button>
-            <button type="button" class="reviewer-tab" data-tab="payments" role="tab" aria-selected="false">Payments <span class="tab-count" id="tabcount-payments" hidden>0</span></button>
+            <button type="button" class="reviewer-tab" data-tab="payments" role="tab" aria-selected="false">Agent Payments <span class="tab-count" id="tabcount-payments" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="incomplete" role="tab" aria-selected="false">Incomplete <span class="tab-count" id="tabcount-incomplete" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="closed" role="tab" aria-selected="false">Closed <span class="tab-count" id="tabcount-closed" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="locations" role="tab" aria-selected="false">Locations</button>
@@ -59,7 +59,7 @@
 
         <!-- ===== Overview ===== -->
         <section class="tab-panel is-active" id="tab-overview" role="tabpanel">
-            <section class="summary-row summary-row-6">
+            <section class="summary-row summary-row-5">
                 <div class="summary-card">
                     <div class="summary-value" id="count-needs-review">0</div>
                     <div class="summary-label">Needs review</div>
@@ -75,10 +75,6 @@
                 <div class="summary-card">
                     <div class="summary-value" id="count-unpaid-agents">0</div>
                     <div class="summary-label">Unpaid agents</div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-value" id="count-unpaid-clients">0</div>
-                    <div class="summary-label">Unpaid clients</div>
                 </div>
                 <div class="summary-card">
                     <div class="summary-value" id="count-changed-week">0</div>
@@ -116,68 +112,88 @@
             </div>
         </section>
 
-        <!-- ===== Up for Review ===== -->
+        <!-- ===== Up for Review: Match Desk ===== -->
         <section class="tab-panel" id="tab-review" role="tabpanel" hidden>
-            <main class="main-grid">
-                <div class="column-main">
-                    <section id="queue-section" class="section">
-                        <div class="leads-header">
-                            <h2 class="section-title">Pending Client Queue</h2>
-                            <div class="leads-filters">
-                                <input id="queue-search" class="leads-search" type="search" placeholder="Search name, email, market">
+            <main class="matchdesk-grid">
+                <!-- Left rail: compact client queue -->
+                <aside class="desk-queue" id="queue-section">
+                    <div class="desk-queue-head">
+                        <h2 class="section-title">Queue</h2>
+                        <input id="queue-search" class="leads-search" type="search" placeholder="Search name, email, market">
+                    </div>
+                    <div class="queue-filter-pills" id="queue-filter-pills" role="group" aria-label="Filter queue by intent">
+                        <button type="button" class="filter-pill is-active" data-queue-filter="all">All</button>
+                        <button type="button" class="filter-pill" data-queue-filter="buying">Buying</button>
+                        <button type="button" class="filter-pill" data-queue-filter="selling">Selling</button>
+                        <button type="button" class="filter-pill" data-queue-filter="both">Both</button>
+                        <button type="button" class="filter-pill" data-queue-filter="general">General</button>
+                    </div>
+                    <div id="queue-list" class="queue-list"></div>
+                </aside>
+
+                <!-- Match Desk: client on the left, agent options on the right -->
+                <section class="desk-main" id="match-desk">
+                    <div class="desk-empty" id="desk-empty">Select a client from the queue to start matching.</div>
+
+                    <div id="desk-body" class="hidden">
+                        <!-- Sticky lane bar: one obvious lane selector -->
+                        <div class="desk-lanebar" id="desk-lanebar">
+                            <div class="lane-pills" id="desk-lane-pills" role="group" aria-label="Match lane"></div>
+                            <div class="lane-context" id="desk-lane-context"></div>
+                        </div>
+
+                        <div class="desk-columns">
+                            <!-- Left: compact client summary -->
+                            <div class="desk-client">
+                                <div class="card desk-card" id="desk-client-card"></div>
+                            </div>
+
+                            <!-- Right: current match + agent options -->
+                            <div class="desk-match">
+                                <div class="card desk-card" id="desk-current-match"></div>
+                                <div class="card desk-card desk-agents-card">
+                                    <div class="desk-agent-tools">
+                                        <input id="desk-agent-search" class="leads-search" type="search" placeholder="Search agents">
+                                        <details class="desk-advanced">
+                                            <summary>Advanced filters</summary>
+                                            <label class="desk-toggle"><input type="checkbox" id="desk-hide-limited"> Hide limited fit agents</label>
+                                        </details>
+                                    </div>
+                                    <div id="desk-agent-list" class="desk-agent-list"></div>
+                                </div>
                             </div>
                         </div>
-                        <div class="queue-filter-pills" id="queue-filter-pills" role="group" aria-label="Filter queue by intent">
-                            <button type="button" class="filter-pill is-active" data-queue-filter="all">All</button>
-                            <button type="button" class="filter-pill" data-queue-filter="buying">Buying</button>
-                            <button type="button" class="filter-pill" data-queue-filter="selling">Selling</button>
-                            <button type="button" class="filter-pill" data-queue-filter="both">Buying and selling</button>
-                            <button type="button" class="filter-pill" data-queue-filter="general">General</button>
+
+                        <!-- Small inline confirmation panel (no full modal) -->
+                        <div class="desk-confirm hidden" id="desk-confirm">
+                            <h3 class="desk-confirm-title">Update match?</h3>
+                            <p class="desk-confirm-body" id="desk-confirm-body"></p>
+                            <div class="desk-confirm-options">
+                                <div class="checkbox-group"><input type="checkbox" id="desk-notify-client" checked><label for="desk-notify-client">Notify client</label></div>
+                                <div class="checkbox-group"><input type="checkbox" id="desk-notify-new" checked><label for="desk-notify-new">Notify new agent</label></div>
+                                <div class="checkbox-group" id="desk-notify-prev-wrap"><input type="checkbox" id="desk-notify-prev"><label for="desk-notify-prev">Notify previous agent</label></div>
+                            </div>
+                            <details class="desk-note">
+                                <summary>Add note</summary>
+                                <textarea id="desk-note-text" class="form-input" rows="2" placeholder="Optional note kept on the match record"></textarea>
+                            </details>
+                            <div class="desk-confirm-error" id="desk-confirm-error" style="display:none;"></div>
+                            <div class="modal-actions">
+                                <button class="btn btn-outline" id="desk-confirm-cancel" type="button">Cancel</button>
+                                <button class="btn btn-primary" id="desk-confirm-btn" type="button">Confirm match</button>
+                            </div>
                         </div>
-                        <div id="queue-list" class="queue-list"></div>
-                    </section>
 
-                    <section id="profile-section" class="section">
-                        <h2 class="section-title">Selected Client Profile</h2>
-                        <div class="card profile-card" id="profile-card"></div>
-                    </section>
-
-                    <section id="fits-section" class="section">
-                        <h2 class="section-title">Recommended Real Estate Agent Matches</h2>
-                        <div id="fits-list" class="fits-list"></div>
-                    </section>
-                </div>
-
-                <div class="column-sidebar">
-                    <section class="section">
-                        <div class="card decision-card">
-                            <h2 class="section-title">Reviewer decision</h2>
-                            <div class="detail-row mb-3">
-                                <span class="detail-label">Selected real estate agent:</span>
-                                <strong class="text-blue text-large" id="decision-selected-agent">, </strong>
+                        <!-- Sticky primary action bar -->
+                        <div class="desk-actionbar" id="desk-actionbar">
+                            <div class="desk-action-summary" id="desk-action-summary">No agent selected</div>
+                            <div class="desk-action-buttons">
+                                <button class="btn btn-outline btn-sm" id="desk-delete-btn" type="button" onclick="deleteActiveClient()">Delete from review</button>
+                                <button class="btn btn-primary" id="desk-primary-btn" type="button" disabled>Pair with selected agent</button>
                             </div>
-                            <!-- Match lane picker: the lane is always explicit. It is preset
-                                 from the client's intent and never silently defaults to buying. -->
-                            <div id="decision-lane-wrap" class="detail-row mb-3">
-                                <span class="detail-label">Match lane:</span>
-                                <select id="decision-lane" class="form-input" style="max-width:240px;" aria-label="Match lane">
-                                    <option value="buying">Buying</option>
-                                    <option value="selling">Selling</option>
-                                    <option value="both">Both (same agent covers both)</option>
-                                    <option value="general">General</option>
-                                </select>
-                                <div class="helper-text" id="decision-lane-hint" style="margin-top:0.35rem;"></div>
-                            </div>
-                            <div id="decision-actions" class="action-stack">
-                                <button class="btn btn-primary w-100" onclick="approveSelected()">Approve Selected</button>
-                                <button class="btn btn-outline w-100" onclick="holdSelected()">Hold for Review</button>
-                                <button class="btn btn-outline w-100" onclick="document.getElementById('fits-section').scrollIntoView({behavior:'smooth'})">Select Different Agent</button>
-                                <button class="btn btn-outline w-100" onclick="deleteActiveClient()">Delete from review</button>
-                            </div>
-                            <div id="decision-success" class="success-message hidden mt-3"></div>
                         </div>
-                    </section>
-                </div>
+                    </div>
+                </section>
             </main>
         </section>
 
@@ -194,10 +210,10 @@
                             <option value="both">Both</option>
                             <option value="general">General</option>
                         </select>
-                        <select id="paired-filter-payment" class="leads-select" aria-label="Filter by client payment">
-                            <option value="">All payment states</option>
-                            <option value="paid">Client paid</option>
-                            <option value="unpaid">Client unpaid</option>
+                        <select id="paired-filter-payment" class="leads-select" aria-label="Filter by agent payment">
+                            <option value="">All agent payment states</option>
+                            <option value="paid">Agent paid</option>
+                            <option value="unpaid">Agent unpaid</option>
                         </select>
                         <input id="paired-search" class="leads-search" type="search" placeholder="Search client or agent">
                     </div>
@@ -207,11 +223,11 @@
             </section>
         </section>
 
-        <!-- ===== Payments ===== -->
+        <!-- ===== Agent Payments ===== -->
         <section class="tab-panel" id="tab-payments" role="tabpanel" hidden>
             <section class="section">
                 <div class="leads-header">
-                    <h2 class="section-title">Payments</h2>
+                    <h2 class="section-title">Agent Payments</h2>
                     <div class="leads-filters">
                         <select id="pay-filter-status" class="leads-select" aria-label="Filter by payment status">
                             <option value="">All statuses</option>
@@ -222,15 +238,10 @@
                             <option value="refunded">Refunded</option>
                             <option value="not_required">Not required</option>
                         </select>
-                        <select id="pay-filter-type" class="leads-select" aria-label="Filter by record type">
-                            <option value="">Agents and clients</option>
-                            <option value="agent">Agents</option>
-                            <option value="client">Clients</option>
-                        </select>
-                        <input id="pay-search" class="leads-search" type="search" placeholder="Search name or email">
+                        <input id="pay-search" class="leads-search" type="search" placeholder="Search agent name or email">
                     </div>
                 </div>
-                <p class="helper-text mb-3">Track payment status for agents and consumer clients. Agents are also REQUITY clients, so their own payment status is tracked here. Every update is kept as history.</p>
+                <p class="helper-text mb-3">Track payment status for agents. Agents are REQUITY's paying clients; consumer buyers and sellers are never billed here. Every update is kept as history.</p>
                 <div id="pay-summary" class="helper-text mb-3"></div>
                 <div id="payments-list" class="leads-list"></div>
             </section>
@@ -1547,13 +1558,12 @@
     })();
     </script>
 
-    <!-- Payments tab: agent + client payment statuses (append-only history). -->
+    <!-- Agent Payments tab: agent payment statuses only (append-only history). -->
     <script>
     (function () {
         var listEl = document.getElementById('payments-list');
         if (!listEl) return;
         var statusEl = document.getElementById('pay-filter-status');
-        var typeEl = document.getElementById('pay-filter-type');
         var searchEl = document.getElementById('pay-search');
         var summaryEl = document.getElementById('pay-summary');
 
@@ -1581,26 +1591,22 @@
         function applySummary() {
             if (!summary) return;
             setCard('count-unpaid-agents', summary.unpaidAgents);
-            setCard('count-unpaid-clients', summary.unpaidClients);
             setCard('count-changed-week', summary.matchesChangedThisWeek);
             if (typeof window.__reviewerSetTabCount === 'function') {
-                window.__reviewerSetTabCount('payments', (summary.unpaidAgents || 0) + (summary.unpaidClients || 0));
+                window.__reviewerSetTabCount('payments', summary.unpaidAgents || 0);
             }
             if (summaryEl) {
                 summaryEl.textContent = (summary.unpaidAgents || 0) + ' unpaid agents · ' +
-                    (summary.unpaidClients || 0) + ' unpaid clients · ' +
                     (summary.invoiceSent || 0) + ' invoices sent · ' + (summary.paid || 0) + ' paid';
             }
         }
 
         function filteredRecords() {
             var status = (statusEl && statusEl.value) || '';
-            var type = (typeEl && typeEl.value) || '';
             var q = ((searchEl && searchEl.value) || '').trim().toLowerCase();
             return allRecords.filter(function (r) {
+                if (r.entityType !== 'agent') return false;
                 if (status && r.status !== status) return false;
-                if (type === 'agent' && r.entityType !== 'agent') return false;
-                if (type === 'client' && r.entityType === 'agent') return false;
                 if (q) {
                     var hay = ((r.name || '') + ' ' + (r.email || '')).toLowerCase();
                     if (hay.indexOf(q) === -1) return false;
@@ -1616,20 +1622,23 @@
                     '<div><div class="lead-name">' + esc(r.name || 'Unknown') + '</div>' +
                     '<div class="lead-contact">' + esc(r.email || 'no email') + '</div></div>' +
                     '<div class="lead-badges">' +
-                        '<span class="badge badge-internal">' + esc(r.typeLabel) + '</span>' +
+                        '<span class="badge badge-internal">Agent</span>' +
                         payPill(r.status, r.statusLabel) +
                     '</div>' +
                 '</div>' +
                 '<div class="lead-meta">' +
-                    (r.relatedMatch ? ('<span>Match <strong>' + esc(r.relatedMatch) + '</strong></span>') : '') +
+                    (r.relatedMatch ? ('<span>Matches <strong>' + esc(r.relatedMatch) + '</strong></span>') : '') +
                     (amount ? ('<span>Amount <strong>' + esc(amount) + '</strong></span>') : '') +
                     '<span>Last updated <strong>' + fmtDate(r.updatedAt) + '</strong></span>' +
                 '</div>' +
                 (r.note ? ('<div class="lead-note">' + esc(r.note) + '</div>') : '') +
                 '<div class="lead-actions">' +
-                    '<button class="btn btn-outline btn-sm" data-pay-act="paid">Mark paid</button>' +
-                    '<button class="btn btn-outline btn-sm" data-pay-act="unpaid">Mark unpaid</button>' +
+                    '<button class="btn btn-outline btn-sm" data-pay-act="paid">Mark agent paid</button>' +
+                    '<button class="btn btn-outline btn-sm" data-pay-act="unpaid">Mark agent unpaid</button>' +
                     '<button class="btn btn-outline btn-sm" data-pay-act="invoice_sent">Mark invoice sent</button>' +
+                    '<button class="btn btn-outline btn-sm" data-pay-act="waived">Mark waived</button>' +
+                    '<button class="btn btn-outline btn-sm" data-pay-act="refunded">Mark refunded</button>' +
+                    '<button class="btn btn-outline btn-sm" data-pay-act="not_required">Mark not required</button>' +
                     '<button class="btn btn-outline btn-sm" data-pay-act="note">Add note</button>' +
                 '</div>' +
             '</div>';
@@ -1650,7 +1659,7 @@
 
         function onAction(record, act, btn) {
             if (!window.RequityAPI || !window.RequityAPI.setReviewerPaymentStatus) return;
-            var payload = { entityType: record.entityType, entityId: record.entityId };
+            var payload = { entityType: 'agent', entityId: record.entityId };
             if (act === 'note') {
                 var note = prompt('Payment note for ' + (record.name || 'this record') + ':', record.note || '');
                 if (note === null) return;
@@ -1709,7 +1718,6 @@
         window.__reviewerRefreshPayments = function () { if (loadedOnce) loadInner(); else loadGated(); };
 
         if (statusEl) statusEl.addEventListener('change', render);
-        if (typeEl) typeEl.addEventListener('change', render);
         if (searchEl) searchEl.addEventListener('input', function () { if (searchTimer) clearTimeout(searchTimer); searchTimer = setTimeout(render, 250); });
 
         // Load once up front so the Overview summary cards have real counts.

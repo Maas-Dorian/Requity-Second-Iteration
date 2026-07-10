@@ -734,28 +734,29 @@
   }
 
   /**
-   * Reviewer: Payments tab payload. filters: { status?, type? } where type is
-   * "agent" or "client". Returns { records, summary, paymentsTableAvailable }.
+   * Reviewer: Agent Payments tab payload (agents only; consumer clients never
+   * have a payment status). filters: { status? }.
+   * Returns { records, summary, paymentsTableAvailable }.
    */
   async function fetchReviewerPayments(filters) {
     var f = filters || {};
     var qs = [];
     if (f.status) qs.push("status=" + encodeURIComponent(f.status));
-    if (f.type) qs.push("type=" + encodeURIComponent(f.type));
     var data = (await apiGet("/reviewer/payments" + (qs.length ? "?" + qs.join("&") : ""))) || {};
     return {
       records: data.records || [],
       summary: data.summary || {
-        unpaidAgents: 0, unpaidClients: 0, paid: 0, invoiceSent: 0, matchesChangedThisWeek: 0,
+        unpaidAgents: 0, paid: 0, invoiceSent: 0, matchesChangedThisWeek: 0,
       },
       paymentsTableAvailable: data.paymentsTableAvailable !== false,
     };
   }
 
   /**
-   * Reviewer: append one payment status update for an agent, client, lead, or
-   * match. payload: { entityType, entityId, status, amountCents?, note? }.
-   * History is kept server-side; nothing is overwritten. Requires reviewer auth.
+   * Reviewer: append one AGENT payment status update. payload:
+   * { entityType: "agent", entityId: <agent id>, status, amountCents?, note? }.
+   * The server rejects non-agent entity types. History is kept server-side;
+   * nothing is overwritten. Requires reviewer auth.
    */
   async function setReviewerPaymentStatus(payload) {
     return apiPost("/reviewer/payments", payload);

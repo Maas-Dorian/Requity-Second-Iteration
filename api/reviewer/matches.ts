@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { runHandler, ensureMethod, sendJson } from "../_lib/http.js";
 import { listReviewerQueue, listPairedClients } from "../../backend/lib/reviewerMatches.js";
-import { getLatestPaymentStatuses } from "../../backend/lib/payments.js";
+import { getLatestAgentPaymentStatuses } from "../../backend/lib/payments.js";
 import {
   listReviewerAssessmentLeads,
   leadIsIncomplete,
@@ -27,21 +27,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     await requireReviewer(req);
 
     try {
-      const [queue, pairedClients, paymentStatuses] = await Promise.all([
+      const [queue, pairedClients, agentPaymentStatuses] = await Promise.all([
         listReviewerQueue(),
         listPairedClients(),
-        getLatestPaymentStatuses(),
+        getLatestAgentPaymentStatuses(),
       ]);
 
-      // Attach current payment statuses so the paired view can show payment
-      // pills without a second fetch. Never-updated entities default to unpaid
-      // in the UI; here we only attach explicit records.
+      // Attach the paired AGENT's current payment status so the paired view
+      // can show an agent payment pill without a second fetch. Consumer
+      // clients never have a payment status.
       for (const p of pairedClients as any[]) {
-        const clientKey = p.clientId ? `client:${p.clientId}` : p.leadId ? `lead:${p.leadId}` : null;
-        const clientRec = clientKey ? paymentStatuses.get(clientKey) ?? null : null;
-        const agentRec = p.agentId ? paymentStatuses.get(`agent:${p.agentId}`) ?? null : null;
-        p.clientPaymentStatus = clientRec ? clientRec.status : null;
-        p.clientPaymentLabel = clientRec ? clientRec.statusLabel : null;
+        const agentRec = p.agentId ? agentPaymentStatuses.get(p.agentId) ?? null : null;
         p.agentPaymentStatus = agentRec ? agentRec.status : null;
         p.agentPaymentLabel = agentRec ? agentRec.statusLabel : null;
       }

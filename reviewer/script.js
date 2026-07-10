@@ -30,15 +30,45 @@ document.addEventListener('DOMContentLoaded', () => {
         queueSearch: '',
         pairedLaneFilter: '',     // '' | buying | selling | both | general
         pairedPaymentFilter: '',  // '' | paid | unpaid
-        pairedSearch: ''
+        pairedSearch: '',
+        // Match Desk: the lane the reviewer is matching right now. Always
+        // explicit; preset from the client's own intent, never a silent
+        // default to buying.
+        deskLane: null,           // buying | selling | both | general
+        deskAgentSearch: '',
+        deskHideLimited: false,
+        deskShowAssessment: false,
+        deskConfirmOpen: false
     };
 
     // --- DOM Elements ------------------------------------------------------
     const elQueueList = document.getElementById('queue-list');
-    const elProfileCard = document.getElementById('profile-card');
-    const elFitsList = document.getElementById('fits-list');
     const elPairedList = document.getElementById('paired-list');
     const elClosedList = document.getElementById('closed-list');
+
+    // Match Desk elements
+    const elDeskEmpty = document.getElementById('desk-empty');
+    const elDeskBody = document.getElementById('desk-body');
+    const elDeskLanePills = document.getElementById('desk-lane-pills');
+    const elDeskLaneContext = document.getElementById('desk-lane-context');
+    const elDeskClientCard = document.getElementById('desk-client-card');
+    const elDeskCurrentMatch = document.getElementById('desk-current-match');
+    const elDeskAgentList = document.getElementById('desk-agent-list');
+    const elDeskAgentSearch = document.getElementById('desk-agent-search');
+    const elDeskHideLimited = document.getElementById('desk-hide-limited');
+    const elDeskActionSummary = document.getElementById('desk-action-summary');
+    const elDeskPrimaryBtn = document.getElementById('desk-primary-btn');
+    const elDeskDeleteBtn = document.getElementById('desk-delete-btn');
+    const elDeskConfirm = document.getElementById('desk-confirm');
+    const elDeskConfirmBody = document.getElementById('desk-confirm-body');
+    const elDeskConfirmError = document.getElementById('desk-confirm-error');
+    const elDeskConfirmBtn = document.getElementById('desk-confirm-btn');
+    const elDeskConfirmCancel = document.getElementById('desk-confirm-cancel');
+    const elDeskNotifyClient = document.getElementById('desk-notify-client');
+    const elDeskNotifyNew = document.getElementById('desk-notify-new');
+    const elDeskNotifyPrev = document.getElementById('desk-notify-prev');
+    const elDeskNotifyPrevWrap = document.getElementById('desk-notify-prev-wrap');
+    const elDeskNoteText = document.getElementById('desk-note-text');
 
     // Update a tab's count badge (defined by the tabs IIFE in index.html).
     function setTabCount(name, count) {
@@ -50,10 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const elCountScheduled = document.getElementById('count-scheduled');
     const elCountNeedsReview = document.getElementById('count-needs-review');
     const elCountPairedClients = document.getElementById('count-paired-clients');
-
-    const elDecisionAgent = document.getElementById('decision-selected-agent');
-    const elDecisionActions = document.getElementById('decision-actions');
-    const elDecisionSuccess = document.getElementById('decision-success');
 
     const elActivityLog = document.getElementById('activity-log');
 
@@ -402,8 +428,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Render Functions --------------------------------------------------
     function renderLoading() {
         elQueueList.innerHTML = '<div class="leads-empty">' + LOADING_MSG + '</div>';
-        elProfileCard.innerHTML = '<div class="leads-empty">' + LOADING_MSG + '</div>';
-        elFitsList.innerHTML = '<div class="leads-empty">' + LOADING_MSG + '</div>';
+        if (elDeskEmpty) {
+            elDeskEmpty.textContent = LOADING_MSG;
+            elDeskEmpty.classList.remove('hidden');
+        }
+        if (elDeskBody) elDeskBody.classList.add('hidden');
     }
 
     // Client-side queue filters: intent lane pills + a name/email/market search.
@@ -473,137 +502,402 @@ document.addEventListener('DOMContentLoaded', () => {
             (needs ? (' &bull; Still needs: ' + needs + ' match') : '') + '</div>';
     }
 
-    function renderActiveClient() {
+    // --- Match Desk ----------------------------------------------------------
+    // Compact matching station: client summary on the left, agent options on
+    // the right, one lane selector on top, one primary action at the bottom.
+
+    var LANE_LABELS = { buying: 'Buying', selling: 'Selling', both: 'Both', general: 'General' };
+
+    // Frontend mirror of the backend lane overlap rule: buying and selling can
+    // coexist; a both/general match overlaps everything.
+    function lanesOverlapFE(a, b) {
+        if (!a || !b) return true;
+        if (a === b) return true;
+        if (a === 'both' || b === 'both' || a === 'general' || b === 'general') return true;
+        return false;
+    }
+
+    // The lane pills shown for a client. Never wider than the client's intent.
+    function lanesForClient(client) {
+        var intent = queueIntentOf(client);
+        if (intent === 'buying') return ['buying'];
+        if (intent === 'selling') return ['selling'];
+        if (intent === 'both') return ['buying', 'selling', 'both'];
+        return ['general'];
+    }
+
+    // Preset lane: the client's own intent. For buying-and-selling clients the
+    // first UNMATCHED lane is selected, never a hidden default to buying.
+    function defaultLaneFor(client) {
+        var intent = queueIntentOf(client);
+        if (intent === 'buying' || intent === 'selling' || intent === 'general') return intent;
+        var unmatched = (client.laneStatus && client.laneStatus.unmatchedLanes) || [];
+        return unmatched.length ? unmatched[0] : 'buying';
+    }
+
+    // The current active match (if any) for the selected lane.
+    function currentMatchForLane(client, lane) {
+        var ls = client && client.laneStatus;
+        if (!ls || !ls.activeMatches || !ls.activeMatches.length) return null;
+        var exact = ls.activeMatches.find(function (m) { return m.lane === lane; });
+        if (exact) return exact;
+        return ls.activeMatches.find(function (m) { return lanesOverlapFE(m.lane, lane); }) || null;
+    }
+
+    function laneContextText(lane) {
+        if (lane === 'both') return 'You are matching both sides with one agent.';
+        return 'You are matching the ' + (LANE_LABELS[lane] || 'general').toLowerCase() + ' side.';
+    }
+
+    function intentChipHtml(client) {
+        var intent = queueIntentOf(client);
+        var label = intent === 'both' ? 'Buying and selling' : (LANE_LABELS[intent] || 'General');
+        return '<span class="intent-chip intent-' + esc(intent) + '">' + esc(label) + '</span>';
+    }
+
+    // --- Agent payment status cache, loaded once and lazily -----------------
+    // Agents are REQUITY's paying clients; consumer clients never have a
+    // payment status, so this map is keyed by agent id only.
+    var paymentsMap = null;       // agent id -> { status, label }
+    var paymentsMapLoading = false;
+    function ensurePaymentsMap() {
+        if (paymentsMap || paymentsMapLoading) return;
+        var api = window.RequityAPI;
+        if (!api || !api.fetchReviewerPayments) return;
+        paymentsMapLoading = true;
+        Promise.resolve(api.fetchReviewerPayments({})).then(function (res) {
+            var map = {};
+            ((res && res.records) || []).forEach(function (r) {
+                if (r && r.entityType === 'agent' && r.entityId) {
+                    map[r.entityId] = { status: r.status || 'unpaid', label: r.statusLabel || '' };
+                }
+            });
+            paymentsMap = map;
+            paymentsMapLoading = false;
+            renderDesk();
+        }).catch(function () {
+            paymentsMapLoading = false;
+        });
+    }
+    function agentPaymentFor(agentId) {
+        if (!paymentsMap || !agentId) return null;
+        return paymentsMap[agentId] || { status: 'unpaid', label: 'Unpaid' };
+    }
+    function setAgentPaymentInMap(agentId, status) {
+        if (!paymentsMap) paymentsMap = {};
+        paymentsMap[agentId] = { status: status, label: PAYMENT_LABELS[status] || status };
+    }
+
+    function renderDesk() {
+        if (!elDeskBody) return;
         const client = clients.find(function (c) { return c.id === state.activeClientId; });
 
         if (!client) {
-            const profileMsg = clients.length
-                ? 'Select a client from the queue to view their profile.'
-                : 'No client profiles to review yet.';
-            const fitsMsg = clients.length
-                ? 'Select a client to see recommended real estate agent matches.'
-                : 'Recommended real estate agent matches will appear here when a client is ready for review.';
-            elProfileCard.innerHTML = '<div class="leads-empty">' + profileMsg + '</div>';
-            elFitsList.innerHTML = '<div class="leads-empty">' + fitsMsg + '</div>';
-            elDecisionActions.classList.add('hidden');
-            elDecisionSuccess.classList.add('hidden');
-            elDecisionAgent.textContent = ', ';
-            updateLanePicker(null);
+            if (elDeskEmpty) {
+                elDeskEmpty.textContent = clients.length
+                    ? 'Select a client from the queue to start matching.'
+                    : 'No clients need review right now.';
+                elDeskEmpty.classList.remove('hidden');
+            }
+            elDeskBody.classList.add('hidden');
             return;
         }
 
-        // Render Profile (live client fields only)
-        elProfileCard.innerHTML =
-            '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem;">' +
+        if (elDeskEmpty) elDeskEmpty.classList.add('hidden');
+        elDeskBody.classList.remove('hidden');
+
+        if (!state.deskLane || lanesForClient(client).indexOf(state.deskLane) === -1) {
+            state.deskLane = defaultLaneFor(client);
+        }
+
+        ensurePaymentsMap();
+        renderDeskLaneBar(client);
+        renderDeskClientCard(client);
+        renderDeskCurrentMatch(client);
+        renderDeskAgentList(client);
+        renderDeskActionBar(client);
+    }
+
+    function renderDeskLaneBar(client) {
+        if (!elDeskLanePills) return;
+        var lanes = lanesForClient(client);
+        elDeskLanePills.innerHTML = lanes.map(function (lane) {
+            var active = lane === state.deskLane ? ' is-active' : '';
+            var covered = currentMatchForLane(client, lane) && lane !== state.deskLane ? ' is-covered' : '';
+            return '<button type="button" class="lane-pill' + active + covered + '" data-desk-lane="' + esc(lane) + '">' +
+                esc(lane === 'both' ? 'Both (one agent)' : LANE_LABELS[lane]) + '</button>';
+        }).join('');
+        if (elDeskLaneContext) elDeskLaneContext.textContent = laneContextText(state.deskLane);
+    }
+
+    function deskTopNeedsHtml(client) {
+        var r = client && client.report;
+        var needs = (r && Array.isArray(r.whatThisClientIsAfter)) ? r.whatThisClientIsAfter.slice(0, 3) : [];
+        if (!needs.length) return '';
+        return '<div class="desk-needs"><span class="detail-label">Top needs</span><ul>' +
+            needs.map(function (n) { return '<li>' + esc(String(n)) + '</li>'; }).join('') +
+            '</ul></div>';
+    }
+
+    function renderDeskClientCard(client) {
+        if (!elDeskClientCard) return;
+        // Consumer clients never have a payment status; agent payment pills
+        // live on the agent rows and the Agent Payments tab.
+        var marketBits = [];
+        if (client.buyingMarket) marketBits.push('Buying: ' + esc(client.buyingMarket));
+        if (client.sellingMarket) marketBits.push('Selling: ' + esc(client.sellingMarket));
+        var marketHtml = marketBits.length ? marketBits.join(' &middot; ') : esc(client.market);
+
+        elDeskClientCard.innerHTML =
+            '<div class="desk-client-head">' +
                 '<div>' +
-                    '<h3 class="text-xl mb-1">' + esc(client.name) + '</h3>' +
-                    '<div class="helper-text">Real estate guidance</div>' +
+                    '<h3 class="desk-client-name">' + esc(client.name) + '</h3>' +
+                    '<div class="desk-client-sub">' + esc(client.email || 'No email') + (client.phone ? (' &middot; ' + esc(client.phone)) : '') + '</div>' +
                 '</div>' +
                 '<div class="status-control"><span class="status-control-label">Status</span>' +
                     statusSelectHtml(client.pipelineStatus, { kind: client.rowKind, id: client.id }) +
                 '</div>' +
             '</div>' +
-            '<p class="helper-text mb-2">This profile helps the reviewer understand which real estate agent relationship may support the client best.</p>' +
-            '<div class="profile-grid">' +
-                '<div class="profile-field"><span class="detail-label">Transaction</span><span class="detail-value text-blue">' + esc(client.transaction) + '</span></div>' +
-                '<div class="profile-field"><span class="detail-label">Market</span><span class="detail-value text-blue">' + esc(client.market) + '</span></div>' +
-                '<div class="profile-field"><span class="detail-label">Client Archetype</span><span class="detail-value text-blue">' + esc(client.archetype) + '</span></div>' +
-                '<div class="profile-field"><span class="detail-label">Orientation</span><span class="detail-value">' + esc(client.orientation) + '</span></div>' +
-                '<div class="profile-field"><span class="detail-label">Style</span><span class="detail-value">' + esc(client.style) + '</span></div>' +
-                '<div class="profile-field"><span class="detail-label">Stress Response</span><span class="detail-value">' + esc(client.stressResponse) + '</span></div>' +
+            '<div class="desk-chip-row">' + intentChipHtml(client) + '</div>' +
+            '<div class="desk-meta-grid">' +
+                '<div><span class="detail-label">Market</span><span class="detail-value">' + marketHtml + '</span></div>' +
+                '<div><span class="detail-label">Communication style</span><span class="detail-value">' + esc(client.style) + '</span></div>' +
+                '<div><span class="detail-label">Archetype</span><span class="detail-value">' + esc(client.archetype) + '</span></div>' +
+                '<div><span class="detail-label">Orientation</span><span class="detail-value">' + esc(client.orientation) + '</span></div>' +
+                '<div><span class="detail-label">Stress response</span><span class="detail-value">' + esc(client.stressResponse) + '</span></div>' +
             '</div>' +
-            buildClientReportHtml(client);
-        elProfileCard.classList.remove('fade-in');
-        void elProfileCard.offsetWidth; // trigger reflow
-        elProfileCard.classList.add('fade-in');
+            deskTopNeedsHtml(client) +
+            '<div class="desk-client-actions">' +
+                '<button type="button" class="btn btn-outline btn-sm" id="desk-assessment-toggle">' +
+                    (state.deskShowAssessment ? 'Hide full assessment' : 'View full assessment') + '</button>' +
+            '</div>' +
+            '<div id="desk-full-assessment" class="desk-full-assessment' + (state.deskShowAssessment ? '' : ' hidden') + '">' +
+                (state.deskShowAssessment ? buildClientReportHtml(client) : '') +
+            '</div>';
 
-        // Render Fits
-        elFitsList.innerHTML = '';
-        if (!client.fits.length) {
-            elFitsList.innerHTML = noEligibleMatchHtml(client.matchSummary);
-        } else {
-            client.fits.forEach(function (fit, idx) {
-                const isTop = fit.top ? 'top-match' : '';
-                const isSelected = state.selectedAgentId && state.selectedAgentId === fit.agentId ? 'selected' : '';
-                const badgeHtml = fit.top ? '<span class="badge badge-highest">Highest recommended fit</span>' : '';
-                const pctHtml = (fit.fit != null) ? '<span class="badge badge-internal">' + fit.fit + '%</span>' : '';
-                const totalHtml = (fit.total != null) ? '<span class="badge badge-source">Total ' + fit.total + '%</span>' : '';
-                const distHtml = (fit.distanceMiles != null)
-                    ? '<span class="badge badge-source">' + fit.distanceMiles + ' mi</span>'
-                    : (fit.locationScore != null ? '<span class="badge badge-source">Loc ' + fit.locationScore + '</span>' : '');
-                const limitedHtml = fit.limitedFit ? '<span class="badge badge-source">Limited fit</span>' : '';
-                const matchedHtml = (fit.activeMatchCount > 0)
-                    ? '<span class="badge badge-internal">Matched with ' + fit.activeMatchCount + ' client' + (fit.activeMatchCount === 1 ? '' : 's') + '</span>'
-                    : '';
-                const warnHtml = fit.warning ? '<div class="loc-row-warning">' + esc(fit.warning) + '</div>' : '';
-                const labelHtml = fit.label
-                    ? '<div class="mb-2"><span class="detail-label">Fit:</span> <span class="helper-text" style="color:var(--text-primary)">' + esc(fit.label) + '</span></div>'
-                    : '';
-                const reasonHtml = fit.reason
-                    ? '<div class="fit-reason"><span class="detail-label">Reason</span><p class="mt-1">' + esc(fit.reason) + '</p></div>'
-                    : '';
-                const html =
-                    '<div class="fit-card ' + isTop + ' ' + isSelected + '" id="fit-' + idx + '">' +
-                        '<div class="fit-header">' +
-                            '<div>' +
-                                '<h3 class="fit-name">' + esc(fit.name) + '</h3>' +
-                                '<div class="fit-meta">Agent Archetype: <strong class="text-blue">' + esc(fit.archetype) + '</strong></div>' +
-                            '</div>' +
-                            '<div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">' + badgeHtml + pctHtml + totalHtml + distHtml + limitedHtml + matchedHtml + '</div>' +
-                        '</div>' +
-                        labelHtml +
-                        reasonHtml +
-                        warnHtml +
-                        '<button class="btn btn-outline" onclick="selectGuide(\'' + esc(fit.agentId) + '\')">Select Agent</button>' +
-                    '</div>';
-                elFitsList.insertAdjacentHTML('beforeend', html);
-            });
-        }
-
-        // Decision panel
-        elDecisionActions.classList.remove('hidden');
-        elDecisionSuccess.classList.add('hidden');
-        elDecisionAgent.textContent = state.selectedAgentName || ', ';
-        updateLanePicker(client);
+        var assessBtn = document.getElementById('desk-assessment-toggle');
+        if (assessBtn) assessBtn.addEventListener('click', function () {
+            state.deskShowAssessment = !state.deskShowAssessment;
+            renderDeskClientCard(client);
+        });
     }
 
-    // The lane picker is ALWAYS visible and explicit. It is preset from the
-    // client's own intent (a selling client presets to Selling, a general
-    // client to General); it never silently defaults to buying.
-    function updateLanePicker(client) {
-        var wrap = document.getElementById('decision-lane-wrap');
-        var select = document.getElementById('decision-lane');
-        var hint = document.getElementById('decision-lane-hint');
-        if (!wrap || !select) return;
-        wrap.classList.toggle('hidden', !client);
-        if (!client) return;
-        var intent = queueIntentOf(client);
-        var preset = intent; // buying -> buying, selling -> selling, general -> general
-        var hintText = '';
-        if (intent === 'both') {
-            // Buying-and-selling client: preset the first lane that still needs
-            // a match so the reviewer works the open side, not a hidden default.
-            var unmatched = (client.laneStatus && client.laneStatus.unmatchedLanes) || [];
-            preset = unmatched.length ? unmatched[0] : 'both';
-            hintText = 'This client is buying and selling. Match each lane separately, or pick Both if one agent covers both sides.';
-        } else if (intent === 'buying') {
-            hintText = 'This client is buying.';
-        } else if (intent === 'selling') {
-            hintText = 'This client is selling.';
-        } else {
-            hintText = 'This client has a general intent.';
+    function renderDeskCurrentMatch(client) {
+        if (!elDeskCurrentMatch) return;
+        var lane = state.deskLane;
+        var current = currentMatchForLane(client, lane);
+        var title = 'Current ' + (LANE_LABELS[lane] || 'General').toLowerCase() + ' match';
+        if (!current) {
+            elDeskCurrentMatch.innerHTML =
+                '<span class="detail-label">' + esc(title) + '</span>' +
+                '<div class="desk-current-none">No active match yet.</div>';
+            return;
         }
-        if (['buying', 'selling', 'both', 'general'].indexOf(preset) !== -1) select.value = preset;
-        if (hint) hint.textContent = hintText;
+        var laneNote = current.lane !== lane
+            ? ' (covered by the ' + (LANE_LABELS[current.lane] || 'general').toLowerCase() + ' match)'
+            : '';
+        elDeskCurrentMatch.innerHTML =
+            '<span class="detail-label">' + esc(title) + '</span>' +
+            '<div class="desk-current-agent">' +
+                '<strong>' + esc(current.agentName || 'Unknown agent') + '</strong>' +
+                '<span class="status-pill status-active">Active</span>' +
+            '</div>' +
+            '<div class="helper-text">Selecting an agent below will replace this match' + esc(laneNote) + '. The old match moves to history.</div>';
     }
 
-    // The lane the reviewer explicitly has selected in the picker.
+    function deskFilteredFits(client) {
+        var q = (state.deskAgentSearch || '').toLowerCase();
+        return (client.fits || []).filter(function (fit) {
+            if (state.deskHideLimited && fit.limitedFit) return false;
+            if (q) {
+                var hay = ((fit.name || '') + ' ' + (fit.archetype || '')).toLowerCase();
+                if (hay.indexOf(q) === -1) return false;
+            }
+            return true;
+        });
+    }
+
+    function renderDeskAgentList(client) {
+        if (!elDeskAgentList) return;
+        if (!client.fits || !client.fits.length) {
+            elDeskAgentList.innerHTML = noEligibleMatchHtml(client.matchSummary);
+            return;
+        }
+        var rows = deskFilteredFits(client);
+        if (!rows.length) {
+            elDeskAgentList.innerHTML = '<div class="leads-empty">No agents match this search.</div>';
+            return;
+        }
+        elDeskAgentList.innerHTML = rows.map(function (fit) {
+            var isSelected = state.selectedAgentId && state.selectedAgentId === fit.agentId;
+            var agentPay = agentPaymentFor(fit.agentId);
+            var bits = [];
+            if (fit.archetype && fit.archetype !== ', ') bits.push(esc(fit.archetype));
+            if (fit.distanceMiles != null) bits.push(fit.distanceMiles + ' mi');
+            if (fit.activeMatchCount > 0) bits.push(fit.activeMatchCount + ' active match' + (fit.activeMatchCount === 1 ? '' : 'es'));
+            var badges = '';
+            if (fit.top) badges += '<span class="badge badge-highest">Top fit</span>';
+            if (fit.fit != null) badges += '<span class="badge badge-internal">' + fit.fit + '%</span>';
+            if (fit.limitedFit) badges += '<span class="badge badge-source">Limited fit</span>';
+            if (agentPay) badges += '<span class="status-pill pay-' + esc(agentPay.status) + '">' + esc(agentPay.label || 'Unpaid') + '</span>';
+            var warn = fit.warning ? '<div class="loc-row-warning">' + esc(fit.warning) + '</div>' : '';
+            return '<div class="desk-agent-row' + (isSelected ? ' is-selected' : '') + '">' +
+                '<div class="desk-agent-main">' +
+                    '<span class="desk-agent-name">' + esc(fit.name) + '</span>' +
+                    '<span class="desk-agent-sub">' + bits.join(' &middot; ') + '</span>' +
+                    warn +
+                '</div>' +
+                '<div class="desk-agent-side">' + badges +
+                    '<button type="button" class="btn ' + (isSelected ? 'btn-primary' : 'btn-outline') + ' btn-sm" onclick="selectGuide(\'' + esc(fit.agentId) + '\')">' +
+                        (isSelected ? 'Selected' : 'Select') + '</button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    function renderDeskActionBar(client) {
+        if (!elDeskPrimaryBtn) return;
+        var lane = state.deskLane;
+        var current = currentMatchForLane(client, lane);
+        var laneWord = (LANE_LABELS[lane] || 'General').toLowerCase();
+        elDeskPrimaryBtn.textContent = current ? 'Replace with selected agent' : 'Pair with selected agent';
+        elDeskPrimaryBtn.disabled = !state.selectedAgentId || state.deskConfirmOpen;
+        if (elDeskActionSummary) {
+            elDeskActionSummary.textContent = state.selectedAgentName
+                ? (state.selectedAgentName + ' as the ' + laneWord + ' match for ' + client.name)
+                : 'Select an agent to pair with ' + client.name + '.';
+        }
+    }
+
+    // The lane the reviewer explicitly has selected on the Match Desk.
     function selectedMatchLane() {
-        var wrap = document.getElementById('decision-lane-wrap');
-        var select = document.getElementById('decision-lane');
-        if (!wrap || !select || wrap.classList.contains('hidden')) return null;
-        return select.value || null;
+        return state.deskLane || null;
     }
+
+    // --- Desk confirmation panel (small inline panel, not a modal) -----------
+    function openDeskConfirm() {
+        const client = clients.find(function (c) { return c.id === state.activeClientId; });
+        if (!client || !state.selectedAgentId || !elDeskConfirm) return;
+        var lane = state.deskLane;
+        var laneWord = (LANE_LABELS[lane] || 'General').toLowerCase();
+        var current = currentMatchForLane(client, lane);
+        state.deskConfirmOpen = true;
+        if (elDeskConfirmBody) {
+            elDeskConfirmBody.textContent = 'This will make ' + (state.selectedAgentName || 'the selected agent') +
+                ' the active ' + laneWord + ' match for ' + client.name +
+                '. Previous active matches for this lane will move to history.';
+        }
+        if (elDeskNotifyClient) elDeskNotifyClient.checked = true;
+        if (elDeskNotifyNew) elDeskNotifyNew.checked = true;
+        if (elDeskNotifyPrev) elDeskNotifyPrev.checked = false;
+        if (elDeskNotifyPrevWrap) elDeskNotifyPrevWrap.classList.toggle('hidden', !current);
+        if (elDeskNoteText) elDeskNoteText.value = '';
+        if (elDeskConfirmError) { elDeskConfirmError.style.display = 'none'; elDeskConfirmError.textContent = ''; }
+        if (elDeskConfirmBtn) { elDeskConfirmBtn.disabled = false; elDeskConfirmBtn.textContent = 'Confirm match'; }
+        elDeskConfirm.classList.remove('hidden');
+        renderDeskActionBar(client);
+        elDeskConfirm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function closeDeskConfirm() {
+        state.deskConfirmOpen = false;
+        if (elDeskConfirm) elDeskConfirm.classList.add('hidden');
+        const client = clients.find(function (c) { return c.id === state.activeClientId; });
+        if (client) renderDeskActionBar(client);
+    }
+
+    function confirmDeskMatch(forceReplace) {
+        const client = clients.find(function (c) { return c.id === state.activeClientId; });
+        if (!client || !state.selectedAgentId) return;
+        const fit = (client.fits || []).find(function (f) { return f.agentId === state.selectedAgentId; });
+        if (!fit) return;
+        if (!window.RequityAPI || !window.RequityAPI.approveReviewerMatch) return;
+
+        var lane = state.deskLane;
+        var current = currentMatchForLane(client, lane);
+        var payload = matchTargetPayload(client);
+        payload.agentId = fit.agentId;
+        payload.score = fit.fit != null ? fit.fit : undefined;
+        payload.reason = fit.reason || undefined;
+        payload.matchLane = lane;
+        if (current || forceReplace) payload.replaceExisting = true;
+        payload.notifyClient = !elDeskNotifyClient || elDeskNotifyClient.checked;
+        payload.notifyNewAgent = !elDeskNotifyNew || elDeskNotifyNew.checked;
+        payload.notifyPreviousAgent = !!(elDeskNotifyPrev && elDeskNotifyPrev.checked && (current || forceReplace));
+        var note = ((elDeskNoteText && elDeskNoteText.value) || '').trim();
+        if (note) payload.reviewerNotes = note;
+
+        if (elDeskConfirmBtn) { elDeskConfirmBtn.disabled = true; elDeskConfirmBtn.textContent = 'Updating...'; }
+        if (elDeskConfirmError) { elDeskConfirmError.style.display = 'none'; elDeskConfirmError.textContent = ''; }
+
+        Promise.resolve(window.RequityAPI.approveReviewerMatch(payload)).then(function (res) {
+            res = res || {};
+            state.counts.scheduled++;
+            var laneWord = (LANE_LABELS[lane] || 'General').toLowerCase();
+            addLog('Match updated. ' + fit.name + ' is now the ' + laneWord + ' match for ' + client.name + '.');
+            closeDeskConfirm();
+            if (res.fullyMatched === false) {
+                var needs = (res.unmatchedLanes || []).join(', ');
+                addLog(client.name + ' still needs a ' + (needs || 'second') + ' match and stays in the queue.');
+                // Move the desk straight to the lane that still needs a match.
+                if (res.unmatchedLanes && res.unmatchedLanes.length) state.deskLane = res.unmatchedLanes[0];
+            }
+            loadQueue();
+        }).catch(function (err) {
+            if (err && err.code === 'CLIENT_ALREADY_MATCHED' && !payload.replaceExisting) {
+                // Stale view: an active match exists that we did not know about.
+                var active = (err.data && err.data.activeMatch) || {};
+                if (elDeskConfirmBody) {
+                    elDeskConfirmBody.textContent = 'This client already has an active match with ' +
+                        (active.agentName || 'another agent') + '. Confirm again to replace it; the old match will move to history.';
+                }
+                if (elDeskNotifyPrevWrap) elDeskNotifyPrevWrap.classList.remove('hidden');
+                if (elDeskConfirmBtn) {
+                    elDeskConfirmBtn.disabled = false;
+                    elDeskConfirmBtn.textContent = 'Replace match';
+                    elDeskConfirmBtn.setAttribute('data-force-replace', '1');
+                }
+                return;
+            }
+            if (elDeskConfirmError) {
+                elDeskConfirmError.textContent = (err && (err.serverError || err.message)) || 'Could not update the match. Please try again.';
+                elDeskConfirmError.style.display = 'block';
+            }
+            if (elDeskConfirmBtn) { elDeskConfirmBtn.disabled = false; elDeskConfirmBtn.textContent = 'Confirm match'; }
+        });
+    }
+
+    // --- Desk event wiring ----------------------------------------------------
+    if (elDeskLanePills) elDeskLanePills.addEventListener('click', function (ev) {
+        var pill = ev.target.closest ? ev.target.closest('[data-desk-lane]') : null;
+        if (!pill) return;
+        state.deskLane = pill.getAttribute('data-desk-lane');
+        closeDeskConfirm();
+        renderDesk();
+    });
+    if (elDeskAgentSearch) {
+        var deskSearchTimer = null;
+        elDeskAgentSearch.addEventListener('input', function () {
+            if (deskSearchTimer) clearTimeout(deskSearchTimer);
+            deskSearchTimer = setTimeout(function () {
+                state.deskAgentSearch = (elDeskAgentSearch.value || '').trim();
+                const client = clients.find(function (c) { return c.id === state.activeClientId; });
+                if (client) renderDeskAgentList(client);
+            }, 200);
+        });
+    }
+    if (elDeskHideLimited) elDeskHideLimited.addEventListener('change', function () {
+        state.deskHideLimited = !!elDeskHideLimited.checked;
+        const client = clients.find(function (c) { return c.id === state.activeClientId; });
+        if (client) renderDeskAgentList(client);
+    });
+    if (elDeskPrimaryBtn) elDeskPrimaryBtn.addEventListener('click', openDeskConfirm);
+    if (elDeskConfirmCancel) elDeskConfirmCancel.addEventListener('click', closeDeskConfirm);
+    if (elDeskConfirmBtn) elDeskConfirmBtn.addEventListener('click', function () {
+        var force = elDeskConfirmBtn.getAttribute('data-force-replace') === '1';
+        elDeskConfirmBtn.removeAttribute('data-force-replace');
+        confirmDeskMatch(force);
+    });
 
     function updateSummary() {
         if (elCountPending) elCountPending.textContent = state.counts.pending;
@@ -615,14 +909,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 return normalizeStatus(p.pipelineStatus) !== 'closed';
             }).length;
         }
-        // Unpaid agents/clients + matches-changed cards are owned by the
+        // Unpaid agents + matches-changed cards are owned by the Agent
         // Payments loader in index.html (applySummary).
     }
 
     function renderAll() {
         recomputeCounts();
         renderQueue();
-        renderActiveClient();
+        renderDesk();
         renderPaired();
         updateSummary();
     }
@@ -664,63 +958,138 @@ document.addEventListener('DOMContentLoaded', () => {
         return (p.clientId || p.leadId || p.matchId || '') + ':' + (p.matchLane || 'general');
     }
 
-    function pairedCardHtml(p) {
-        var fit = (typeof p.score === 'number' && p.score > 0)
-            ? (p.label ? (p.label + ' · ' + p.score + '%') : (p.score + '%'))
-            : (p.label || null);
-        // Part 12: existing pairings whose agent has no usable location are flagged
-        // for review rather than deleted, so reviewers can fix the agent market.
-        var reviewWarning = (p.agentHasLocation === false)
-            ? '<div class="loc-row-warning">This recommendation needs location review. The paired agent has no market on file.</div>'
-            : '';
-        // Lane badge: every card names its lane explicitly (including General).
-        var laneBadge = '<span class="badge badge-internal">' + esc(p.matchLaneLabel || 'General') + ' match</span>';
-        var statusTarget = (!p.clientId && p.leadId)
-            ? { kind: 'lead', id: p.leadId }
-            : { kind: 'client', id: p.clientId };
-        var clientPaid = (p.clientPaymentStatus === 'paid');
+    // One card per CLIENT with one compact row per lane (buying/selling/both/
+    // general), so a buying-and-selling client is a single card with two rows.
+    function laneSortIndex(lane) {
+        var order = { buying: 0, selling: 1, both: 2, general: 3 };
+        return order[lane] != null ? order[lane] : 3;
+    }
+
+    function groupPairedRows(list) {
+        var groups = [];
+        var byKey = {};
+        list.forEach(function (p) {
+            var key = p.clientId || p.leadId || p.matchId || '';
+            if (!byKey[key]) {
+                byKey[key] = { key: key, rows: [] };
+                groups.push(byKey[key]);
+            }
+            byKey[key].rows.push(p);
+        });
+        groups.forEach(function (g) {
+            g.rows.sort(function (a, b) {
+                return laneSortIndex(a.matchLane || 'general') - laneSortIndex(b.matchLane || 'general');
+            });
+        });
+        return groups;
+    }
+
+    function pairedLaneRowHtml(p) {
+        var lane = p.matchLane || 'general';
+        var laneLabel = p.matchLaneLabel || 'General';
+        var changeLabel = lane === 'buying' ? 'Change buying'
+            : lane === 'selling' ? 'Change selling'
+            : 'Change match';
         var lastEmail = p.lastEmailAt ? fmtPairedDate(p.lastEmailAt) : 'Not sent';
-        return reviewWarning + '<div class="lead-top">' +
-                '<div><div class="lead-name">' + esc(p.clientName || 'Unknown client') + '</div>' +
-                '<div class="lead-contact">' + esc(p.clientEmail || 'no email') +
-                    (p.clientArchetype ? (' &middot; ' + esc(p.clientArchetype)) : '') + '</div></div>' +
+        var agentPaid = p.agentPaymentStatus === 'paid';
+        var warning = (p.agentHasLocation === false)
+            ? '<div class="loc-row-warning">Needs location review. The paired agent has no market on file.</div>'
+            : '';
+        return '<div class="paired-lane-row">' +
+            '<div class="paired-lane-main">' +
+                '<span class="paired-lane-label lane-' + esc(lane) + '">' + esc(laneLabel) + '</span>' +
+                '<span class="paired-lane-agent">' + esc(p.agentName || 'Unknown agent') + '</span>' +
+                payPillHtml(p.agentPaymentStatus, p.agentPaymentLabel) +
+                '<span class="paired-lane-email">Last email: ' + esc(lastEmail) + '</span>' +
+            '</div>' +
+            '<div class="paired-lane-actions">' +
+                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="change" data-paired-key="' + esc(pairedKey(p)) + '">' + esc(changeLabel) + '</button>' +
+                (p.matchId ? ('<button type="button" class="btn btn-outline btn-sm" data-paired-act="resend" data-paired-key="' + esc(pairedKey(p)) + '">Resend email</button>') : '') +
+                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="agentpay" data-paired-key="' + esc(pairedKey(p)) + '">' + (agentPaid ? 'Agent unpaid' : 'Agent paid') + '</button>' +
+            '</div>' +
+            warning +
+        '</div>';
+    }
+
+    // A "needs match" row for a buying-and-selling client whose other lane has
+    // no active match yet. The Match button opens the Match Desk on that lane.
+    function pairedNeedsRowHtml(p, lane) {
+        return '<div class="paired-lane-row is-needs">' +
+            '<div class="paired-lane-main">' +
+                '<span class="paired-lane-label lane-' + esc(lane) + '">' + esc(LANE_LABELS[lane] || lane) + '</span>' +
+                '<span class="paired-lane-agent paired-needs-text">Needs match</span>' +
+            '</div>' +
+            '<div class="paired-lane-actions">' +
+                '<button type="button" class="btn btn-primary btn-sm" data-paired-act="deskmatch" data-paired-key="' + esc(pairedKey(p)) + '" data-desk-lane="' + esc(lane) + '">Match</button>' +
+            '</div>' +
+        '</div>';
+    }
+
+    // Lanes still missing for a both-intent client, given its paired rows.
+    function missingLanesForGroup(g) {
+        var first = g.rows[0];
+        var intent = String(first.transactionIntent || '').toLowerCase();
+        if (intent !== 'both') return [];
+        var lanes = g.rows.map(function (p) { return p.matchLane || 'general'; });
+        if (lanes.indexOf('both') !== -1 || lanes.indexOf('general') !== -1) return [];
+        var missing = [];
+        if (lanes.indexOf('buying') === -1) missing.push('buying');
+        if (lanes.indexOf('selling') === -1) missing.push('selling');
+        return missing;
+    }
+
+    function pairedGroupCardHtml(g) {
+        var first = g.rows[0];
+        var statusTarget = (!first.clientId && first.leadId)
+            ? { kind: 'lead', id: first.leadId }
+            : { kind: 'client', id: first.clientId };
+        var intentLabel = transactionText(first.transactionIntentLabel
+            ? { transaction_intent_label: first.transactionIntentLabel }
+            : { transaction_intent: first.transactionIntent });
+
+        var laneRows = g.rows.map(pairedLaneRowHtml).join('');
+        laneRows += missingLanesForGroup(g).map(function (lane) {
+            return pairedNeedsRowHtml(first, lane);
+        }).join('');
+
+        var detailBits = g.rows.map(function (p) {
+            var bits = [];
+            bits.push('<strong>' + esc(p.matchLaneLabel || 'General') + '</strong>: ' + esc(p.agentName || 'Unknown agent'));
+            if (p.agentEmail) bits.push(esc(p.agentEmail));
+            if (p.agentArchetype) bits.push(esc(p.agentArchetype));
+            if (p.matchedAt) bits.push('Matched ' + fmtPairedDate(p.matchedAt));
+            return '<div class="paired-detail-line">' + bits.join(' &middot; ') + '</div>';
+        }).join('');
+
+        return '<div class="lead-top">' +
+                '<div><div class="lead-name">' + esc(first.clientName || 'Unknown client') + '</div>' +
+                '<div class="lead-contact">' + esc(first.clientEmail || 'no email') +
+                    ' &middot; ' + esc(intentLabel) + '</div></div>' +
                 '<div class="lead-badges">' +
-                    laneBadge +
-                    (fit ? ('<span class="badge badge-source">' + esc(fit) + '</span>') : '') +
                     '<div class="status-control"><span class="status-control-label">Status</span>' +
-                        statusSelectHtml(p.pipelineStatus, statusTarget) +
+                        statusSelectHtml(first.pipelineStatus, statusTarget) +
                     '</div>' +
                 '</div>' +
             '</div>' +
-            '<div class="lead-meta">' +
-                '<span>Transaction <strong>' + esc(transactionText(p.transactionIntentLabel ? { transaction_intent_label: p.transactionIntentLabel } : { transaction_intent: p.transactionIntent })) + '</strong></span>' +
-                pairedMarketHtml(p) +
-                '<span>Paired agent <strong>' + esc(p.agentName || 'Unknown agent') + '</strong></span>' +
-                (p.agentEmail ? ('<span>Agent email <strong>' + esc(p.agentEmail) + '</strong></span>') : '') +
-                (p.agentArchetype ? ('<span>Agent archetype <strong>' + esc(p.agentArchetype) + '</strong></span>') : '') +
-                '<span>Matched <strong>' + fmtPairedDate(p.matchedAt) + '</strong></span>' +
-                '<span>Last agent email <strong>' + esc(lastEmail) + '</strong></span>' +
-            '</div>' +
-            '<div class="paired-pay-row">' +
-                '<span>Client payment ' + payPillHtml(p.clientPaymentStatus, p.clientPaymentLabel) + '</span>' +
-                '<span>Agent payment ' + payPillHtml(p.agentPaymentStatus, p.agentPaymentLabel) + '</span>' +
-            '</div>' +
+            '<div class="paired-lane-rows">' + laneRows + '</div>' +
             '<div class="paired-actions">' +
-                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="change" data-paired-key="' + esc(pairedKey(p)) + '">Change match</button>' +
-                (p.matchId ? ('<button type="button" class="btn btn-outline btn-sm" data-paired-act="resend" data-paired-key="' + esc(pairedKey(p)) + '">Resend email</button>') : '') +
-                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="pay" data-paired-key="' + esc(pairedKey(p)) + '">' + (clientPaid ? 'Mark client unpaid' : 'Mark client paid') + '</button>' +
-                '<button type="button" class="btn btn-outline btn-sm" onclick="removePairedClient(\'' + esc(p.clientId || '') + '\', \'' + esc(p.leadId || '') + '\')">Archive</button>' +
+                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="view" data-paired-key="' + esc(pairedKey(first)) + '">View</button>' +
+                '<button type="button" class="btn btn-outline btn-sm" onclick="removePairedClient(\'' + esc(first.clientId || '') + '\', \'' + esc(first.leadId || '') + '\')">Archive</button>' +
+            '</div>' +
+            '<div class="paired-details hidden">' +
+                '<div class="lead-meta">' + pairedMarketHtml(first) + '</div>' +
+                detailBits +
             '</div>';
     }
 
     // Active (non-closed) pairings render in Paired Clients; Closed pairings move
     // to the Closed tab. Both keep the editable status control so a reviewer can
     // move a client back and forth.
-    // Client-side Paired filters: lane, client payment state, and search.
+    // Client-side Paired filters: lane, AGENT payment state, and search.
     function pairedMatchesFilters(p) {
         if (state.pairedLaneFilter && (p.matchLane || 'general') !== state.pairedLaneFilter) return false;
-        if (state.pairedPaymentFilter === 'paid' && p.clientPaymentStatus !== 'paid') return false;
-        if (state.pairedPaymentFilter === 'unpaid' && p.clientPaymentStatus === 'paid') return false;
+        if (state.pairedPaymentFilter === 'paid' && p.agentPaymentStatus !== 'paid') return false;
+        if (state.pairedPaymentFilter === 'unpaid' && p.agentPaymentStatus === 'paid') return false;
         var q = (state.pairedSearch || '').toLowerCase();
         if (q) {
             var hay = ((p.clientName || '') + ' ' + (p.clientEmail || '') + ' ' +
@@ -730,6 +1099,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
 
+    function renderPairedGroupsInto(container, rows, emptyMsg) {
+        if (!container) return;
+        if (!rows.length) {
+            container.innerHTML = '<div class="leads-empty">' + emptyMsg + '</div>';
+            return;
+        }
+        container.innerHTML = '';
+        groupPairedRows(rows).forEach(function (g) {
+            var card = document.createElement('div');
+            card.className = 'lead-card paired-card';
+            card.innerHTML = pairedGroupCardHtml(g);
+            container.appendChild(card);
+        });
+    }
+
     function renderPaired() {
         var active = [];
         var closed = [];
@@ -737,39 +1121,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (normalizeStatus(p.pipelineStatus) === 'closed') closed.push(p); else active.push(p);
         });
 
-        if (elPairedList) {
-            var visible = active.filter(pairedMatchesFilters);
-            var hasFilters = !!(state.pairedLaneFilter || state.pairedPaymentFilter || state.pairedSearch);
-            if (!visible.length) {
-                elPairedList.innerHTML = '<div class="leads-empty">' +
-                    (hasFilters ? 'No paired clients match these filters.' : 'No pairings yet.') + '</div>';
-            } else {
-                elPairedList.innerHTML = '';
-                visible.forEach(function (p) {
-                    var card = document.createElement('div');
-                    card.className = 'lead-card';
-                    card.innerHTML = pairedCardHtml(p);
-                    elPairedList.appendChild(card);
-                });
-            }
-        }
+        var visible = active.filter(pairedMatchesFilters);
+        var hasFilters = !!(state.pairedLaneFilter || state.pairedPaymentFilter || state.pairedSearch);
+        renderPairedGroupsInto(elPairedList, visible,
+            hasFilters ? 'No paired clients match these filters.' : 'No pairings yet.');
+        renderPairedGroupsInto(elClosedList, closed, 'No closed clients yet.');
 
-        if (elClosedList) {
-            if (!closed.length) {
-                elClosedList.innerHTML = '<div class="leads-empty">No closed clients yet.</div>';
-            } else {
-                elClosedList.innerHTML = '';
-                closed.forEach(function (p) {
-                    var card = document.createElement('div');
-                    card.className = 'lead-card';
-                    card.innerHTML = pairedCardHtml(p);
-                    elClosedList.appendChild(card);
-                });
-            }
-        }
-
-        setTabCount('paired', active.length);
-        setTabCount('closed', closed.length);
+        setTabCount('paired', groupPairedRows(active).length);
+        setTabCount('closed', groupPairedRows(closed).length);
         setTabCount('review', clients.length);
     }
 
@@ -784,13 +1143,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Global Actions (attached to window for inline onclick) ------------
-    window.selectClient = function (id) {
+    // Open a client on the Match Desk, optionally forcing a specific lane
+    // (used by "Change buying"/"Change selling" so the clicked lane wins).
+    window.selectClient = function (id, lane) {
         if (state.autoMode === 'running') return;
         state.activeClientId = id;
         const client = clients.find(function (c) { return c.id === id; });
+        state.deskLane = client
+            ? (lane && lanesForClient(client).indexOf(lane) !== -1 ? lane : defaultLaneFor(client))
+            : null;
+        state.deskAgentSearch = '';
+        state.deskShowAssessment = false;
+        if (elDeskAgentSearch) elDeskAgentSearch.value = '';
+        closeDeskConfirm();
         selectActiveAgent(client);
         renderQueue();
-        renderActiveClient();
+        renderDesk();
     };
 
     window.selectGuide = function (agentId) {
@@ -801,8 +1169,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!fit) return;
         state.selectedAgentId = fit.agentId;
         state.selectedAgentName = fit.name;
-        elDecisionAgent.textContent = fit.name;
-        renderActiveClient();
+        renderDeskAgentList(client);
+        renderDeskActionBar(client);
     };
 
     // Reviewer sets a client's pipeline status from any status dropdown. Updates
@@ -857,73 +1225,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ? { leadId: client.clientId }
             : { clientId: client.clientId };
     }
-
-    window.approveSelected = function () {
-        const client = clients.find(function (c) { return c.id === state.activeClientId; });
-        if (!client || !state.selectedAgentId) return;
-        const fit = client.fits.find(function (f) { return f.agentId === state.selectedAgentId; });
-        if (!fit) return;
-        if (!window.RequityAPI || !window.RequityAPI.approveReviewerMatch) return;
-
-        setDecisionBusy(true);
-        finalizeMatch(client, fit, false).finally(function () {
-            setDecisionBusy(false);
-        });
-    };
-
-    // Finalize a match. On a 409 CLIENT_ALREADY_MATCHED, confirm a replacement and
-    // retry with replaceExisting so the old match is superseded (never duplicated).
-    function finalizeMatch(client, fit, replaceExisting) {
-        const payload = matchTargetPayload(client);
-        payload.agentId = fit.agentId;
-        payload.score = fit.fit != null ? fit.fit : undefined;
-        payload.reason = fit.reason || undefined;
-        const lane = selectedMatchLane();
-        if (lane) payload.matchLane = lane;
-        if (replaceExisting) payload.replaceExisting = true;
-
-        return Promise.resolve(window.RequityAPI.approveReviewerMatch(payload)).then(function (res) {
-            res = res || {};
-            const laneNote = res.matchLane && res.matchLane !== 'general' ? (' (' + res.matchLane + ' side)') : '';
-            addLog((replaceExisting ? 'Replaced match: ' : 'Reviewer approved ') + fit.name + laneNote + ' for ' + client.name + '. The agent was notified.');
-            state.counts.scheduled++;
-            if (res.fullyMatched === false) {
-                // Buying-and-selling client with another lane still open: keep them
-                // visible in the queue and refresh so lane status is current.
-                const needs = (res.unmatchedLanes || []).join(', ');
-                addLog(client.name + ' still needs a ' + (needs || 'second') + ' match and stays in the review queue.');
-                loadQueue();
-            } else {
-                removeClientFromQueue(client.id);
-                // Refresh so the new pairing shows in Paired Clients right away.
-                loadQueue();
-            }
-        }).catch(function (err) {
-            if (err && err.code === 'CLIENT_ALREADY_MATCHED') {
-                const active = (err.data && err.data.activeMatch) || {};
-                const currentName = active.agentName || 'another agent';
-                const laneLabel = active.matchLaneLabel && active.matchLaneLabel !== 'General'
-                    ? (active.matchLaneLabel.toLowerCase() + ' ') : '';
-                const ok = window.confirm(
-                    'This client already has an active ' + laneLabel + 'match with ' + currentName + '. ' +
-                    'Replacing it will archive that match and make ' + fit.name + ' the current ' + laneLabel + 'match.'
-                );
-                if (ok) {
-                    setDecisionBusy(true);
-                    return finalizeMatch(client, fit, true).finally(function () { setDecisionBusy(false); });
-                }
-                addLog('Kept existing match for ' + client.name + ' (' + currentName + ').');
-                return;
-            }
-            addLog('Could not approve ' + fit.name + ' for ' + client.name + '. Please try again.');
-        });
-    }
-
-    window.holdSelected = function () {
-        const client = clients.find(function (c) { return c.id === state.activeClientId; });
-        if (!client) return;
-        addLog('Profile held for review: ' + client.name);
-    };
 
     // Confirm helper: uses the shared modal when present, window.confirm otherwise.
     function confirmAction(opts) {
@@ -984,7 +1285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // --- Paired card actions: change match, resend email, mark paid ---------
+    // --- Paired card actions: change match, resend email, agent payment -----
     function findPairedByKey(key) {
         return pairedClients.find(function (p) { return pairedKey(p) === key; }) || null;
     }
@@ -993,6 +1294,52 @@ document.addEventListener('DOMContentLoaded', () => {
         var p = findPairedByKey(key);
         if (!p) return;
         if (act === 'change') { openChangeMatch(p); return; }
+        if (act === 'view') {
+            var card = btn.closest ? btn.closest('.paired-card') : null;
+            var details = card ? card.querySelector('.paired-details') : null;
+            if (details) {
+                details.classList.toggle('hidden');
+                btn.textContent = details.classList.contains('hidden') ? 'View' : 'Hide details';
+            }
+            return;
+        }
+        if (act === 'deskmatch') {
+            // Open the Match Desk on the exact lane that still needs a match.
+            var lane = btn.getAttribute('data-desk-lane') || null;
+            var targetId = p.clientId || p.leadId;
+            var inQueue = clients.find(function (c) { return c.id === targetId; });
+            if (!inQueue) {
+                addLog('This client is not in the review queue right now. Refresh and try again.');
+                return;
+            }
+            var reviewTab = document.querySelector('#reviewer-tabs [data-tab="review"]');
+            if (reviewTab) reviewTab.click();
+            window.selectClient(targetId, lane);
+            return;
+        }
+        if (act === 'agentpay') {
+            if (!window.RequityAPI || !window.RequityAPI.setReviewerPaymentStatus || !p.agentId) return;
+            var nextAgent = (p.agentPaymentStatus === 'paid') ? 'unpaid' : 'paid';
+            btn.disabled = true;
+            Promise.resolve(window.RequityAPI.setReviewerPaymentStatus({
+                entityType: 'agent', entityId: p.agentId, status: nextAgent
+            })).then(function () {
+                pairedClients.forEach(function (row) {
+                    if (row.agentId === p.agentId) {
+                        row.agentPaymentStatus = nextAgent;
+                        row.agentPaymentLabel = PAYMENT_LABELS[nextAgent];
+                    }
+                });
+                setAgentPaymentInMap(p.agentId, nextAgent);
+                addLog('Marked ' + (p.agentName || 'agent') + ' as ' + PAYMENT_LABELS[nextAgent].toLowerCase() + '.');
+                renderPaired();
+                if (typeof window.__reviewerRefreshPayments === 'function') window.__reviewerRefreshPayments();
+            }).catch(function (err) {
+                btn.disabled = false;
+                addLog('Could not update the agent payment status. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
+            });
+            return;
+        }
         if (act === 'resend') {
             if (!window.RequityAPI || !window.RequityAPI.resendReviewerMatchEmail || !p.matchId) return;
             btn.disabled = true;
@@ -1008,29 +1355,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 addLog('Could not resend the match email. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
             });
             return;
-        }
-        if (act === 'pay') {
-            if (!window.RequityAPI || !window.RequityAPI.setReviewerPaymentStatus) return;
-            var entityType = p.clientId ? 'client' : 'lead';
-            var entityId = p.clientId || p.leadId;
-            if (!entityId) return;
-            var next = (p.clientPaymentStatus === 'paid') ? 'unpaid' : 'paid';
-            btn.disabled = true;
-            Promise.resolve(window.RequityAPI.setReviewerPaymentStatus({
-                entityType: entityType, entityId: entityId, status: next
-            })).then(function () {
-                // Keep every lane card for this client in sync.
-                pairedClients.forEach(function (row) {
-                    var same = (p.clientId && row.clientId === p.clientId) || (!p.clientId && p.leadId && row.leadId === p.leadId);
-                    if (same) { row.clientPaymentStatus = next; row.clientPaymentLabel = PAYMENT_LABELS[next]; }
-                });
-                addLog('Marked ' + (p.clientName || 'client') + ' as ' + PAYMENT_LABELS[next].toLowerCase() + '.');
-                renderPaired();
-                if (typeof window.__reviewerRefreshPayments === 'function') window.__reviewerRefreshPayments();
-            }).catch(function (err) {
-                btn.disabled = false;
-                addLog('Could not update the payment status. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
-            });
         }
     }
 
@@ -1284,8 +1608,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setDecisionBusy(busy) {
-        const buttons = elDecisionActions.querySelectorAll('button');
-        buttons.forEach(function (b) { b.disabled = busy; });
+        if (elDeskPrimaryBtn) elDeskPrimaryBtn.disabled = busy || !state.selectedAgentId;
+        if (elDeskDeleteBtn) elDeskDeleteBtn.disabled = busy;
     }
 
     // --- Activity Log Helper -----------------------------------------------
@@ -1408,9 +1732,13 @@ document.addEventListener('DOMContentLoaded', () => {
             window.__reviewerCounts.upForReviewCount = clients.length;
             window.__reviewerCounts.pairedCount = pairedClients.length;
             logQueueClassification();
-            const first = clients[0] || null;
-            state.activeClientId = first ? first.id : null;
-            selectActiveAgent(first);
+            // Keep the currently opened client selected across refreshes (e.g.
+            // a both-sides client staying in the queue after one lane matched).
+            const keep = clients.find(function (c) { return c.id === state.activeClientId; }) || null;
+            const active = keep || clients[0] || null;
+            state.activeClientId = active ? active.id : null;
+            if (!keep) state.deskLane = active ? defaultLaneFor(active) : null;
+            selectActiveAgent(active);
             renderAll();
         }).catch(function () {
             state.loadError = true;

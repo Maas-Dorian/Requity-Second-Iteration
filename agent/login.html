@@ -432,40 +432,13 @@
       });
 
       // --- Forgot password ------------------------------------------------
-      // Sends a Supabase recovery email. The link returns to this page in
-      // reset mode (?mode=reset-password) where the user sets a new password.
+      // Sends the user to the REQUITY-owned reset flow (reset-password.html).
+      // The reset email is sent by our own backend through SendGrid, never by
+      // the Supabase default mailer.
       var forgotBtn = document.getElementById("forgot-password-btn");
       if (forgotBtn) {
-        forgotBtn.addEventListener("click", async function () {
-          if (isSubmitting) { dbgAuth("auth:submit-blocked-duplicate", { mode: "forgot" }); return; }
-          var email = document.getElementById("si-email").value.trim();
-          if (!email) {
-            showMsg("Enter your email first, then click Forgot password.", "info");
-            return;
-          }
-          isSubmitting = true;
-          forgotBtn.disabled = true;
-          forgotBtn.textContent = "Sending...";
-          clearMsg();
-          dbgAuth("auth:submit-start", { mode: "forgot" });
-          var reEnable = function () { isSubmitting = false; forgotBtn.disabled = false; forgotBtn.textContent = "Forgot password?"; };
-          // Always return to the PRODUCTION site in reset mode, never the current
-          // origin (which would be localhost in dev and break real reset links).
-          // The generated config normalizes away localhost / the old preview host.
-          var cfg = window.REQUITY_CONFIG || {};
-          var publicSiteUrl = (cfg.PUBLIC_SITE_URL || cfg.VERCEL_FRONTEND_URL || cfg.publicSiteUrl || cfg.frontendUrl || "https://www.requityapp.com");
-          var redirectTo = String(publicSiteUrl).replace(/\/$/, "") + "/agent/login.html?mode=reset-password";
-          try {
-            await API.sendPasswordReset(email, redirectTo);
-            showMsg("If that email has an account, a password reset link is on its way. Check your inbox.", "success");
-          } catch (err) {
-            if (err && err.rateLimited) {
-              showMsg("Too many password reset emails requested. Please wait a few minutes before trying again.", "error");
-            } else {
-              showMsg("We couldn't send the reset email. Please try again in a moment.", "error");
-            }
-          }
-          reEnable();
+        forgotBtn.addEventListener("click", function () {
+          window.location.href = "reset-password.html";
         });
       }
 

@@ -18,6 +18,9 @@ export type RateLimitAction =
   | "lead_start"
   | "lead_progress"
   | "lead_complete"
+  | "password_reset_request"
+  | "password_reset_email"
+  | "password_reset_complete"
   | (string & {});
 
 export type RateLimitResult = {
@@ -40,6 +43,10 @@ const LIMITS: Record<string, number> = {
   // Progress fires per-answer (debounced), so it needs a higher ceiling.
   lead_progress: 120,
   lead_complete: 15,
+  // Password reset: keyed by IP (request/complete) and by target email.
+  password_reset_request: 5,
+  password_reset_email: 3,
+  password_reset_complete: 10,
   default: 30,
 };
 

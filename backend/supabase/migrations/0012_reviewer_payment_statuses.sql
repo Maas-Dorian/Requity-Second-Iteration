@@ -1,13 +1,19 @@
 -- ============================================================================
--- REQUITY migration 0012. Reviewer payment status tracking.
+-- REQUITY migration 0012. Reviewer payment status tracking (AGENTS ONLY).
 --
 -- WHY THIS EXISTS:
---   Reviewers need to mark agents AND consumer clients as paid/unpaid (agents
---   are also REQUITY clients). No payment table or column exists anywhere in
---   the schema, so this adds one generic, append-only status log:
---     - entity_type: 'agent' | 'client' | 'lead' | 'match'
---     - the CURRENT status of an entity is its newest row
+--   Reviewers need to track agent payments: agents are REQUITY's paying
+--   clients (membership / network fees). Consumer buyers and sellers are
+--   never billed and never get a payment status. This adds one append-only
+--   status log:
+--     - the application only ever writes entity_type = 'agent' with
+--       entity_id = the agent's id
+--     - the CURRENT status of an agent is its newest row
 --     - every update keeps full history (who, when, amount, note)
+--
+--   The entity_type check constraint allows more values ('client', 'lead',
+--   'match') purely for future flexibility. The API and UI reject anything
+--   that is not 'agent'; do not create non-agent rows.
 --
 -- SAFETY:
 --   - Idempotent (IF NOT EXISTS everywhere).

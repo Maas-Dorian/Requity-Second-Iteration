@@ -13,9 +13,7 @@ import {
   listReviewerPayments,
   setReviewerPaymentStatus,
   isPaymentStatus,
-  isPaymentEntityType,
   PAYMENT_STATUSES,
-  PAYMENT_ENTITY_TYPES,
 } from "../../backend/lib/payments.js";
 import { requireReviewer } from "../../backend/lib/auth.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
@@ -23,15 +21,16 @@ import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 const ROUTE = "reviewer/payments";
 
 /**
- * GET  /api/reviewer/payments?status=&type=
- *   Reviewer Payments tab payload: all non-archived agents plus every client
- *   holding an active match, each with its CURRENT payment status (entities
- *   never updated default to unpaid). Includes summary counts (unpaid agents,
- *   unpaid clients, matches changed this week).
+ * GET  /api/reviewer/payments?status=
+ *   Reviewer Agent Payments tab payload: all non-archived agents, each with
+ *   its CURRENT payment status (agents never updated default to unpaid).
+ *   Agents are REQUITY's paying clients; consumer clients are never listed.
+ *   Includes summary counts (unpaid agents, matches changed this week).
  *
  * POST /api/reviewer/payments
- *   Body: { entityType, entityId, status, amountCents?, note? }
- *   Appends one payment status update (history is kept, nothing is deleted).
+ *   Body: { entityType: "agent", entityId: <agent id>, status, amountCents?, note? }
+ *   Appends one AGENT payment status update (history is kept, nothing is
+ *   deleted). Client, lead, and match payment updates are rejected.
  *
  * Requires reviewer/admin auth for both methods.
  */
@@ -45,9 +44,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       if (status && !isPaymentStatus(status)) {
         throw new HttpError(400, `Invalid status. Expected one of: ${PAYMENT_STATUSES.join(", ")}.`);
       }
-      const entityType = getQueryParam(req, "type") ?? null;
       try {
-        const result = await listReviewerPayments({ status, entityType });
+        const result = await listReviewerPayments({ status });
         sendJson(res, 200, { ok: true, ...result });
       } catch (error) {
         logSupabaseError(ROUTE, error);
@@ -59,8 +57,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     ensureMethod(req, "POST");
     const body = getJsonBody(req);
     const entityType = requireString(body, "entityType");
-    if (!isPaymentEntityType(entityType)) {
-      throw new HttpError(400, `Invalid entityType. Expected one of: ${PAYMENT_ENTITY_TYPES.join(", ")}.`);
+    if (entityType !== "agent") {
+      throw new HttpError(400, "Payment statuses are tracked for agents only. Use entityType \"agent\" with an agent id.");
     }
     const entityId = requireString(body, "entityId");
     const status = requireString(body, "status");

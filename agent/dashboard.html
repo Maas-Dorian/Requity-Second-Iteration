@@ -1984,18 +1984,24 @@
         });
       });
 
+      // REQUITY-owned reset flow: our API emails a secure one-time reset link
+      // through SendGrid. Never uses the Supabase default recovery email.
       const passwordResetBtn = document.getElementById('btn-password-reset');
       if (passwordResetBtn) {
         passwordResetBtn.addEventListener('click', async () => {
-          const api = window.RequityAPI;
           const email = (document.getElementById('settings-account-email')?.textContent || '').trim();
           if (!email || email === ', ') { showToast('No account email available.'); return; }
-          if (!api || !api.sendPasswordReset) { showToast('Password reset is unavailable right now.'); return; }
           passwordResetBtn.disabled = true;
           const original = passwordResetBtn.textContent;
           passwordResetBtn.textContent = 'Sending…';
           try {
-            await api.sendPasswordReset(email);
+            const base = String((window.REQUITY_CONFIG && window.REQUITY_CONFIG.apiBaseUrl) || '/api').replace(/\/$/, '');
+            const res = await fetch(base + '/auth/request-password-reset', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: email }),
+            });
+            if (!res.ok) throw new Error('Could not send the reset email.');
             showToast('Password reset email sent to ' + email + '.');
           } catch (err) {
             showToast(err && err.message ? err.message : 'Could not send the reset email.');

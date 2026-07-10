@@ -3,12 +3,14 @@ import { isMissingTableError } from "./supabaseWrite.js";
 import { ACTIVE_MATCH_STATUSES, isArchivedRow, matchLaneLabel } from "./reviewerMatches.js";
 
 /**
- * Reviewer payment status tracking (migration 0012).
+ * Reviewer payment status tracking (migration 0012), AGENTS ONLY.
  *
  * Payment statuses live in `reviewer_payment_statuses`, an append-only log:
  * one row per update, and the CURRENT status of an entity is its newest row.
- * Both agents and consumer clients are tracked (agents are also REQUITY
- * clients), plus lead-backed clients and individual matches when needed.
+ * Agents are REQUITY's paying clients, so the application only reads and
+ * writes rows with entity_type = 'agent'. Consumer buyers and sellers never
+ * have a payment status. The table's wider entity_type check constraint is
+ * kept for future flexibility only; nothing writes non-agent rows.
  *
  * Everything here is resilient to an un-migrated live DB: a missing table
  * degrades to "no payment data" instead of crashing the dashboards.
@@ -24,7 +26,10 @@ export const PAYMENT_STATUSES = [
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
-export const PAYMENT_ENTITY_TYPES = ["agent", "client", "lead", "match"] as const;
+// The application tracks payments for agents ONLY (agents are REQUITY's
+// paying clients). The DB constraint allows more types for future use, but
+// the API and UI must never create or read non-agent payment rows.
+export const PAYMENT_ENTITY_TYPES = ["agent"] as const;
 export type PaymentEntityType = (typeof PAYMENT_ENTITY_TYPES)[number];
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
@@ -65,7 +70,7 @@ function toRecord(row: any): PaymentStatusRecord {
   const status: PaymentStatus = isPaymentStatus(row?.status) ? row.status : "unpaid";
   return {
     id: row?.id ?? null,
-    entityType: row?.entity_type ?? "client",
+    entityType: "agent",
     entityId: row?.entity_id ?? "",
     status,
     statusLabel: PAYMENT_STATUS_LABELS[status],
@@ -78,9 +83,10 @@ function toRecord(row: any): PaymentStatusRecord {
 }
 
 /**
- * Append one payment status update. History is kept: nothing is overwritten
- * or deleted. Returns the new record. Throws on invalid input; a missing
- * table (un-migrated DB) throws a clear error the API turns into a 500.
+ * Append one AGENT payment status update. History is kept: nothing is
+ * overwritten or deleted. Returns the new record. Throws on invalid input
+ * (including any non-agent entity type); a missing table (un-migrated DB)
+ * throws a clear error the API turns into a 500.
  */
 export async function setReviewerPaymentStatus(params: {
   entityType: string;
@@ -90,21 +96,21 @@ export async function setReviewerPaymentStatus(params: {
   note?: string | null;
   updatedBy?: string | null;
 }): Promise<PaymentStatusRecord> {
-  if (!isPaymentEntityType(params.entityType)) {
-    throw new Error(`Invalid entityType. Expected one of: ${PAYMENT_ENTITY_TYPES.join(", ")}.`);
+  if (params.entityType !== "agent") {
+    throw new Error("Payment statuses are tracked for agents only.");
   }
   if (!isPaymentStatus(params.status)) {
     throw new Error(`Invalid status. Expected one of: ${PAYMENT_STATUSES.join(", ")}.`);
   }
   const entityId = (params.entityId ?? "").trim();
-  if (!entityId) throw new Error("An entityId is required.");
+  if (!entityId) throw new Error("An agent id is required.");
 
   const supabase = getSupabaseAdmin();
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("reviewer_payment_statuses")
     .insert({
-      entity_type: params.entityType,
+      entity_type: "agent",
       entity_id: entityId,
       status: params.status,
       amount_cents: params.amountCents ?? null,
@@ -127,61 +133,59 @@ export async function setReviewerPaymentStatus(params: {
 }
 
 /**
- * Latest payment status per entity, keyed `<entityType>:<entityId>`.
+ * Latest AGENT payment status per agent, keyed by agent id. Only rows with
+ * entity_type = 'agent' are read; any legacy non-agent rows are ignored.
  * Bounded to the requested ids when provided; otherwise loads the newest 2000
  * log rows (plenty for the reviewer dashboard). A missing table returns an
  * empty map so dashboards keep working on an un-migrated DB.
  */
-export async function getLatestPaymentStatuses(filter?: {
-  entityType?: PaymentEntityType;
-  entityIds?: string[];
-}): Promise<Map<string, PaymentStatusRecord>> {
+export async function getLatestAgentPaymentStatuses(
+  agentIds?: string[]
+): Promise<Map<string, PaymentStatusRecord>> {
   const out = new Map<string, PaymentStatusRecord>();
   const supabase = getSupabaseAdmin();
   try {
     let query = supabase
       .from("reviewer_payment_statuses")
       .select("*")
+      .eq("entity_type", "agent")
       .order("updated_at", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(2000);
-    if (filter?.entityType) query = query.eq("entity_type", filter.entityType);
-    if (filter?.entityIds && filter.entityIds.length) {
-      query = query.in("entity_id", filter.entityIds);
+    if (agentIds && agentIds.length) {
+      query = query.in("entity_id", agentIds);
     }
     const { data, error } = await query;
     if (error) throw error;
     for (const row of (data ?? []) as any[]) {
-      const key = `${row.entity_type}:${row.entity_id}`;
-      // Rows are newest-first; the first row per entity is the current status.
-      if (!out.has(key)) out.set(key, toRecord(row));
+      const key = String(row.entity_id ?? "");
+      // Rows are newest-first; the first row per agent is the current status.
+      if (key && !out.has(key)) out.set(key, toRecord(row));
     }
   } catch (error) {
     if (!isMissingTableError(error)) {
-      console.error("[payments] latest payment statuses unavailable:", error);
+      console.error("[payments] latest agent payment statuses unavailable:", error);
     }
   }
   return out;
 }
 
-/** Latest payment status for ONE entity, or null when never set / no table. */
-export async function getPaymentStatusForEntity(
-  entityType: PaymentEntityType,
-  entityId: string
+/** Latest payment status for ONE agent, or null when never set / no table. */
+export async function getAgentPaymentStatus(
+  agentId: string
 ): Promise<PaymentStatusRecord | null> {
-  if (!entityId) return null;
-  const map = await getLatestPaymentStatuses({ entityType, entityIds: [entityId] });
-  return map.get(`${entityType}:${entityId}`) ?? null;
+  if (!agentId) return null;
+  const map = await getLatestAgentPaymentStatuses([agentId]);
+  return map.get(agentId) ?? null;
 }
 
 export type ReviewerPaymentRow = {
-  entityType: PaymentEntityType;
+  entityType: "agent";
   entityId: string;
   name: string | null;
   email: string | null;
-  /** "Agent" or "Client" for the payments table Type column. */
-  typeLabel: string;
-  /** Related active match summary when one exists (client rows). */
+  typeLabel: "Agent";
+  /** Active match summaries for this agent, when any exist. */
   relatedMatch: string | null;
   status: PaymentStatus;
   statusLabel: string;
@@ -192,7 +196,6 @@ export type ReviewerPaymentRow = {
 
 export type ReviewerPaymentsSummary = {
   unpaidAgents: number;
-  unpaidClients: number;
   paid: number;
   invoiceSent: number;
   /** Matches superseded (changed) in the last 7 days. */
@@ -207,14 +210,14 @@ export type ReviewerPaymentsResult = {
 };
 
 /**
- * The reviewer Payments tab payload: every non-archived agent plus every
- * client/lead holding an active match, each with its current payment status
- * (entities never updated default to "unpaid"). Server-side filters keep the
- * payload bounded; heavier filtering happens in the UI on this compact list.
+ * The reviewer Agent Payments tab payload: every non-archived agent with its
+ * current payment status (agents never updated default to "unpaid") and a
+ * summary of the agent's active matches. Consumer clients are never listed;
+ * agents are REQUITY's paying clients. Server-side filters keep the payload
+ * bounded; heavier filtering happens in the UI on this compact list.
  */
 export async function listReviewerPayments(filter?: {
   status?: string | null;
-  entityType?: string | null;
   limit?: number;
 }): Promise<ReviewerPaymentsResult> {
   const supabase = getSupabaseAdmin();
@@ -233,11 +236,29 @@ export async function listReviewerPayments(filter?: {
     paymentsTableAvailable = false;
   }
 
-  const latest = await getLatestPaymentStatuses();
-  const statusFor = (entityType: PaymentEntityType, entityId: string): PaymentStatusRecord | null =>
-    latest.get(`${entityType}:${entityId}`) ?? null;
+  const latest = await getLatestAgentPaymentStatuses();
 
-  // --- Agents (agents are also REQUITY clients; always listed) -------------
+  // Active match counts per agent, so each payment row can show what the
+  // agent is currently matched on.
+  const matchSummaryByAgent = new Map<string, string[]>();
+  try {
+    const { data, error } = await supabase
+      .from("match_recommendations")
+      .select("agent_id, match_lane, status")
+      .in("status", ACTIVE_MATCH_STATUSES as unknown as string[])
+      .limit(2000);
+    if (error) throw error;
+    for (const m of (data ?? []) as any[]) {
+      if (!m.agent_id) continue;
+      const lanes = matchSummaryByAgent.get(m.agent_id) ?? [];
+      lanes.push(matchLaneLabel(m.match_lane));
+      matchSummaryByAgent.set(m.agent_id, lanes);
+    }
+  } catch (error) {
+    console.error("[payments] active match summary unavailable:", error);
+  }
+
+  // --- Agents (REQUITY's paying clients; the only entities listed) ---------
   try {
     const { data, error } = await supabase
       .from("agents")
@@ -247,14 +268,17 @@ export async function listReviewerPayments(filter?: {
     if (error) throw error;
     for (const agent of (data ?? []) as any[]) {
       if (isArchivedRow(agent)) continue;
-      const rec = statusFor("agent", agent.id);
+      const rec = latest.get(agent.id) ?? null;
+      const lanes = matchSummaryByAgent.get(agent.id) ?? [];
       rows.push({
         entityType: "agent",
         entityId: agent.id,
         name: agent.display_name ?? null,
         email: agent.email ?? null,
         typeLabel: "Agent",
-        relatedMatch: null,
+        relatedMatch: lanes.length
+          ? `${lanes.length} active match${lanes.length === 1 ? "" : "es"} (${lanes.join(", ")})`
+          : null,
         status: rec?.status ?? "unpaid",
         statusLabel: rec?.statusLabel ?? PAYMENT_STATUS_LABELS.unpaid,
         amountCents: rec?.amountCents ?? null,
@@ -266,73 +290,9 @@ export async function listReviewerPayments(filter?: {
     console.error("[payments] agents list unavailable:", error);
   }
 
-  // --- Consumer clients with an active match (paired clients) --------------
-  try {
-    const { data, error } = await supabase
-      .from("match_recommendations")
-      .select("id, client_id, lead_id, match_lane, status, clients(id, full_name, email, archived_at, deleted_at), agents(display_name, archived_at, deleted_at)")
-      .in("status", ACTIVE_MATCH_STATUSES as unknown as string[])
-      .limit(limit);
-    if (error) throw error;
-
-    // Lead-backed matches need contact fields from assessment_leads.
-    const matchRows = (data ?? []) as any[];
-    const leadIds = Array.from(
-      new Set(matchRows.filter((r) => !r.clients && r.lead_id).map((r) => r.lead_id))
-    ) as string[];
-    const leadById = new Map<string, any>();
-    if (leadIds.length) {
-      const { data: leadRows } = await supabase
-        .from("assessment_leads")
-        .select("id, full_name, email, archived_at, deleted_at")
-        .in("id", leadIds);
-      for (const l of (leadRows ?? []) as any[]) leadById.set(l.id, l);
-    }
-
-    const seen = new Set<string>();
-    for (const m of matchRows) {
-      const lead = !m.clients && m.lead_id ? leadById.get(m.lead_id) ?? null : null;
-      const party = m.clients ?? lead;
-      if (!party || isArchivedRow(party)) continue;
-      const entityType: PaymentEntityType = m.clients ? "client" : "lead";
-      const entityId = m.clients?.id ?? m.lead_id;
-      if (!entityId) continue;
-      const agentName = (m.agents as any)?.display_name ?? null;
-      const laneLabel = matchLaneLabel(m.match_lane);
-      const related = agentName ? `${laneLabel} match with ${agentName}` : `${laneLabel} match`;
-      const key = `${entityType}:${entityId}`;
-      if (seen.has(key)) {
-        // A both-client with two lane matches: append the second lane summary.
-        const existing = rows.find((r) => r.entityType === entityType && r.entityId === entityId);
-        if (existing && existing.relatedMatch && !existing.relatedMatch.includes(related)) {
-          existing.relatedMatch = `${existing.relatedMatch}; ${related}`;
-        }
-        continue;
-      }
-      seen.add(key);
-      const rec = statusFor(entityType, entityId);
-      rows.push({
-        entityType,
-        entityId,
-        name: party.full_name ?? null,
-        email: party.email ?? null,
-        typeLabel: "Client",
-        relatedMatch: related,
-        status: rec?.status ?? "unpaid",
-        statusLabel: rec?.statusLabel ?? PAYMENT_STATUS_LABELS.unpaid,
-        amountCents: rec?.amountCents ?? null,
-        note: rec?.note ?? null,
-        updatedAt: rec?.updatedAt ?? null,
-      });
-    }
-  } catch (error) {
-    console.error("[payments] paired clients list unavailable:", error);
-  }
-
   // --- Summary counts (computed on the full list before filtering) ---------
   const summary: ReviewerPaymentsSummary = {
-    unpaidAgents: rows.filter((r) => r.entityType === "agent" && (r.status === "unpaid" || r.status === "invoice_sent")).length,
-    unpaidClients: rows.filter((r) => r.entityType !== "agent" && (r.status === "unpaid" || r.status === "invoice_sent")).length,
+    unpaidAgents: rows.filter((r) => r.status === "unpaid" || r.status === "invoice_sent").length,
     paid: rows.filter((r) => r.status === "paid").length,
     invoiceSent: rows.filter((r) => r.status === "invoice_sent").length,
     matchesChangedThisWeek: 0,
@@ -355,9 +315,6 @@ export async function listReviewerPayments(filter?: {
   if (wantStatus && isPaymentStatus(wantStatus)) {
     filtered = filtered.filter((r) => r.status === wantStatus);
   }
-  const wantType = (filter?.entityType ?? "").trim().toLowerCase();
-  if (wantType === "agent") filtered = filtered.filter((r) => r.entityType === "agent");
-  else if (wantType === "client") filtered = filtered.filter((r) => r.entityType !== "agent");
 
   return { records: filtered, summary, paymentsTableAvailable };
 }
