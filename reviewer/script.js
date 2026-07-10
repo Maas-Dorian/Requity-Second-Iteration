@@ -480,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 '<div class="queue-item ' + isActive + '" onclick="selectClient(\'' + esc(client.id) + '\')" id="q-' + esc(client.id) + '">' +
                     '<div class="queue-info">' +
                         '<h3>' + esc(client.name) + '</h3>' +
-                        '<div class="queue-meta">Transaction: ' + esc(client.transaction) + ' &bull; Market: ' + esc(client.market) + ' &bull; ' + esc(client.archetype) + '</div>' +
+                        '<div class="queue-meta">' + esc(client.transaction) + ' &middot; ' + esc(client.market) + ' &middot; ' + esc(client.archetype) + '</div>' +
                         laneStatusHtml(client) +
                     '</div>' +
                     statusPillHtml(client.pipelineStatus) +
@@ -625,7 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
             var active = lane === state.deskLane ? ' is-active' : '';
             var covered = currentMatchForLane(client, lane) && lane !== state.deskLane ? ' is-covered' : '';
             return '<button type="button" class="lane-pill' + active + covered + '" data-desk-lane="' + esc(lane) + '">' +
-                esc(lane === 'both' ? 'Both (one agent)' : LANE_LABELS[lane]) + '</button>';
+                esc(lane === 'both' ? 'Both, one agent' : LANE_LABELS[lane]) + '</button>';
         }).join('');
         if (elDeskLaneContext) elDeskLaneContext.textContent = laneContextText(state.deskLane);
     }
@@ -661,10 +661,8 @@ document.addEventListener('DOMContentLoaded', () => {
             '<div class="desk-chip-row">' + intentChipHtml(client) + '</div>' +
             '<div class="desk-meta-grid">' +
                 '<div><span class="detail-label">Market</span><span class="detail-value">' + marketHtml + '</span></div>' +
-                '<div><span class="detail-label">Communication style</span><span class="detail-value">' + esc(client.style) + '</span></div>' +
                 '<div><span class="detail-label">Archetype</span><span class="detail-value">' + esc(client.archetype) + '</span></div>' +
-                '<div><span class="detail-label">Orientation</span><span class="detail-value">' + esc(client.orientation) + '</span></div>' +
-                '<div><span class="detail-label">Stress response</span><span class="detail-value">' + esc(client.stressResponse) + '</span></div>' +
+                '<div><span class="detail-label">Communication style</span><span class="detail-value">' + esc(client.style) + '</span></div>' +
             '</div>' +
             deskTopNeedsHtml(client) +
             '<div class="desk-client-actions">' +
@@ -728,19 +726,28 @@ document.addEventListener('DOMContentLoaded', () => {
             elDeskAgentList.innerHTML = '<div class="leads-empty">No agents match this search.</div>';
             return;
         }
+        var laneWord = laneMarketWordFE(state.deskLane);
+        var isBothClient = queueIntentOf(client) === 'both';
         elDeskAgentList.innerHTML = rows.map(function (fit) {
             var isSelected = state.selectedAgentId && state.selectedAgentId === fit.agentId;
             var agentPay = agentPaymentFor(fit.agentId);
             var bits = [];
             if (fit.archetype && fit.archetype !== ', ') bits.push(esc(fit.archetype));
-            if (fit.distanceMiles != null) bits.push(fit.distanceMiles + ' mi');
+            bits.push(fit.distanceMiles != null ? (fit.distanceMiles + ' mi from ' + laneWord) : 'Distance unavailable');
             if (fit.activeMatchCount > 0) bits.push(fit.activeMatchCount + ' active match' + (fit.activeMatchCount === 1 ? '' : 'es'));
             var badges = '';
             if (fit.top) badges += '<span class="badge badge-highest">Top fit</span>';
             if (fit.fit != null) badges += '<span class="badge badge-internal">' + fit.fit + '%</span>';
             if (fit.limitedFit) badges += '<span class="badge badge-source">Limited fit</span>';
             if (agentPay) badges += '<span class="status-pill pay-' + esc(agentPay.status) + '">' + esc(agentPay.label || 'Unpaid') + '</span>';
-            var warn = fit.warning ? '<div class="loc-row-warning">' + esc(fit.warning) + '</div>' : '';
+            // Range context: the backend warning already says "only in range for
+            // the buying/selling side"; both-side coverage gets a positive note.
+            var rangeNote = fit.warning
+                ? '<div class="loc-row-warning">' + esc(fit.warning) + '</div>'
+                : (isBothClient && !fit.limitedFit && fit.distanceMiles != null
+                    ? '<div class="desk-range-note">This agent is in range for both sides.</div>'
+                    : '');
+            var warn = rangeNote;
             return '<div class="desk-agent-row' + (isSelected ? ' is-selected' : '') + '">' +
                 '<div class="desk-agent-main">' +
                     '<span class="desk-agent-name">' + esc(fit.name) + '</span>' +
@@ -759,12 +766,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!elDeskPrimaryBtn) return;
         var lane = state.deskLane;
         var current = currentMatchForLane(client, lane);
-        var laneWord = (LANE_LABELS[lane] || 'General').toLowerCase();
-        elDeskPrimaryBtn.textContent = current ? 'Replace with selected agent' : 'Pair with selected agent';
+        var laneWord = lane === 'buying' ? 'buying' : lane === 'selling' ? 'selling' : lane === 'both' ? 'both sides' : '';
+        elDeskPrimaryBtn.textContent = current
+            ? (laneWord && lane !== 'both' ? 'Replace ' + laneWord + ' match' : 'Replace match')
+            : (laneWord ? 'Pair for ' + laneWord : 'Pair agent');
         elDeskPrimaryBtn.disabled = !state.selectedAgentId || state.deskConfirmOpen;
         if (elDeskActionSummary) {
             elDeskActionSummary.textContent = state.selectedAgentName
-                ? (state.selectedAgentName + ' as the ' + laneWord + ' match for ' + client.name)
+                ? (current
+                    ? 'Replace the ' + (laneWord || 'current') + ' match with ' + state.selectedAgentName
+                    : 'Pair ' + state.selectedAgentName + ' with ' + client.name + (laneWord ? ' for ' + laneWord : ''))
                 : 'Select an agent to pair with ' + client.name + '.';
         }
     }
@@ -984,58 +995,245 @@ document.addEventListener('DOMContentLoaded', () => {
         return groups;
     }
 
-    function pairedLaneRowHtml(p) {
-        var lane = p.matchLane || 'general';
-        var laneLabel = p.matchLaneLabel || 'General';
-        var changeLabel = lane === 'buying' ? 'Change buying'
-            : lane === 'selling' ? 'Change selling'
-            : 'Change match';
+    // --- Paired card display model -------------------------------------------
+    // Every paired client renders as ONE card the reviewer can read in under
+    // 5 seconds: header (who + markets), one compact row per lane, and a
+    // bottom "Transaction team" recap. Buying-and-selling clients ALWAYS get
+    // separate buying and selling rows unless one agent truly covers both.
+
+    var DISPLAY_LANE_LABELS = { buying: 'Buying', selling: 'Selling', both: 'Both, one agent', general: 'General match' };
+
+    function pairedIntentOf(p) {
+        var v = String(p.transactionIntent || '').toLowerCase();
+        if (v === 'buying' || v === 'selling' || v === 'both') return v;
+        return 'general';
+    }
+
+    function firstNameOf(name) {
+        var n = String(name || '').trim();
+        return n ? n.split(/\s+/)[0] : '';
+    }
+
+    function laneMarketWordFE(lane) {
+        if (lane === 'buying') return 'buying market';
+        if (lane === 'selling') return 'selling market';
+        return 'client market';
+    }
+
+    // Lane-specific market city for copy (buying/selling first, then fallbacks).
+    function pairedLaneMarket(p, lane) {
+        if (lane === 'buying') return cityOrNull(p.buyingMarket) || cityOrNull(p.market);
+        if (lane === 'selling') return cityOrNull(p.sellingMarket) || cityOrNull(p.market);
+        return cityOrNull(p.marketLabel) || cityOrNull(p.market) || cityOrNull(p.buyingMarket) || cityOrNull(p.sellingMarket);
+    }
+
+    // Distance copy is never blank: "12 mi from buying market" or an honest
+    // "Distance unavailable" when coordinates are missing.
+    function pairedDistanceLabel(p, lane) {
+        if (p.distanceMiles != null) return p.distanceMiles + ' mi from ' + laneMarketWordFE(lane);
+        if (p.distanceLabel && p.distanceLabel !== 'Distance unavailable') return p.distanceLabel;
+        return 'Distance unavailable';
+    }
+
+    function shortDistance(p) {
+        return p.distanceMiles != null ? p.distanceMiles + ' mi' : 'Distance unavailable';
+    }
+
+    function archetypeWord(a) {
+        return String(a || '').replace(/^The\s+/i, '').toLowerCase();
+    }
+
+    // One or two lines explaining why this pairing makes sense, built from the
+    // lane market, distance, and both archetypes. Weak fits get an honest note.
+    function buildMatchBlurb(p, lane) {
+        var weak = (p.agentHasLocation === false) ||
+            (typeof p.score === 'number' && p.score < 60) ||
+            /limited/i.test(p.label || '');
+        if (weak) {
+            return 'Fit note: This is a limited fit. Review distance, market coverage, and communication style before confirming.';
+        }
+        var name = firstNameOf(p.agentName) || 'This agent';
+        var market = pairedLaneMarket(p, lane);
+        var parts = [];
+        if (market && p.distanceMiles != null && p.distanceMiles <= 30) {
+            parts.push(name + ' is close to the ' + market + ' ' + laneMarketWordFE(lane));
+        } else if (market) {
+            parts.push(name + ' is aligned with the ' + market + ' ' + laneMarketWordFE(lane));
+        }
+        if (p.agentArchetype && p.clientArchetype) {
+            parts.push('the ' + archetypeWord(p.agentArchetype) + ' style fits this ' + archetypeWord(p.clientArchetype) + ' client');
+        } else if (p.agentArchetype) {
+            parts.push('the ' + archetypeWord(p.agentArchetype) + ' style supports clear, steady guidance');
+        }
+        if (!parts.length) {
+            return 'Why this works: This agent was selected for market fit, availability, and communication alignment.';
+        }
+        return 'Why this works: ' + parts.join(' and ') + '.';
+    }
+
+    /**
+     * The lane rows to DISPLAY for one client card. Entries are
+     * { kind: 'match'|'needs', lane, row }. Buying-and-selling clients always
+     * get separate buying + selling rows (with Needs match placeholders) unless
+     * a single both/general match covers everything, which shows as
+     * "Both, one agent". Single-intent clients show their intent lane even when
+     * the stored match row is a legacy general lane.
+     */
+    function displayLanesForGroup(g) {
+        var first = g.rows[0];
+        var intent = pairedIntentOf(first);
+        var byLane = {};
+        g.rows.forEach(function (p) { byLane[p.matchLane || 'general'] = p; });
+
+        if (intent === 'both') {
+            var covering = byLane.both || byLane.general;
+            if (covering && !byLane.buying && !byLane.selling) {
+                return [{ kind: 'match', lane: 'both', row: covering }];
+            }
+            // A lane without its own match falls back to a covering both/general
+            // match (legacy mixed data) before showing Needs match.
+            var buyEntry = byLane.buying ? { kind: 'match', lane: 'buying', row: byLane.buying }
+                : covering ? { kind: 'match', lane: 'buying', row: covering }
+                : { kind: 'needs', lane: 'buying', row: first };
+            var sellEntry = byLane.selling ? { kind: 'match', lane: 'selling', row: byLane.selling }
+                : covering ? { kind: 'match', lane: 'selling', row: covering }
+                : { kind: 'needs', lane: 'selling', row: first };
+            return [buyEntry, sellEntry];
+        }
+        if (intent === 'buying' || intent === 'selling') {
+            var row = byLane[intent] || byLane.both || byLane.general || first;
+            return [{ kind: 'match', lane: intent, row: row }];
+        }
+        // Unknown intent: show the actual stored lanes, clearly labeled.
+        return g.rows.map(function (p) {
+            return { kind: 'match', lane: (p.matchLane || 'general'), row: p };
+        });
+    }
+
+    function laneChangeLabel(lane) {
+        if (lane === 'buying') return 'Change buying';
+        if (lane === 'selling') return 'Change selling';
+        if (lane === 'both') return 'Change agent';
+        return 'Change match';
+    }
+
+    function pairedLaneRowHtml(entry) {
+        var p = entry.row;
+        var lane = entry.lane;
+        var laneLabel = DISPLAY_LANE_LABELS[lane] || 'General match';
         var lastEmail = p.lastEmailAt ? fmtPairedDate(p.lastEmailAt) : 'Not sent';
         var agentPaid = p.agentPaymentStatus === 'paid';
+        var payAction = agentPaid ? 'Change payment' : 'Mark agent paid';
         var warning = (p.agentHasLocation === false)
             ? '<div class="loc-row-warning">Needs location review. The paired agent has no market on file.</div>'
             : '';
+        var subBits = [];
+        if (p.agentArchetype) subBits.push(esc(p.agentArchetype));
+        if (p.agentEmail) subBits.push(esc(p.agentEmail));
+        else if (p.agentPhone) subBits.push(esc(p.agentPhone));
+        var factBits = [
+            esc(pairedDistanceLabel(p, lane)),
+            'Last email: ' + esc(lastEmail),
+            '<span class="status-pill status-active">Active</span>'
+        ];
         return '<div class="paired-lane-row">' +
             '<div class="paired-lane-main">' +
-                '<span class="paired-lane-label lane-' + esc(lane) + '">' + esc(laneLabel) + '</span>' +
+                '<span class="paired-lane-label lane-' + esc(lane === 'both' ? 'both' : lane) + '">' + esc(laneLabel) + '</span>' +
                 '<span class="paired-lane-agent">' + esc(p.agentName || 'Unknown agent') + '</span>' +
+                (subBits.length ? '<span class="paired-lane-sub">' + subBits.join(' &middot; ') + '</span>' : '') +
                 payPillHtml(p.agentPaymentStatus, p.agentPaymentLabel) +
-                '<span class="paired-lane-email">Last email: ' + esc(lastEmail) + '</span>' +
             '</div>' +
+            '<div class="paired-lane-facts">' + factBits.join(' &middot; ') + '</div>' +
+            '<div class="paired-lane-blurb">' + esc(buildMatchBlurb(p, lane)) + '</div>' +
             '<div class="paired-lane-actions">' +
-                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="change" data-paired-key="' + esc(pairedKey(p)) + '">' + esc(changeLabel) + '</button>' +
+                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="change" data-paired-key="' + esc(pairedKey(p)) + '" data-cm-lane="' + esc(lane) + '">' + esc(laneChangeLabel(lane)) + '</button>' +
                 (p.matchId ? ('<button type="button" class="btn btn-outline btn-sm" data-paired-act="resend" data-paired-key="' + esc(pairedKey(p)) + '">Resend email</button>') : '') +
-                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="agentpay" data-paired-key="' + esc(pairedKey(p)) + '">' + (agentPaid ? 'Agent unpaid' : 'Agent paid') + '</button>' +
+                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="agentpay" data-paired-key="' + esc(pairedKey(p)) + '">' + esc(payAction) + '</button>' +
             '</div>' +
             warning +
         '</div>';
     }
 
-    // A "needs match" row for a buying-and-selling client whose other lane has
-    // no active match yet. The Match button opens the Match Desk on that lane.
+    // A "needs match" row for a lane with no active match yet. The button opens
+    // the Match Desk (or Change match editor) on exactly that lane.
     function pairedNeedsRowHtml(p, lane) {
+        var matchLabel = lane === 'buying' ? 'Match buying' : lane === 'selling' ? 'Match selling' : 'Match';
         return '<div class="paired-lane-row is-needs">' +
             '<div class="paired-lane-main">' +
-                '<span class="paired-lane-label lane-' + esc(lane) + '">' + esc(LANE_LABELS[lane] || lane) + '</span>' +
+                '<span class="paired-lane-label lane-' + esc(lane) + '">' + esc(DISPLAY_LANE_LABELS[lane] || lane) + '</span>' +
                 '<span class="paired-lane-agent paired-needs-text">Needs match</span>' +
             '</div>' +
             '<div class="paired-lane-actions">' +
-                '<button type="button" class="btn btn-primary btn-sm" data-paired-act="deskmatch" data-paired-key="' + esc(pairedKey(p)) + '" data-desk-lane="' + esc(lane) + '">Match</button>' +
+                '<button type="button" class="btn btn-primary btn-sm" data-paired-act="deskmatch" data-paired-key="' + esc(pairedKey(p)) + '" data-desk-lane="' + esc(lane) + '">' + esc(matchLabel) + '</button>' +
             '</div>' +
         '</div>';
     }
 
-    // Lanes still missing for a both-intent client, given its paired rows.
-    function missingLanesForGroup(g) {
-        var first = g.rows[0];
-        var intent = String(first.transactionIntent || '').toLowerCase();
-        if (intent !== 'both') return [];
-        var lanes = g.rows.map(function (p) { return p.matchLane || 'general'; });
-        if (lanes.indexOf('both') !== -1 || lanes.indexOf('general') !== -1) return [];
-        var missing = [];
-        if (lanes.indexOf('buying') === -1) missing.push('buying');
-        if (lanes.indexOf('selling') === -1) missing.push('selling');
-        return missing;
+    // Header line 2: "email · Buying: Lexington · Selling: Louisville".
+    function pairedHeaderContact(first) {
+        var bits = [esc(first.clientEmail || 'no email')];
+        var intent = pairedIntentOf(first);
+        var buy = cityOrNull(first.buyingMarket);
+        var sell = cityOrNull(first.sellingMarket);
+        var general = cityOrNull(first.market);
+        if (intent === 'both') {
+            bits.push('Buying: ' + esc(buy || general || 'Not specified'));
+            bits.push('Selling: ' + esc(sell || general || 'Not specified'));
+        } else if (intent === 'buying') {
+            bits.push('Buying: ' + esc(buy || general || 'Not specified'));
+        } else if (intent === 'selling') {
+            bits.push('Selling: ' + esc(sell || general || 'Not specified'));
+        } else {
+            bits.push('Market: ' + esc(general || buy || sell || 'Not specified'));
+        }
+        return bits.join(' &middot; ');
+    }
+
+    // "Agents involved: Josh Hunt for buying · Mike Gandolfo for selling",
+    // collapsing to one agent when the same agent covers both sides and
+    // showing "needs match" for uncovered lanes.
+    function agentsInvolvedLine(entries) {
+        var matches = entries.filter(function (e) { return e.kind === 'match'; });
+        if (!matches.length) return '';
+        if (matches.length === 1 && matches[0].lane === 'both') {
+            return 'Agent involved: ' + esc(matches[0].row.agentName || 'Unknown agent') + ' for buying and selling';
+        }
+        var sameAgent = matches.length === 2 &&
+            matches[0].row.agentId && matches[0].row.agentId === matches[1].row.agentId;
+        if (sameAgent) {
+            return 'Agent involved: ' + esc(matches[0].row.agentName || 'Unknown agent') + ' for buying and selling';
+        }
+        var bits = entries.map(function (e) {
+            var laneWord = e.lane === 'buying' ? 'buying' : e.lane === 'selling' ? 'selling' : 'this client';
+            if (e.kind === 'needs') {
+                return esc(e.lane === 'selling' ? 'Selling' : 'Buying') + ': needs match';
+            }
+            return esc(e.row.agentName || 'Unknown agent') + ' for ' + laneWord;
+        });
+        var label = matches.length > 1 ? 'Agents involved: ' : 'Agent involved: ';
+        return label + bits.join(' &middot; ');
+    }
+
+    // Bottom recap so the reviewer sees the whole team without expanding
+    // anything: one line per lane with agent, distance, and payment status.
+    function transactionTeamHtml(entries) {
+        var lines = entries.map(function (e) {
+            var laneWord = e.lane === 'buying' ? 'Buying agent'
+                : e.lane === 'selling' ? 'Selling agent'
+                : e.lane === 'both' ? 'Buying and selling agent'
+                : 'Agent';
+            if (e.kind === 'needs') {
+                return '<div class="paired-team-line is-needs">' + esc(laneWord) + ': Needs match</div>';
+            }
+            var p = e.row;
+            var pay = p.agentPaymentLabel || PAYMENT_LABELS[p.agentPaymentStatus || 'unpaid'] || 'Unpaid';
+            return '<div class="paired-team-line">' + esc(laneWord) + ': ' +
+                '<strong>' + esc(p.agentName || 'Unknown agent') + '</strong>' +
+                ' &middot; ' + esc(shortDistance(p)) + ' &middot; ' + esc(pay) + '</div>';
+        });
+        return '<div class="paired-team">' +
+            '<span class="paired-team-label">Transaction team</span>' + lines.join('') +
+        '</div>';
     }
 
     function pairedGroupCardHtml(g) {
@@ -1043,37 +1241,40 @@ document.addEventListener('DOMContentLoaded', () => {
         var statusTarget = (!first.clientId && first.leadId)
             ? { kind: 'lead', id: first.leadId }
             : { kind: 'client', id: first.clientId };
-        var intentLabel = transactionText(first.transactionIntentLabel
-            ? { transaction_intent_label: first.transactionIntentLabel }
-            : { transaction_intent: first.transactionIntent });
+        var intent = pairedIntentOf(first);
+        var intentLabel = intent === 'both' ? 'Buying and selling' : (LANE_LABELS[intent] || 'General');
 
-        var laneRows = g.rows.map(pairedLaneRowHtml).join('');
-        laneRows += missingLanesForGroup(g).map(function (lane) {
-            return pairedNeedsRowHtml(first, lane);
+        var entries = displayLanesForGroup(g);
+        var laneRows = entries.map(function (e) {
+            return e.kind === 'needs' ? pairedNeedsRowHtml(e.row, e.lane) : pairedLaneRowHtml(e);
         }).join('');
+
+        var agentsLine = agentsInvolvedLine(entries);
 
         var detailBits = g.rows.map(function (p) {
             var bits = [];
             bits.push('<strong>' + esc(p.matchLaneLabel || 'General') + '</strong>: ' + esc(p.agentName || 'Unknown agent'));
             if (p.agentEmail) bits.push(esc(p.agentEmail));
-            if (p.agentArchetype) bits.push(esc(p.agentArchetype));
+            if (p.agentPhone) bits.push(esc(p.agentPhone));
             if (p.matchedAt) bits.push('Matched ' + fmtPairedDate(p.matchedAt));
             return '<div class="paired-detail-line">' + bits.join(' &middot; ') + '</div>';
         }).join('');
 
         return '<div class="lead-top">' +
-                '<div><div class="lead-name">' + esc(first.clientName || 'Unknown client') + '</div>' +
-                '<div class="lead-contact">' + esc(first.clientEmail || 'no email') +
-                    ' &middot; ' + esc(intentLabel) + '</div></div>' +
+                '<div><div class="lead-name">' + esc(first.clientName || 'Unknown client') +
+                    ' <span class="intent-chip intent-' + esc(intent) + '">' + esc(intentLabel) + '</span></div>' +
+                '<div class="lead-contact">' + pairedHeaderContact(first) + '</div></div>' +
                 '<div class="lead-badges">' +
                     '<div class="status-control"><span class="status-control-label">Status</span>' +
                         statusSelectHtml(first.pipelineStatus, statusTarget) +
                     '</div>' +
                 '</div>' +
             '</div>' +
+            (agentsLine ? '<div class="paired-agents-line">' + agentsLine + '</div>' : '') +
             '<div class="paired-lane-rows">' + laneRows + '</div>' +
+            transactionTeamHtml(entries) +
             '<div class="paired-actions">' +
-                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="view" data-paired-key="' + esc(pairedKey(first)) + '">View</button>' +
+                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="view" data-paired-key="' + esc(pairedKey(first)) + '">View details</button>' +
                 '<button type="button" class="btn btn-outline btn-sm" onclick="removePairedClient(\'' + esc(first.clientId || '') + '\', \'' + esc(first.leadId || '') + '\')">Archive</button>' +
             '</div>' +
             '<div class="paired-details hidden">' +
@@ -1293,13 +1494,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function handlePairedAction(act, key, btn) {
         var p = findPairedByKey(key);
         if (!p) return;
-        if (act === 'change') { openChangeMatch(p); return; }
+        if (act === 'change') {
+            // The lane of the ROW the reviewer clicked wins. Change selling
+            // never opens buying, even when the stored match lane is general.
+            openChangeMatch(p, btn.getAttribute('data-cm-lane') || null);
+            return;
+        }
         if (act === 'view') {
             var card = btn.closest ? btn.closest('.paired-card') : null;
             var details = card ? card.querySelector('.paired-details') : null;
             if (details) {
                 details.classList.toggle('hidden');
-                btn.textContent = details.classList.contains('hidden') ? 'View' : 'Hide details';
+                btn.textContent = details.classList.contains('hidden') ? 'View details' : 'Hide details';
             }
             return;
         }
@@ -1393,15 +1599,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cmError) { cmError.textContent = msg; cmError.style.display = 'block'; }
     }
 
-    function openChangeMatch(p) {
+    function openChangeMatch(p, laneOverride) {
         if (!cmModal) return;
         cmState.paired = p;
         cmState.agents = [];
         cmState.selectedAgent = null;
         cmState.busy = false;
         if (cmError) { cmError.style.display = 'none'; cmError.textContent = ''; }
-        // Explicit lane: exactly the lane of the card the reviewer clicked.
-        if (cmLane) cmLane.value = p.matchLane || 'general';
+        // Explicit lane: exactly the lane of the ROW the reviewer clicked (so
+        // Change selling opens selling even for a legacy general match row).
+        if (cmLane) cmLane.value = laneOverride || p.matchLane || 'general';
         if (cmCurrentAgent) cmCurrentAgent.textContent = (p.agentName || 'None') + (p.agentEmail ? (' · ' + p.agentEmail) : '');
         if (cmNewAgent) cmNewAgent.textContent = 'Not selected';
         if (cmSearch) cmSearch.value = '';

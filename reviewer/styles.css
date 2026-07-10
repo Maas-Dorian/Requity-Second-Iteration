@@ -860,26 +860,40 @@ body.demo-active {
 .paired-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; margin-top: 0.6rem; }
 
 /* ===== Paired cards: one card per client, one compact row per lane ===== */
-.paired-lane-rows { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.75rem; }
+/* Readable in under 5 seconds: header, agents-involved line, lane rows with
+   a short blurb each, and a bottom Transaction team recap. Light borders and
+   whitespace instead of nested boxes. */
+.paired-agents-line {
+    margin-top: 0.55rem;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.paired-lane-rows { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.65rem; }
 .paired-lane-row {
     display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    border-left: 3px solid var(--blue-border);
+    border-radius: 4px;
+    padding: 0.45rem 0.2rem 0.45rem 0.75rem;
+    background: transparent;
+}
+.paired-lane-row.is-needs {
+    border-left-color: #FFB74D;
+    flex-direction: row;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.4rem 0.75rem;
-    border: 1px solid var(--blue-border);
-    border-radius: 8px;
-    padding: 0.5rem 0.7rem;
-    background: var(--soft-blue);
 }
-.paired-lane-row.is-needs { background: #FFF8E1; border-color: #FFE0B2; }
-.paired-lane-main { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.75rem; min-width: 0; }
+.paired-lane-main { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem 0.65rem; min-width: 0; }
 .paired-lane-label {
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 0.2rem 0.55rem;
+    letter-spacing: 0.05em;
+    padding: 0.14rem 0.5rem;
     border-radius: 999px;
     background: var(--white);
     border: 1px solid var(--blue-border);
@@ -887,11 +901,35 @@ body.demo-active {
 }
 .paired-lane-label.lane-selling { color: var(--accent-orange); }
 .paired-lane-label.lane-both, .paired-lane-label.lane-general { color: var(--text-secondary); }
-.paired-lane-agent { font-size: 0.88rem; font-weight: 600; color: var(--text-primary); }
+.paired-lane-agent { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+.paired-lane-sub { font-size: 0.78rem; color: var(--text-secondary); }
 .paired-needs-text { color: var(--warning-amber); }
-.paired-lane-email { font-size: 0.78rem; color: var(--text-secondary); }
-.paired-lane-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-.paired-lane-actions .btn { font-size: 0.78rem; padding: 0.3rem 0.6rem; }
+.paired-lane-facts { font-size: 0.78rem; color: var(--text-secondary); }
+.paired-lane-facts .status-pill { font-size: 0.66rem; padding: 0.1rem 0.45rem; }
+.paired-lane-blurb { font-size: 0.78rem; color: var(--text-secondary); font-style: italic; max-width: 62ch; }
+.paired-lane-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.15rem; }
+.paired-lane-actions .btn { font-size: 0.76rem; padding: 0.28rem 0.6rem; }
+.paired-lane-main .status-pill { font-size: 0.66rem; padding: 0.1rem 0.45rem; }
+
+/* Bottom "Transaction team" recap: who is involved at a glance. */
+.paired-team {
+    margin-top: 0.7rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--blue-border);
+}
+.paired-team-label {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+}
+.paired-team-line { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.15rem; }
+.paired-team-line strong { color: var(--text-primary); font-weight: 600; }
+.paired-team-line.is-needs { color: var(--warning-amber); }
+
 .paired-details { margin-top: 0.6rem; border-top: 1px dashed var(--blue-border); padding-top: 0.6rem; }
 .paired-detail-line { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.3rem; }
 .paired-detail-line strong { color: var(--text-primary); }
@@ -985,6 +1023,11 @@ body.demo-active {
 .intent-chip.intent-selling { background: #FFF3E0; border-color: #FFE0B2; color: var(--accent-orange); }
 .intent-chip.intent-both { background: #EDE7F6; border-color: #D1C4E9; color: #5E35B1; }
 .intent-chip.intent-general { background: #EDEFF3; border-color: #D8DEE8; color: var(--text-secondary); }
+/* Intent chip inline next to a client name on paired cards. */
+.lead-name .intent-chip { font-size: 0.68rem; padding: 0.15rem 0.55rem; vertical-align: middle; margin-left: 0.15rem; }
+
+/* Positive range note on Match Desk agent rows (both-side coverage). */
+.desk-range-note { font-size: 0.76rem; color: #2E7D32; margin-top: 0.2rem; }
 .desk-meta-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

@@ -36,6 +36,7 @@ import {
   hasUsableClientLocation,
   evaluateLocationEligibility,
   evaluateClientLocation,
+  distanceMiles as rawDistanceMiles,
   type LocationParty,
   type ClientMarketSide,
   type LocationEligibility,
@@ -702,6 +703,7 @@ export type PairedClientItem = {
   agentId: string | null;
   agentName: string | null;
   agentEmail: string | null;
+  agentPhone: string | null;
   agentArchetype: string | null;
   score: number | null;
   label: string | null;
@@ -713,7 +715,76 @@ export type PairedClientItem = {
   agentHasLocation: boolean;
   /** Newest agent match email send time for this pairing (null when none logged). */
   lastEmailAt?: string | null;
+  /** Miles from the agent to this lane's client market (stored coords only). */
+  distanceMiles: number | null;
+  /** Reviewer-facing distance copy, e.g. "12 mi from buying market". */
+  distanceLabel: string;
+  /** The lane-specific client market city, e.g. "Lexington". */
+  marketLabel: string | null;
 };
+
+/**
+ * Lane-specific market coordinates + city for a client/lead row. Uses stored
+ * coordinates only (no geocoding) so the paired list stays fast; a row without
+ * coordinates simply gets "Distance unavailable".
+ */
+function laneMarketOfRow(
+  row: any,
+  lane: MatchLane
+): { lat: number | null; lon: number | null; city: string | null } {
+  const buying = {
+    lat: row?.buying_latitude ?? null,
+    lon: row?.buying_longitude ?? null,
+    city: cleanText(row?.buying_market_city),
+  };
+  const selling = {
+    lat: row?.selling_latitude ?? null,
+    lon: row?.selling_longitude ?? null,
+    city: cleanText(row?.selling_market_city),
+  };
+  const general = {
+    lat: row?.latitude ?? null,
+    lon: row?.longitude ?? null,
+    city: cleanText(row?.market_city),
+  };
+  if (lane === "buying") return buying.city || buying.lat != null ? buying : general;
+  if (lane === "selling") return selling.city || selling.lat != null ? selling : general;
+  // both/general: prefer the general market, then buying, then selling.
+  if (general.city || general.lat != null) return general;
+  if (buying.city || buying.lat != null) return buying;
+  return selling;
+}
+
+/** The lane's distance word for reviewer-facing copy. */
+function laneMarketWord(lane: MatchLane): string {
+  if (lane === "buying") return "buying market";
+  if (lane === "selling") return "selling market";
+  return "client market";
+}
+
+/**
+ * Distance and label from the agent to the client's lane market. Uses stored
+ * coordinates only. Never returns a blank label: missing data yields
+ * "Distance unavailable" so the UI can always show something honest.
+ */
+function laneDistanceForPairing(
+  lane: MatchLane,
+  clientRow: any,
+  agentRow: any
+): { distanceMiles: number | null; distanceLabel: string; marketLabel: string | null } {
+  const market = laneMarketOfRow(clientRow, lane);
+  const agentLat = agentRow?.latitude ?? null;
+  const agentLon = agentRow?.longitude ?? null;
+  if (market.lat != null && market.lon != null && agentLat != null && agentLon != null) {
+    const miles = Math.round(rawDistanceMiles(market.lat, market.lon, agentLat, agentLon));
+    return {
+      distanceMiles: miles,
+      distanceLabel: `${miles} mi from ${laneMarketWord(lane)}`,
+      marketLabel: market.city,
+    };
+  }
+  return { distanceMiles: null, distanceLabel: "Distance unavailable", marketLabel: market.city };
+}
 
 /**
  * Newest successful agent match email per (target, agent[, lane]), read from
@@ -830,6 +901,7 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
       // Archived clients/leads/agents never show in the active paired view.
       if (isArchivedRow(row.clients) || isArchivedRow(lead) || isArchivedRow(agent)) continue;
       const lane = laneOfRow(row);
+      const laneDistance = laneDistanceForPairing(lane, client, agent);
       pushItem({
         matchId: row.id ?? null,
         clientId: row.clients?.id ?? row.client_id ?? null,
@@ -847,6 +919,7 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
         agentId: agent.id ?? row.agent_id ?? null,
         agentName: cleanText(agent.display_name),
         agentEmail: cleanText(agent.email),
+        agentPhone: cleanText(agent.phone),
         agentArchetype: cleanText(agent.archetype),
         score: typeof row.score === "number" ? row.score : null,
         label: cleanText(row.label),
@@ -855,6 +928,9 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
         pipelineLabel: pipelineStatusLabel(reviewerPipelineStatus(client)),
         matchedAt: row.reviewed_at ?? row.created_at ?? null,
         agentHasLocation: hasUsableAgentLocation(agent),
+        distanceMiles: laneDistance.distanceMiles,
+        distanceLabel: laneDistance.distanceLabel,
+        marketLabel: laneDistance.marketLabel,
       });
     }
   } catch (error) {
@@ -881,6 +957,7 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
       const agent = client.agents ?? {};
       if (isArchivedRow(agent)) continue;
       const lane = defaultLaneForIntent(client.transaction_intent);
+      const laneDistance = laneDistanceForPairing(lane, client, agent);
       pushItem({
         matchId: null,
         clientId: client.id ?? null,
@@ -898,6 +975,7 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
         agentId: agent.id ?? client.assigned_agent_id ?? null,
         agentName: cleanText(agent.display_name),
         agentEmail: cleanText(agent.email),
+        agentPhone: cleanText(agent.phone),
         agentArchetype: cleanText(agent.archetype),
         score: null,
         label: null,
@@ -906,6 +984,9 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
         pipelineLabel: pipelineStatusLabel(reviewerPipelineStatus(client)),
         matchedAt: client.updated_at ?? client.created_at ?? null,
         agentHasLocation: hasUsableAgentLocation(agent),
+        distanceMiles: laneDistance.distanceMiles,
+        distanceLabel: laneDistance.distanceLabel,
+        marketLabel: laneDistance.marketLabel,
       });
     }
   } catch (error) {
