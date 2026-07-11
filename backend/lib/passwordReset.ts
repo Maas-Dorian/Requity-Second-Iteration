@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { getSupabaseAdmin } from "./supabaseAdmin.js";
+import { getSupabaseAdmin, hasSupabaseAdminConfig } from "./supabaseAdmin.js";
 import { sendAppEmail, EMAIL_SUBJECTS, resolveEmailProvider } from "./email.js";
 import {
   buildRequityEmailHtml,
@@ -59,7 +59,9 @@ export function logPasswordResetConfig(): void {
   if (!getOptionalEnv("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "VITE_SUPABASE_URL")) {
     missing.push("SUPABASE_URL");
   }
-  if (!getOptionalEnv("SUPABASE_SERVICE_ROLE_KEY")) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (!getOptionalEnv("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY", "SUPABASE_SERVICE_ROLE")) {
+    missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  }
   if (resolveEmailProvider() === "sendgrid" && !getOptionalEnv("SENDGRID_API_KEY")) {
     missing.push("SENDGRID_API_KEY");
   }
@@ -258,42 +260,135 @@ export async function requestPasswordReset(params: RequestPasswordResetParams): 
 
 export type CompletePasswordResetResult =
   | { ok: true }
-  | { ok: false; code: "INVALID_TOKEN" | "WEAK_PASSWORD" | "UPDATE_FAILED"; message: string };
+  | {
+      ok: false;
+      /**
+       * 400-class (user-fixable): INVALID_TOKEN, WEAK_PASSWORD, SAME_PASSWORD.
+       * 500-class (server/config): CONFIG_MISSING, TABLE_MISSING, UPDATE_FAILED.
+       */
+      code:
+        | "INVALID_TOKEN"
+        | "WEAK_PASSWORD"
+        | "SAME_PASSWORD"
+        | "CONFIG_MISSING"
+        | "TABLE_MISSING"
+        | "UPDATE_FAILED";
+      message: string;
+    };
 
 const INVALID_LINK_MESSAGE =
   "This reset link is invalid or expired. Request a new password reset link.";
 
+/** Step-name logging for the completion flow. Never logs tokens, hashes, or passwords. */
+function logStep(step: string, fields: Record<string, unknown> = {}): void {
+  logReset("PASSWORD_RESET_COMPLETE_STEP", { step, ...fields });
+}
+
+/**
+ * Classify a Supabase Auth admin update error. GoTrue returns 4xx statuses for
+ * user-fixable problems (weak password per project policy, same password as
+ * before); those must surface as 400s, not 500s.
+ */
+function classifyAuthUpdateError(error: {
+  status?: number | null;
+  message?: string | null;
+  code?: string | null;
+}): { code: "WEAK_PASSWORD" | "SAME_PASSWORD" | "INVALID_TOKEN" | "UPDATE_FAILED"; message: string } {
+  const status = typeof error.status === "number" ? error.status : null;
+  const message = (error.message ?? "").toLowerCase();
+  if (message.includes("different from the old password") || error.code === "same_password") {
+    return {
+      code: "SAME_PASSWORD",
+      message: "Your new password must be different from your old password.",
+    };
+  }
+  if (message.includes("password") && (status === 400 || status === 422)) {
+    return {
+      code: "WEAK_PASSWORD",
+      message: "That password does not meet the password requirements. Choose a longer or stronger password.",
+    };
+  }
+  if (status === 404 || message.includes("user not found")) {
+    // The auth user behind this token no longer exists; the link is dead.
+    return { code: "INVALID_TOKEN", message: INVALID_LINK_MESSAGE };
+  }
+  return {
+    code: "UPDATE_FAILED",
+    message: "We could not update your password. Please try again in a moment.",
+  };
+}
+
 /**
  * Verify a raw reset token and, when valid, update the Supabase Auth password
  * using the service role and mark the token used.
+ *
+ * Returns 400-class codes for every normal user problem (bad/expired/used
+ * token, weak or reused password) and 500-class codes only for true server or
+ * configuration failures (missing env, missing table, unexpected auth error).
  */
 export async function completePasswordReset(
   rawToken: string,
   password: string
 ): Promise<CompletePasswordResetResult> {
+  // --- Env check (500-class when missing; never crash with undefined errors) -
+  const config = hasSupabaseAdminConfig();
+  logStep("env check passed", { ok: config.ok });
+  if (!config.ok) {
+    console.error(`password-reset:missing-env ${config.missing.join(", ")}`);
+    return {
+      ok: false,
+      code: "CONFIG_MISSING",
+      message: "We could not update your password. Please try again later.",
+    };
+  }
+
   const passwordError = validateNewPassword(password);
   if (passwordError) {
+    logStep("password validation", { ok: false });
     return { ok: false, code: "WEAK_PASSWORD", message: passwordError };
   }
 
   const token = (rawToken ?? "").trim();
   if (!token || token.length < 20 || token.length > 128) {
+    logStep("token shape check", { ok: false });
     return { ok: false, code: "INVALID_TOKEN", message: INVALID_LINK_MESSAGE };
   }
 
   const tokenHash = sha256Hex(token);
   const supabase = getSupabaseAdmin();
 
+  logStep("token hash lookup started");
   const { data: row, error } = await supabase
     .from(TOKENS_TABLE)
     .select("id, user_id, token_hash, expires_at, used_at")
     .eq("token_hash", tokenHash)
     .maybeSingle();
 
+  if (error && isMissingTableError(error)) {
+    // Migration 0013 (or the 0016 repair) was never applied: config problem,
+    // not a user problem. Make the fix unmissable in the logs.
+    logStep("token table exists", { ok: false });
+    console.error(
+      `password-reset:missing-table ${TOKENS_TABLE}. ` +
+        "Run backend/supabase/migrations/0016_repair_auth_reset_and_schema_drift.sql " +
+        "in the Supabase SQL Editor."
+    );
+    return {
+      ok: false,
+      code: "TABLE_MISSING",
+      message: "We could not update your password. Please try again later.",
+    };
+  }
+  logStep("token table exists", { ok: true });
+
   if (error || !row) {
-    logReset("PASSWORD_RESET_COMPLETE_REJECTED", { reason: "token_not_found" });
+    logStep("token row found", {
+      ok: false,
+      errorCode: error ? ((error as { code?: string }).code ?? null) : null,
+    });
     return { ok: false, code: "INVALID_TOKEN", message: INVALID_LINK_MESSAGE };
   }
+  logStep("token row found", { ok: true });
 
   // Defense in depth: constant-time comparison of the stored hash.
   const stored = Buffer.from(String(row.token_hash), "utf8");
@@ -304,16 +399,21 @@ export async function completePasswordReset(
   }
 
   if (row.used_at) {
-    logReset("PASSWORD_RESET_COMPLETE_REJECTED", { reason: "token_used", tokenRowId: row.id });
+    logStep("token already used", { ok: false, tokenRowId: row.id });
     return { ok: false, code: "INVALID_TOKEN", message: INVALID_LINK_MESSAGE };
   }
+  logStep("token already used", { ok: true });
+
   if (!row.expires_at || Date.parse(String(row.expires_at)) <= Date.now()) {
-    logReset("PASSWORD_RESET_COMPLETE_REJECTED", { reason: "token_expired", tokenRowId: row.id });
+    logStep("token expired", { ok: false, tokenRowId: row.id });
     return { ok: false, code: "INVALID_TOKEN", message: INVALID_LINK_MESSAGE };
   }
+  logStep("token expired", { ok: true });
+  logStep("user id exists", { ok: Boolean(row.user_id) });
 
   // Mark used FIRST (single use even if two requests race; the conditional
   // update means only one caller wins the token).
+  logStep("mark token used started");
   const { data: consumed, error: consumeError } = await supabase
     .from(TOKENS_TABLE)
     .update({ used_at: new Date().toISOString() })
@@ -322,10 +422,12 @@ export async function completePasswordReset(
     .select("id");
 
   if (consumeError || !consumed || consumed.length === 0) {
-    logReset("PASSWORD_RESET_COMPLETE_REJECTED", { reason: "consume_race", tokenRowId: row.id });
+    logStep("mark token used success", { ok: false, reason: "consume_race" });
     return { ok: false, code: "INVALID_TOKEN", message: INVALID_LINK_MESSAGE };
   }
+  logStep("mark token used success", { ok: true });
 
+  logStep("supabase admin update started");
   const { error: updateError } = await supabase.auth.admin.updateUserById(String(row.user_id), {
     password,
   });
@@ -334,16 +436,17 @@ export async function completePasswordReset(
     // Re-open the token so the user can retry with the same link (the
     // password was NOT changed).
     await supabase.from(TOKENS_TABLE).update({ used_at: null }).eq("id", row.id);
-    logReset("PASSWORD_RESET_UPDATE_FAILED", {
-      tokenRowId: row.id,
+    const classified = classifyAuthUpdateError(updateError);
+    logStep("supabase admin update success", {
+      ok: false,
+      failingStep: "auth.admin.updateUserById",
+      classifiedAs: classified.code,
+      errorStatus: (updateError as { status?: number }).status ?? null,
       detail: (updateError.message ?? "").slice(0, 200),
     });
-    return {
-      ok: false,
-      code: "UPDATE_FAILED",
-      message: "We could not update your password. Please try again in a moment.",
-    };
+    return { ok: false, code: classified.code, message: classified.message };
   }
+  logStep("supabase admin update success", { ok: true });
 
   logReset("PASSWORD_RESET_COMPLETED", { tokenRowId: row.id });
   return { ok: true };

@@ -32,10 +32,29 @@ function readEnv(...keys: string[]): string | undefined {
 
 let cached: SupabaseClient | null = null;
 
+/**
+ * Accepted service-role key env names, in priority order. Production should
+ * set SUPABASE_SERVICE_ROLE_KEY; the aliases exist only so a deployment that
+ * used an older name keeps working instead of failing with a 500.
+ */
+export const SERVICE_ROLE_KEY_ENV_NAMES = [
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "SUPABASE_SERVICE_KEY",
+  "SUPABASE_SERVICE_ROLE",
+] as const;
+
+/** True when the admin client can be constructed (URL + service key present). */
+export function hasSupabaseAdminConfig(): { ok: boolean; missing: string[] } {
+  const missing: string[] = [];
+  if (!readEnv("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL")) missing.push("SUPABASE_URL");
+  if (!readEnv(...SERVICE_ROLE_KEY_ENV_NAMES)) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  return { ok: missing.length === 0, missing };
+}
+
 export function getSupabaseAdmin(): SupabaseClient {
   if (cached) return cached;
   const url = readEnv("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL");
-  const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceRoleKey = readEnv(...SERVICE_ROLE_KEY_ENV_NAMES);
   if (!url) {
     throw new SupabaseConfigError("MISSING_SUPABASE_PUBLIC_CONFIG", "SUPABASE_URL is not set.");
   }
