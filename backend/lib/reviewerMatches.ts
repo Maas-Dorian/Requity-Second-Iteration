@@ -1765,6 +1765,54 @@ export async function resendMatchEmail(matchId: string): Promise<{
 }
 
 /**
+ * Unmatch (supersede) ONE active match without creating a replacement. Used
+ * by the reviewer Agent Control Center "Unmatch" action. The row is never
+ * deleted: it moves to history (status = superseded), the client/lead row is
+ * kept, and only this one lane is affected. Superseding a buying match never
+ * touches an active selling match.
+ */
+export async function unmatchReviewerMatch(matchId: string): Promise<{
+  ok: true;
+  matchId: string;
+  matchLane: MatchLane;
+  clientId: string | null;
+  leadId: string | null;
+}> {
+  const supabase = getSupabaseAdmin();
+  const { data: match, error } = await supabase
+    .from("match_recommendations")
+    .select("id, client_id, lead_id, agent_id, match_lane, status")
+    .eq("id", matchId)
+    .maybeSingle();
+  if (error) throw new Error(`unmatchReviewerMatch lookup failed: ${error.message}`);
+  if (!match) {
+    throw Object.assign(new Error("Match not found."), { status: 404 });
+  }
+  const isActive = (ACTIVE_MATCH_STATUSES as unknown as string[]).includes(
+    (match as any).status ?? ""
+  );
+  if (!isActive) {
+    throw Object.assign(new Error("This match is not active; nothing to unmatch."), {
+      status: 400,
+    });
+  }
+
+  await supersedeMatchRows([match]);
+  console.log("REVIEWER_MATCH_UNMATCHED", {
+    matchId,
+    agentId: (match as any).agent_id ?? null,
+    matchLane: laneOfRow(match),
+  });
+  return {
+    ok: true,
+    matchId,
+    matchLane: laneOfRow(match),
+    clientId: (match as any).client_id ?? null,
+    leadId: (match as any).lead_id ?? null,
+  };
+}
+
+/**
  * Approve an existing reviewer recommendation by id and make it the client's
  * active match. Enforces the same single-active rule (supersedes any other
  * active match for that client/lead).

@@ -198,6 +198,10 @@ export async function submitAgentAssessment(
     // JSON snapshot of the dimensions/answers (dropped if columns absent live).
     assessment_summary: summary,
     assessment_responses: params.answers,
+    // A completed submit satisfies any reviewer-requested assessment update
+    // (columns from migration 0014; dropped by the writer if absent live).
+    needs_assessment_update: false,
+    assessment_update_requested_at: null,
     ...(params.profileId ? { profile_id: params.profileId } : {}),
   };
 

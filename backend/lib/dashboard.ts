@@ -257,6 +257,8 @@ export type AgentDashboard = {
     locationNormalized: string | null;
     /** Branded public link slug, or null when not generated/migrated. */
     publicSlug: string | null;
+    /** True when a reviewer has requested an assessment update (migration 0014). */
+    needsAssessmentUpdate: boolean;
   } | null;
   assessmentLink: string;
   qrLink: string;
@@ -405,6 +407,19 @@ export async function getAgentDashboard(
   let marketCity: string | null = null;
   let marketState: string | null = null;
   let locationNormalized: string | null = null;
+  // Reviewer-requested assessment update flag (migration 0014). Read separately
+  // and resiliently so a not-yet-migrated DB never breaks the dashboard.
+  let needsAssessmentUpdate = false;
+  if (agent) {
+    const { data: flagRow } = await supabase
+      .from("agents")
+      .select("needs_assessment_update")
+      .eq("id", agentId)
+      .maybeSingle();
+    needsAssessmentUpdate = Boolean(
+      flagRow && (flagRow as { needs_assessment_update?: boolean | null }).needs_assessment_update
+    );
+  }
   if (agent) {
     const { data: marketRow } = await supabase
       .from("agents")
@@ -643,6 +658,7 @@ export async function getAgentDashboard(
           marketState,
           locationNormalized,
           publicSlug,
+          needsAssessmentUpdate,
         }
       : null,
     assessmentLink,

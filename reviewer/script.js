@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         deskLane: null,           // buying | selling | both | general
         deskAgentSearch: '',
         deskHideLimited: false,
+        deskInRangeOnly: false,
         deskShowAssessment: false,
         deskConfirmOpen: false
     };
@@ -54,11 +55,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const elDeskClientCard = document.getElementById('desk-client-card');
     const elDeskCurrentMatch = document.getElementById('desk-current-match');
     const elDeskAgentList = document.getElementById('desk-agent-list');
+    const elDeskAgentCount = document.getElementById('desk-agent-count');
     const elDeskAgentSearch = document.getElementById('desk-agent-search');
     const elDeskHideLimited = document.getElementById('desk-hide-limited');
-    const elDeskActionSummary = document.getElementById('desk-action-summary');
-    const elDeskPrimaryBtn = document.getElementById('desk-primary-btn');
-    const elDeskDeleteBtn = document.getElementById('desk-delete-btn');
+    const elDeskInRangeOnly = document.getElementById('desk-in-range-only');
+    const elDeskSelectedCard = document.getElementById('desk-selected-card');
     const elDeskConfirm = document.getElementById('desk-confirm');
     const elDeskConfirmBody = document.getElementById('desk-confirm-body');
     const elDeskConfirmError = document.getElementById('desk-confirm-error');
@@ -206,16 +207,25 @@ document.addEventListener('DOMContentLoaded', () => {
     function mapQueueItem(item) {
         const c = (item && item.client) || {};
         const rankings = (item && Array.isArray(item.rankings)) ? item.rankings : [];
-        // Location is REQUIRED: only agents flagged eligible are shown as matches.
-        // Ineligible agents (missing location, out of range, etc.) are never shown
-        // as a recommendation or auto-paired; they are summarized via matchSummary.
-        const eligibleRankings = rankings.filter(function (r) { return r && r.eligible !== false; });
-        const fits = eligibleRankings.map(function (r, i) {
+        // ALL ranked agents are kept (eligible first, the server sorts them).
+        // Ineligible agents (missing location, out of range) are shown with
+        // clear warning pills instead of being hidden, so the reviewer always
+        // sees the full agent pool. Only eligible agents can be auto-paired.
+        let eligibleSeen = 0;
+        const fits = rankings.filter(Boolean).map(function (r) {
             const agent = (r && r.agent) || {};
+            const row = (r && r.agentRow) || {};
+            const eligible = r.eligible !== false;
+            if (eligible) eligibleSeen++;
+            const locationReason = r.locationReason || '';
             return {
                 agentId: agent.id || null,
                 name: agent.name || 'Unknown agent',
                 archetype: agent.archetype || ', ',
+                email: row.email || '',
+                phone: row.phone || '',
+                marketCity: row.market_city || '',
+                marketState: row.market_state || '',
                 fit: (r && typeof r.score === 'number') ? r.score : null,
                 label: (r && r.label) || '',
                 // Prefer the location-aware match reason when present.
@@ -226,9 +236,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 distanceMiles: (r && r.distanceMiles != null) ? r.distanceMiles : null,
                 limitedFit: !!(r && r.limitedFit),
                 warning: (r && r.locationWarning) || null,
+                eligible: eligible,
+                missingLocation: locationReason === 'Agent location missing',
+                outsideRange: !eligible && locationReason === 'Outside agent service range',
+                locationReason: locationReason,
                 // Informational only. Agents are reusable without limit.
                 activeMatchCount: (r && typeof r.activeMatchCount === 'number') ? r.activeMatchCount : 0,
-                top: i === 0
+                top: eligible && eligibleSeen === 1
             };
         });
         const matchSummary = (c && c.matchSummary) || null;
@@ -258,10 +272,16 @@ document.addEventListener('DOMContentLoaded', () => {
             intent: String(c.transaction_intent || '').toLowerCase(),
             laneStatus: c.laneStatus || null,
             status: statusLabel(c.pipelineStatus || c.pipeline_status),
-            highestMatch: fits.length ? fits[0].name : null,
-            highestMatchAgentId: fits.length ? fits[0].agentId : null,
+            highestMatch: (function () { var f = fits.find(function (x) { return x.eligible; }); return f ? f.name : null; })(),
+            highestMatchAgentId: (function () { var f = fits.find(function (x) { return x.eligible; }); return f ? f.agentId : null; })(),
             fits: fits
         };
+    }
+
+    // The strongest ELIGIBLE fit for a client, or null. Ineligible agents are
+    // visible in the list (with warnings) but are never auto-selected.
+    function firstEligibleFit(client) {
+        return (client && client.fits || []).find(function (f) { return f.eligible !== false; }) || null;
     }
 
     function clientFieldText(v, fallback) {
@@ -421,7 +441,9 @@ document.addEventListener('DOMContentLoaded', () => {
             var ls = c.laneStatus;
             return !!(ls && ls.activeMatches && ls.activeMatches.length && !ls.fullyMatched);
         }).length;
-        state.counts.fits = clients.reduce(function (sum, c) { return sum + (c.fits ? c.fits.length : 0); }, 0);
+        state.counts.fits = clients.reduce(function (sum, c) {
+            return sum + (c.fits ? c.fits.filter(function (f) { return f.eligible !== false; }).length : 0);
+        }, 0);
         // scheduled is incremented as the reviewer approves matches this session.
     }
 
@@ -614,8 +636,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderDeskLaneBar(client);
         renderDeskClientCard(client);
         renderDeskCurrentMatch(client);
+        renderDeskSelectedCard(client);
         renderDeskAgentList(client);
-        renderDeskActionBar(client);
     }
 
     function renderDeskLaneBar(client) {
@@ -668,6 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
             '<div class="desk-client-actions">' +
                 '<button type="button" class="btn btn-outline btn-sm" id="desk-assessment-toggle">' +
                     (state.deskShowAssessment ? 'Hide full assessment' : 'View full assessment') + '</button>' +
+                '<button type="button" class="btn btn-outline btn-sm" id="desk-delete-btn" onclick="deleteActiveClient()">Delete from review</button>' +
             '</div>' +
             '<div id="desk-full-assessment" class="desk-full-assessment' + (state.deskShowAssessment ? '' : ' hidden') + '">' +
                 (state.deskShowAssessment ? buildClientReportHtml(client) : '') +
@@ -707,78 +730,142 @@ document.addEventListener('DOMContentLoaded', () => {
         var q = (state.deskAgentSearch || '').toLowerCase();
         return (client.fits || []).filter(function (fit) {
             if (state.deskHideLimited && fit.limitedFit) return false;
+            if (state.deskInRangeOnly && fit.eligible === false) return false;
             if (q) {
-                var hay = ((fit.name || '') + ' ' + (fit.archetype || '')).toLowerCase();
+                var hay = ((fit.name || '') + ' ' + (fit.archetype || '') + ' ' + (fit.email || '') +
+                    ' ' + (fit.phone || '') + ' ' + (fit.marketCity || '') + ' ' + (fit.marketState || '')).toLowerCase();
                 if (hay.indexOf(q) === -1) return false;
             }
             return true;
         });
     }
 
+    function deskHasActiveFilters() {
+        return !!(state.deskAgentSearch || state.deskHideLimited || state.deskInRangeOnly);
+    }
+
+    // Clear every Match Desk agent filter and re-render (empty-state button).
+    window.clearDeskFilters = function () {
+        state.deskAgentSearch = '';
+        state.deskHideLimited = false;
+        state.deskInRangeOnly = false;
+        if (elDeskAgentSearch) elDeskAgentSearch.value = '';
+        if (elDeskHideLimited) elDeskHideLimited.checked = false;
+        if (elDeskInRangeOnly) elDeskInRangeOnly.checked = false;
+        const client = clients.find(function (c) { return c.id === state.activeClientId; });
+        if (client) renderDeskAgentList(client);
+    };
+
+    // The primary action text for the selected lane, kept short on purpose.
+    function deskPrimaryActionText(client) {
+        var lane = state.deskLane;
+        var current = currentMatchForLane(client, lane);
+        if (current) {
+            if (lane === 'buying') return 'Replace buying match';
+            if (lane === 'selling') return 'Replace selling match';
+            return 'Replace match';
+        }
+        if (lane === 'buying') return 'Pair for buying';
+        if (lane === 'selling') return 'Pair for selling';
+        if (lane === 'both') return 'Pair for both sides';
+        return 'Pair agent';
+    }
+
     function renderDeskAgentList(client) {
         if (!elDeskAgentList) return;
         if (!client.fits || !client.fits.length) {
+            if (elDeskAgentCount) elDeskAgentCount.textContent = '';
             elDeskAgentList.innerHTML = noEligibleMatchHtml(client.matchSummary);
             return;
         }
         var rows = deskFilteredFits(client);
+        if (elDeskAgentCount) {
+            elDeskAgentCount.textContent = rows.length === client.fits.length
+                ? 'Showing ' + rows.length + ' agent' + (rows.length === 1 ? '' : 's')
+                : 'Showing ' + rows.length + ' of ' + client.fits.length + ' agents';
+        }
         if (!rows.length) {
-            elDeskAgentList.innerHTML = '<div class="leads-empty">No agents match this search.</div>';
+            elDeskAgentList.innerHTML =
+                '<div class="leads-empty"><strong>No agents match these filters.</strong><br>' +
+                '<button type="button" class="btn btn-outline btn-sm mt-2" onclick="clearDeskFilters()">Clear filters</button></div>';
             return;
         }
         var laneWord = laneMarketWordFE(state.deskLane);
         var isBothClient = queueIntentOf(client) === 'both';
+        var actionText = deskPrimaryActionText(client);
         elDeskAgentList.innerHTML = rows.map(function (fit) {
             var isSelected = state.selectedAgentId && state.selectedAgentId === fit.agentId;
             var agentPay = agentPaymentFor(fit.agentId);
             var bits = [];
             if (fit.archetype && fit.archetype !== ', ') bits.push(esc(fit.archetype));
-            bits.push(fit.distanceMiles != null ? (fit.distanceMiles + ' mi from ' + laneWord) : 'Distance unavailable');
+            if (fit.missingLocation) bits.push('Location not on file');
+            else bits.push(fit.distanceMiles != null ? (fit.distanceMiles + ' mi from ' + laneWord) : 'Distance unavailable');
             if (fit.activeMatchCount > 0) bits.push(fit.activeMatchCount + ' active match' + (fit.activeMatchCount === 1 ? '' : 'es'));
             var badges = '';
             if (fit.top) badges += '<span class="badge badge-highest">Top fit</span>';
             if (fit.fit != null) badges += '<span class="badge badge-internal">' + fit.fit + '%</span>';
             if (fit.limitedFit) badges += '<span class="badge badge-source">Limited fit</span>';
-            if (agentPay) badges += '<span class="status-pill pay-' + esc(agentPay.status) + '">' + esc(agentPay.label || 'Unpaid') + '</span>';
+            if (fit.outsideRange) badges += '<span class="badge badge-warn">Outside range</span>';
+            if (fit.missingLocation) badges += '<span class="badge badge-warn">Missing location</span>';
+            if (agentPay && agentPay.status !== 'paid') badges += '<span class="status-pill pay-' + esc(agentPay.status) + '">' + esc(agentPay.label || 'Unpaid') + '</span>';
+            else if (agentPay) badges += '<span class="status-pill pay-paid">Paid</span>';
             // Range context: the backend warning already says "only in range for
             // the buying/selling side"; both-side coverage gets a positive note.
             var rangeNote = fit.warning
                 ? '<div class="loc-row-warning">' + esc(fit.warning) + '</div>'
-                : (isBothClient && !fit.limitedFit && fit.distanceMiles != null
+                : (isBothClient && fit.eligible !== false && !fit.limitedFit && fit.distanceMiles != null
                     ? '<div class="desk-range-note">This agent is in range for both sides.</div>'
                     : '');
-            var warn = rangeNote;
+            // The selected card's button IS the primary action: selecting an
+            // agent turns its button into "Pair for buying" (no bottom bar).
+            var btn = isSelected
+                ? '<button type="button" class="btn btn-primary btn-sm" onclick="pairSelectedAgent()">' + esc(actionText) + '</button>'
+                : '<button type="button" class="btn btn-outline btn-sm" onclick="selectGuide(\'' + esc(fit.agentId) + '\')">Select</button>';
             return '<div class="desk-agent-row' + (isSelected ? ' is-selected' : '') + '">' +
                 '<div class="desk-agent-main">' +
                     '<span class="desk-agent-name">' + esc(fit.name) + '</span>' +
                     '<span class="desk-agent-sub">' + bits.join(' &middot; ') + '</span>' +
-                    warn +
+                    rangeNote +
                 '</div>' +
-                '<div class="desk-agent-side">' + badges +
-                    '<button type="button" class="btn ' + (isSelected ? 'btn-primary' : 'btn-outline') + ' btn-sm" onclick="selectGuide(\'' + esc(fit.agentId) + '\')">' +
-                        (isSelected ? 'Selected' : 'Select') + '</button>' +
-                '</div>' +
+                '<div class="desk-agent-side">' + badges + btn + '</div>' +
             '</div>';
         }).join('');
     }
 
-    function renderDeskActionBar(client) {
-        if (!elDeskPrimaryBtn) return;
-        var lane = state.deskLane;
-        var current = currentMatchForLane(client, lane);
-        var laneWord = lane === 'buying' ? 'buying' : lane === 'selling' ? 'selling' : lane === 'both' ? 'both sides' : '';
-        elDeskPrimaryBtn.textContent = current
-            ? (laneWord && lane !== 'both' ? 'Replace ' + laneWord + ' match' : 'Replace match')
-            : (laneWord ? 'Pair for ' + laneWord : 'Pair agent');
-        elDeskPrimaryBtn.disabled = !state.selectedAgentId || state.deskConfirmOpen;
-        if (elDeskActionSummary) {
-            elDeskActionSummary.textContent = state.selectedAgentName
-                ? (current
-                    ? 'Replace the ' + (laneWord || 'current') + ' match with ' + state.selectedAgentName
-                    : 'Pair ' + state.selectedAgentName + ' with ' + client.name + (laneWord ? ' for ' + laneWord : ''))
-                : 'Select an agent to pair with ' + client.name + '.';
+    // Compact selected-agent action card at the top of the agent panel. This
+    // replaces the old sticky bottom action bar entirely.
+    function renderDeskSelectedCard(client) {
+        if (!elDeskSelectedCard) return;
+        var fit = state.selectedAgentId
+            ? (client.fits || []).find(function (f) { return f.agentId === state.selectedAgentId; })
+            : null;
+        if (!fit) {
+            elDeskSelectedCard.innerHTML =
+                '<div class="desk-selected-empty">Select an agent below to pair with ' + esc(client.name) + '.</div>';
+            return;
         }
+        var agentPay = agentPaymentFor(fit.agentId);
+        var bits = [];
+        if (fit.archetype && fit.archetype !== ', ') bits.push(esc(fit.archetype));
+        if (fit.missingLocation) bits.push('Location not on file');
+        else if (fit.distanceMiles != null) bits.push(fit.distanceMiles + ' mi from ' + laneMarketWordFE(state.deskLane));
+        if (agentPay) bits.push(esc(agentPay.label || 'Unpaid'));
+        elDeskSelectedCard.innerHTML =
+            '<div class="desk-selected-main">' +
+                '<span class="detail-label">Selected agent</span>' +
+                '<span class="desk-selected-name">' + esc(fit.name) + '</span>' +
+                (bits.length ? '<span class="desk-selected-sub">' + bits.join(' &middot; ') + '</span>' : '') +
+            '</div>' +
+            '<button type="button" class="btn btn-primary" onclick="pairSelectedAgent()"' +
+                (state.deskConfirmOpen ? ' disabled' : '') + '>' +
+                esc(deskPrimaryActionText(client)) + '</button>';
     }
+
+    // Primary pairing action (from the selected card or a selected agent row).
+    window.pairSelectedAgent = function () {
+        if (!state.selectedAgentId || state.deskConfirmOpen) return;
+        openDeskConfirm();
+    };
 
     // The lane the reviewer explicitly has selected on the Match Desk.
     function selectedMatchLane() {
@@ -806,7 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elDeskConfirmError) { elDeskConfirmError.style.display = 'none'; elDeskConfirmError.textContent = ''; }
         if (elDeskConfirmBtn) { elDeskConfirmBtn.disabled = false; elDeskConfirmBtn.textContent = 'Confirm match'; }
         elDeskConfirm.classList.remove('hidden');
-        renderDeskActionBar(client);
+        renderDeskSelectedCard(client);
         elDeskConfirm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
@@ -814,7 +901,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.deskConfirmOpen = false;
         if (elDeskConfirm) elDeskConfirm.classList.add('hidden');
         const client = clients.find(function (c) { return c.id === state.activeClientId; });
-        if (client) renderDeskActionBar(client);
+        if (client) renderDeskSelectedCard(client);
     }
 
     function confirmDeskMatch(forceReplace) {
@@ -902,7 +989,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const client = clients.find(function (c) { return c.id === state.activeClientId; });
         if (client) renderDeskAgentList(client);
     });
-    if (elDeskPrimaryBtn) elDeskPrimaryBtn.addEventListener('click', openDeskConfirm);
+    if (elDeskInRangeOnly) elDeskInRangeOnly.addEventListener('change', function () {
+        state.deskInRangeOnly = !!elDeskInRangeOnly.checked;
+        const client = clients.find(function (c) { return c.id === state.activeClientId; });
+        if (client) renderDeskAgentList(client);
+    });
     if (elDeskConfirmCancel) elDeskConfirmCancel.addEventListener('click', closeDeskConfirm);
     if (elDeskConfirmBtn) elDeskConfirmBtn.addEventListener('click', function () {
         var force = elDeskConfirmBtn.getAttribute('data-force-replace') === '1';
@@ -1334,9 +1425,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function selectActiveAgent(client) {
-        if (client && client.fits.length) {
-            state.selectedAgentId = client.fits[0].agentId;
-            state.selectedAgentName = client.fits[0].name;
+        var best = firstEligibleFit(client);
+        if (best) {
+            state.selectedAgentId = best.agentId;
+            state.selectedAgentName = best.name;
         } else {
             state.selectedAgentId = null;
             state.selectedAgentName = null;
@@ -1355,7 +1447,11 @@ document.addEventListener('DOMContentLoaded', () => {
             : null;
         state.deskAgentSearch = '';
         state.deskShowAssessment = false;
+        state.deskInRangeOnly = false;
+        state.deskHideLimited = false;
         if (elDeskAgentSearch) elDeskAgentSearch.value = '';
+        if (elDeskHideLimited) elDeskHideLimited.checked = false;
+        if (elDeskInRangeOnly) elDeskInRangeOnly.checked = false;
         closeDeskConfirm();
         selectActiveAgent(client);
         renderQueue();
@@ -1370,8 +1466,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!fit) return;
         state.selectedAgentId = fit.agentId;
         state.selectedAgentName = fit.name;
+        renderDeskSelectedCard(client);
         renderDeskAgentList(client);
-        renderDeskActionBar(client);
     };
 
     // Reviewer sets a client's pipeline status from any status dropdown. Updates
@@ -1739,6 +1835,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cmConfirm) cmConfirm.addEventListener('click', confirmChangeMatch);
     if (cmModal) cmModal.addEventListener('click', function (ev) { if (ev.target === cmModal) closeChangeMatch(); });
 
+    // Exposed for the Agent Control Center drawer: open the Change match
+    // editor for an explicit client + lane (the lane clicked always wins).
+    window.openReviewerChangeMatch = function (paired, lane) {
+        openChangeMatch(paired || {}, lane || null);
+    };
+
+    // Exposed for the Agent Control Center: refresh the queue + paired data
+    // after an unmatch or agent archive so every tab stays in sync.
+    window.__reviewerReloadQueue = loadQueue;
+
     // --- Queue + Paired filter wiring ---------------------------------------
     var queuePillsEl = document.getElementById('queue-filter-pills');
     if (queuePillsEl) queuePillsEl.addEventListener('click', function (ev) {
@@ -1815,8 +1921,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setDecisionBusy(busy) {
-        if (elDeskPrimaryBtn) elDeskPrimaryBtn.disabled = busy || !state.selectedAgentId;
-        if (elDeskDeleteBtn) elDeskDeleteBtn.disabled = busy;
+        var deleteBtn = document.getElementById('desk-delete-btn');
+        if (deleteBtn) deleteBtn.disabled = busy;
+        var card = elDeskSelectedCard ? elDeskSelectedCard.querySelector('.btn-primary') : null;
+        if (card) card.disabled = busy || !state.selectedAgentId;
     }
 
     // --- Activity Log Helper -----------------------------------------------
@@ -1859,7 +1967,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let scheduled = 0;
 
         for (const client of pending) {
-            const fit = client.fits && client.fits.length ? client.fits[0] : null;
+            const fit = firstEligibleFit(client);
             scanned++;
             autoScanned.textContent = scanned;
             autoCurrentProfile.textContent = client.name;

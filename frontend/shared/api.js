@@ -770,6 +770,56 @@
     return apiPost("/reviewer/resend-match-email", { matchId: matchId });
   }
 
+  /**
+   * Reviewer: Agent Control Center list. Returns { agents, summary }.
+   * Requires reviewer auth.
+   */
+  async function fetchReviewerAgents() {
+    var data = (await apiGet("/reviewer/agents")) || {};
+    return {
+      agents: data.agents || [],
+      summary: data.summary || {
+        totalAgents: 0, activeAgents: 0, unpaidAgents: 0,
+        missingLocation: 0, missingArchetype: 0, activeMatches: 0,
+      },
+      archetypes: data.archetypes || [],
+    };
+  }
+
+  /**
+   * Reviewer: one agent's full detail (profile, matches history, payment).
+   * Returns { agent, matches, payment }. Requires reviewer auth.
+   */
+  async function fetchReviewerAgentDetail(agentId) {
+    return apiGet("/reviewer/agents?agentId=" + encodeURIComponent(agentId));
+  }
+
+  /**
+   * Reviewer: update an agent (location, archetype, reviewer notes, restore).
+   * payload: { agentId, archetype?, reviewerNotes?, restore?, location? }
+   */
+  async function updateReviewerAgent(payload) {
+    return apiPatch("/reviewer/agents", payload);
+  }
+
+  /**
+   * Reviewer: request an assessment update from an agent. The agent sees a
+   * dashboard banner and receives an email; only reviewers can trigger this.
+   * Returns { ok, agentId, emailed }.
+   */
+  async function requestAgentAssessmentUpdate(agentId) {
+    return apiPost("/reviewer/request-agent-assessment-update", { agentId: agentId });
+  }
+
+  /**
+   * Reviewer: unmatch (supersede) ONE active match without a replacement. The
+   * match moves to history; the client stays available for review.
+   * Returns { ok, matchId, matchLane, clientId, leadId }.
+   */
+  async function unmatchReviewerMatch(matchId) {
+    return apiPost("/reviewer/unmatch", { matchId: matchId });
+  }
+
   // --- Auth (Supabase Auth via REST) -------------------------------------
   function requireSupabaseAuth() {
     var c = getSupabaseConfig();
@@ -1226,6 +1276,11 @@
     fetchReviewerPayments: fetchReviewerPayments,
     setReviewerPaymentStatus: setReviewerPaymentStatus,
     resendReviewerMatchEmail: resendReviewerMatchEmail,
+    fetchReviewerAgents: fetchReviewerAgents,
+    fetchReviewerAgentDetail: fetchReviewerAgentDetail,
+    updateReviewerAgent: updateReviewerAgent,
+    requestAgentAssessmentUpdate: requestAgentAssessmentUpdate,
+    unmatchReviewerMatch: unmatchReviewerMatch,
     updateReviewerLocation: updateReviewerLocation,
     deleteReviewerLocation: deleteReviewerLocation,
     copyAssessmentLink: copyAssessmentLink,

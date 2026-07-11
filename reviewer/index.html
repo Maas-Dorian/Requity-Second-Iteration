@@ -50,6 +50,7 @@
             <button type="button" class="reviewer-tab is-active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
             <button type="button" class="reviewer-tab" data-tab="review" role="tab" aria-selected="false">Up for Review <span class="tab-count" id="tabcount-review" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="paired" role="tab" aria-selected="false">Paired Clients <span class="tab-count" id="tabcount-paired" hidden>0</span></button>
+            <button type="button" class="reviewer-tab" data-tab="agents" role="tab" aria-selected="false">Agents <span class="tab-count" id="tabcount-agents" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="payments" role="tab" aria-selected="false">Agent Payments <span class="tab-count" id="tabcount-payments" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="incomplete" role="tab" aria-selected="false">Incomplete <span class="tab-count" id="tabcount-incomplete" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="closed" role="tab" aria-selected="false">Closed <span class="tab-count" id="tabcount-closed" hidden>0</span></button>
@@ -152,13 +153,17 @@
                             <div class="desk-match">
                                 <div class="card desk-card" id="desk-current-match"></div>
                                 <div class="card desk-card desk-agents-card">
+                                    <!-- Selected agent + primary pair action (replaces the old sticky bottom bar) -->
+                                    <div id="desk-selected-card" class="desk-selected-card"></div>
                                     <div class="desk-agent-tools">
-                                        <input id="desk-agent-search" class="leads-search" type="search" placeholder="Search agents">
+                                        <input id="desk-agent-search" class="leads-search" type="search" placeholder="Search name, email, phone, market, archetype">
                                         <details class="desk-advanced">
                                             <summary>Advanced filters</summary>
                                             <label class="desk-toggle"><input type="checkbox" id="desk-hide-limited"> Hide limited fit agents</label>
+                                            <label class="desk-toggle"><input type="checkbox" id="desk-in-range-only"> Only show in-range agents</label>
                                         </details>
                                     </div>
+                                    <div id="desk-agent-count" class="desk-agent-count"></div>
                                     <div id="desk-agent-list" class="desk-agent-list"></div>
                                 </div>
                             </div>
@@ -184,14 +189,6 @@
                             </div>
                         </div>
 
-                        <!-- Sticky primary action bar -->
-                        <div class="desk-actionbar" id="desk-actionbar">
-                            <div class="desk-action-summary" id="desk-action-summary">No agent selected</div>
-                            <div class="desk-action-buttons">
-                                <button class="btn btn-outline btn-sm" id="desk-delete-btn" type="button" onclick="deleteActiveClient()">Delete from review</button>
-                                <button class="btn btn-primary" id="desk-primary-btn" type="button" disabled>Pair with selected agent</button>
-                            </div>
-                        </div>
                     </div>
                 </section>
             </main>
@@ -220,6 +217,59 @@
                 </div>
                 <p class="helper-text mb-3">Clients who have been matched and assigned to a real estate agent. One card per client, with a row for each side of the transaction.</p>
                 <div id="paired-list" class="leads-list"></div>
+            </section>
+        </section>
+
+        <!-- ===== Agents: Agent Control Center ===== -->
+        <section class="tab-panel" id="tab-agents" role="tabpanel" hidden>
+            <section class="section">
+                <h2 class="section-title">Agent Control Center</h2>
+                <p class="helper-text mb-3">Manage every agent from one place: location, archetype, payments, matches, assessment updates, and archiving.</p>
+
+                <div class="summary-row acc-summary" id="acc-summary">
+                    <div class="summary-card"><div class="summary-value" id="acc-count-total">0</div><div class="summary-label">Total agents</div></div>
+                    <div class="summary-card"><div class="summary-value" id="acc-count-active">0</div><div class="summary-label">Active agents</div></div>
+                    <div class="summary-card"><div class="summary-value" id="acc-count-unpaid">0</div><div class="summary-label">Unpaid agents</div></div>
+                    <div class="summary-card"><div class="summary-value" id="acc-count-noloc">0</div><div class="summary-label">Missing location</div></div>
+                    <div class="summary-card"><div class="summary-value" id="acc-count-noarch">0</div><div class="summary-label">Missing archetype</div></div>
+                    <div class="summary-card"><div class="summary-value" id="acc-count-matches">0</div><div class="summary-label">Active matches</div></div>
+                </div>
+
+                <div class="locations-filters acc-filters">
+                    <input id="acc-search" class="leads-search" type="search" placeholder="Search name, email, phone, market, archetype">
+                    <select id="acc-filter-payment" class="leads-select" aria-label="Filter by payment status">
+                        <option value="">All payment states</option>
+                        <option value="unpaid">Unpaid</option>
+                        <option value="invoice_sent">Invoice sent</option>
+                        <option value="paid">Paid</option>
+                        <option value="waived">Waived</option>
+                        <option value="refunded">Refunded</option>
+                        <option value="not_required">Not required</option>
+                    </select>
+                    <select id="acc-filter-location" class="leads-select" aria-label="Filter by location status">
+                        <option value="">All location states</option>
+                        <option value="missing">Missing location</option>
+                        <option value="complete">Has location</option>
+                    </select>
+                    <select id="acc-filter-archetype" class="leads-select" aria-label="Filter by archetype status">
+                        <option value="">All archetype states</option>
+                        <option value="missing">Missing archetype</option>
+                        <option value="complete">Has archetype</option>
+                    </select>
+                    <select id="acc-filter-status" class="leads-select" aria-label="Filter by agent status">
+                        <option value="active">Active agents</option>
+                        <option value="archived">Archived agents</option>
+                        <option value="">All agents</option>
+                    </select>
+                    <select id="acc-filter-matches" class="leads-select" aria-label="Filter by active matches">
+                        <option value="">Any match count</option>
+                        <option value="with">Has active matches</option>
+                        <option value="without">No active matches</option>
+                    </select>
+                </div>
+
+                <div id="acc-count-line" class="helper-text mb-3"></div>
+                <div id="acc-list" class="leads-list acc-list"></div>
             </section>
         </section>
 
@@ -547,6 +597,31 @@
         </div>
     </div>
 
+    <!-- Agent Control Center: agent detail drawer (right-side panel). -->
+    <div id="agent-drawer-overlay" class="drawer-overlay hidden">
+        <aside class="agent-drawer" role="dialog" aria-modal="true" aria-labelledby="agent-drawer-name">
+            <div class="agent-drawer-head">
+                <div>
+                    <h2 id="agent-drawer-name" class="section-title">Agent</h2>
+                    <div class="agent-drawer-sub" id="agent-drawer-sub"></div>
+                </div>
+                <button type="button" class="agent-drawer-close" id="agent-drawer-close" aria-label="Close">&times;</button>
+            </div>
+            <nav class="agent-drawer-tabs" id="agent-drawer-tabs" role="tablist" aria-label="Agent detail sections">
+                <button type="button" class="drawer-tab is-active" data-drawer-tab="summary">Summary</button>
+                <button type="button" class="drawer-tab" data-drawer-tab="matches">Matches</button>
+                <button type="button" class="drawer-tab" data-drawer-tab="assessment">Assessment</button>
+                <button type="button" class="drawer-tab" data-drawer-tab="location">Location</button>
+                <button type="button" class="drawer-tab" data-drawer-tab="payments">Payments</button>
+                <button type="button" class="drawer-tab" data-drawer-tab="notes">Notes</button>
+                <button type="button" class="drawer-tab drawer-tab-danger" data-drawer-tab="danger">Danger zone</button>
+            </nav>
+            <div class="agent-drawer-body" id="agent-drawer-body">
+                <div class="leads-empty">Loading agent…</div>
+            </div>
+        </aside>
+    </div>
+
     <!-- Generic reviewer confirmation modal (agent/client delete actions). -->
     <div id="confirm-modal" class="modal-overlay hidden">
         <div class="modal-card">
@@ -603,6 +678,7 @@
     <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
     <script src="../frontend/shared/api.js"></script>
     <script src="script.js"></script>
+    <script src="agents.js"></script>
 
     <!-- Auth gate: always require a real reviewer/admin Supabase session. -->
     <script>
@@ -986,7 +1062,7 @@
                 b.classList.toggle('is-active', on);
                 b.setAttribute('aria-selected', on ? 'true' : 'false');
             });
-            ['overview', 'review', 'paired', 'payments', 'incomplete', 'closed', 'locations', 'reference'].forEach(function (t) {
+            ['overview', 'review', 'paired', 'agents', 'payments', 'incomplete', 'closed', 'locations', 'reference'].forEach(function (t) {
                 var panel = document.getElementById('tab-' + t);
                 if (!panel) return;
                 var on = t === name;
@@ -1000,6 +1076,9 @@
             }
             if (name === 'payments' && typeof window.__reviewerLoadPayments === 'function') {
                 window.__reviewerLoadPayments();
+            }
+            if (name === 'agents' && typeof window.__reviewerLoadAgents === 'function') {
+                window.__reviewerLoadAgents();
             }
         }
 

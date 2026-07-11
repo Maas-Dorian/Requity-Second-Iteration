@@ -1505,6 +1505,15 @@
       </div>
 
       <section class="dashboard-view view-section active-view" id="dashboard-view">
+      <!-- Reviewer-requested assessment update banner (hidden unless flagged). -->
+      <div id="assessment-update-banner" hidden
+           style="display:none;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:#FFF6EC;border:1px solid #FFD9AE;border-radius:12px;padding:0.9rem 1.1rem;margin-bottom:1rem;">
+        <div style="min-width:220px;">
+          <strong style="color:#07366E;font-size:0.95rem;">REQUITY has requested an assessment update.</strong>
+          <div style="color:#4A607C;font-size:0.85rem;margin-top:0.15rem;">Updating your assessment keeps your archetype and client matching profile accurate.</div>
+        </div>
+        <a class="btn-secondary" href="assessment.html?retake=1" style="white-space:nowrap;">Update assessment</a>
+      </div>
       <div class="dashboard-grid">
         <div class="card card-wide">
           <div class="card-header"><h2>Client assessment link</h2></div>
@@ -2796,6 +2805,13 @@
         // Re-render the archetype from the authoritative dashboard payload.
         if (dash.agent && typeof window.__requityRenderAgentArchetype === 'function') {
           window.__requityRenderAgentArchetype(dash.agent);
+        }
+        // Reviewer-requested assessment update banner (reviewer-only flag).
+        var updateBanner = document.getElementById('assessment-update-banner');
+        if (updateBanner) {
+          var needsUpdate = !!(dash.agent && dash.agent.needsAssessmentUpdate);
+          updateBanner.hidden = !needsUpdate;
+          updateBanner.style.display = needsUpdate ? 'flex' : 'none';
         }
         // One delegated listener handles status changes in both the Client
         // Assessments and Closed grids (cards are re-rendered, so delegation is
