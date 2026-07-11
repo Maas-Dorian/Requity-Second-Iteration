@@ -52,6 +52,7 @@
             <button type="button" class="reviewer-tab" data-tab="paired" role="tab" aria-selected="false">Paired Clients <span class="tab-count" id="tabcount-paired" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="agents" role="tab" aria-selected="false">Agents <span class="tab-count" id="tabcount-agents" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="payments" role="tab" aria-selected="false">Agent Payments <span class="tab-count" id="tabcount-payments" hidden>0</span></button>
+            <button type="button" class="reviewer-tab" data-tab="updates" role="tab" aria-selected="false">Updates <span class="tab-count" id="tabcount-updates" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="incomplete" role="tab" aria-selected="false">Incomplete <span class="tab-count" id="tabcount-incomplete" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="closed" role="tab" aria-selected="false">Closed <span class="tab-count" id="tabcount-closed" hidden>0</span></button>
             <button type="button" class="reviewer-tab" data-tab="locations" role="tab" aria-selected="false">Locations</button>
@@ -270,6 +271,100 @@
 
                 <div id="acc-count-line" class="helper-text mb-3"></div>
                 <div id="acc-list" class="leads-list acc-list"></div>
+            </section>
+        </section>
+
+        <!-- ===== Updates (reviewer-managed agent announcements) ===== -->
+        <section class="tab-panel" id="tab-updates" role="tabpanel" hidden>
+            <section class="section">
+                <div class="leads-header">
+                    <h2 class="section-title">Announcements</h2>
+                    <button type="button" class="btn btn-primary btn-sm" id="ann-create-btn">Create announcement</button>
+                </div>
+                <p class="helper-text mb-3">Announcements appear to agents after they sign in. They never show on public pages, landing pages, or login screens.</p>
+
+                <div class="summary-row" id="ann-summary">
+                    <div class="summary-card"><div class="summary-value" id="ann-count-active">0</div><div class="summary-label">Active</div></div>
+                    <div class="summary-card"><div class="summary-value" id="ann-count-scheduled">0</div><div class="summary-label">Scheduled</div></div>
+                    <div class="summary-card"><div class="summary-value" id="ann-count-drafts">0</div><div class="summary-label">Drafts</div></div>
+                    <div class="summary-card"><div class="summary-value" id="ann-count-archived">0</div><div class="summary-label">Archived</div></div>
+                </div>
+
+                <!-- Create / edit form (hidden until Create or Edit is clicked). -->
+                <div id="ann-form-wrap" class="ann-form" hidden>
+                    <h3 class="drawer-section-title" id="ann-form-title" style="margin-top:0;">Create announcement</h3>
+                    <div class="ann-form-grid">
+                        <div class="form-group ann-span-2">
+                            <label class="detail-label" for="ann-title">Title</label>
+                            <input type="text" id="ann-title" class="form-input" maxlength="200" placeholder="New platform update">
+                        </div>
+                        <div class="form-group ann-span-2">
+                            <label class="detail-label" for="ann-body">Body</label>
+                            <textarea id="ann-body" class="form-input" rows="3" maxlength="4000" placeholder="Share a clear update agents should see after signing in."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="detail-label" for="ann-priority">Priority</label>
+                            <select id="ann-priority" class="form-input">
+                                <option value="info">Info</option>
+                                <option value="important">Important</option>
+                                <option value="urgent">Urgent</option>
+                                <option value="maintenance">Maintenance</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="detail-label" for="ann-audience">Audience</label>
+                            <select id="ann-audience" class="form-input">
+                                <option value="all_agents">All agents</option>
+                                <option value="selected_agents">Selected agents</option>
+                                <option value="unpaid_agents">Unpaid agents</option>
+                                <option value="missing_location_agents">Agents missing location</option>
+                                <option value="missing_archetype_agents">Agents missing archetype</option>
+                            </select>
+                        </div>
+                        <div class="form-group ann-span-2" id="ann-targets-wrap" hidden>
+                            <label class="detail-label" for="ann-target-search">Selected agents</label>
+                            <input type="search" id="ann-target-search" class="form-input" placeholder="Search agents by name or email">
+                            <div id="ann-target-list" class="ann-target-list"></div>
+                            <div class="helper-text" id="ann-target-count">0 agents selected</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="detail-label" for="ann-cta-label">CTA label (optional)</label>
+                            <input type="text" id="ann-cta-label" class="form-input" maxlength="80" placeholder="View details">
+                        </div>
+                        <div class="form-group">
+                            <label class="detail-label" for="ann-cta-url">CTA URL (optional)</label>
+                            <input type="text" id="ann-cta-url" class="form-input" maxlength="500" placeholder="/agent/dashboard.html">
+                        </div>
+                        <div class="form-group">
+                            <label class="detail-label" for="ann-starts">Start date (optional)</label>
+                            <input type="datetime-local" id="ann-starts" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="detail-label" for="ann-ends">End date (optional)</label>
+                            <input type="datetime-local" id="ann-ends" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="detail-label" for="ann-dismissible">Dismissible</label>
+                            <select id="ann-dismissible" class="form-input">
+                                <option value="yes">Yes, agents can dismiss it</option>
+                                <option value="no">No, keep it visible</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="ann-preview-wrap" hidden>
+                        <div class="drawer-section-title">Preview</div>
+                        <div id="ann-preview"></div>
+                    </div>
+                    <div id="ann-form-msg" class="drawer-msg"></div>
+                    <div class="drawer-actions">
+                        <button type="button" class="btn btn-primary btn-sm" id="ann-save-publish">Publish now</button>
+                        <button type="button" class="btn btn-outline btn-sm" id="ann-save-draft">Save as draft</button>
+                        <button type="button" class="btn btn-outline btn-sm" id="ann-preview-btn">Preview</button>
+                        <button type="button" class="btn btn-outline btn-sm" id="ann-cancel">Cancel</button>
+                    </div>
+                </div>
+
+                <div id="ann-list" class="leads-list"></div>
             </section>
         </section>
 
@@ -679,6 +774,7 @@
     <script src="../frontend/shared/api.js"></script>
     <script src="script.js"></script>
     <script src="agents.js"></script>
+    <script src="updates.js"></script>
 
     <!-- Auth gate: always require a real reviewer/admin Supabase session. -->
     <script>
@@ -1062,7 +1158,7 @@
                 b.classList.toggle('is-active', on);
                 b.setAttribute('aria-selected', on ? 'true' : 'false');
             });
-            ['overview', 'review', 'paired', 'agents', 'payments', 'incomplete', 'closed', 'locations', 'reference'].forEach(function (t) {
+            ['overview', 'review', 'paired', 'agents', 'payments', 'updates', 'incomplete', 'closed', 'locations', 'reference'].forEach(function (t) {
                 var panel = document.getElementById('tab-' + t);
                 if (!panel) return;
                 var on = t === name;
@@ -1079,6 +1175,9 @@
             }
             if (name === 'agents' && typeof window.__reviewerLoadAgents === 'function') {
                 window.__reviewerLoadAgents();
+            }
+            if (name === 'updates' && typeof window.__reviewerLoadUpdates === 'function') {
+                window.__reviewerLoadUpdates();
             }
         }
 

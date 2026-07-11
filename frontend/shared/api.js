@@ -820,6 +820,59 @@
     return apiPost("/reviewer/unmatch", { matchId: matchId });
   }
 
+  // --- Announcements (reviewer-managed Updates; agents only ever read) -----
+
+  /**
+   * Reviewer: full announcements list (drafts, scheduled, active, expired,
+   * archived) + summary counts. Requires reviewer auth.
+   */
+  async function fetchReviewerAnnouncements() {
+    var data = (await apiGet("/reviewer/announcements")) || {};
+    return {
+      announcements: data.announcements || [],
+      summary: data.summary || { active: 0, scheduled: 0, drafts: 0, archived: 0 },
+      announcementsTableAvailable: data.announcementsTableAvailable !== false,
+    };
+  }
+
+  /**
+   * Reviewer: create an announcement (draft, or publishNow: true).
+   * payload: { title, body, priority, audience, ctaLabel?, ctaUrl?,
+   *            dismissible?, startsAt?, endsAt?, targetAgentIds?, publishNow? }
+   */
+  async function createReviewerAnnouncement(payload) {
+    return apiPost("/reviewer/announcements", payload);
+  }
+
+  /** Reviewer: edit an existing announcement. payload must carry announcementId. */
+  async function updateReviewerAnnouncement(payload) {
+    return apiPatch("/reviewer/announcements", payload);
+  }
+
+  /** Reviewer: publish, unpublish, or archive. action: publish|unpublish|archive */
+  async function setReviewerAnnouncementStatus(announcementId, action) {
+    return apiPost("/reviewer/announcements", { announcementId: announcementId, action: action });
+  }
+
+  /** Reviewer: permanent removal (UI confirms first; prefer unpublish/archive). */
+  async function deleteReviewerAnnouncement(announcementId) {
+    return apiDelete("/reviewer/announcements", { announcementId: announcementId });
+  }
+
+  /**
+   * Agent: active announcements targeted to the logged-in agent (never public).
+   * Returns [] when there are none or the session has no agent record.
+   */
+  async function fetchAgentAnnouncements() {
+    var data = (await apiGet("/agent/announcements")) || {};
+    return data.announcements || [];
+  }
+
+  /** Agent: dismiss one dismissible announcement for this agent only. */
+  async function dismissAgentAnnouncement(announcementId) {
+    return apiPost("/agent/announcements", { announcementId: announcementId });
+  }
+
   // --- Auth (Supabase Auth via REST) -------------------------------------
   function requireSupabaseAuth() {
     var c = getSupabaseConfig();
@@ -1281,6 +1334,13 @@
     updateReviewerAgent: updateReviewerAgent,
     requestAgentAssessmentUpdate: requestAgentAssessmentUpdate,
     unmatchReviewerMatch: unmatchReviewerMatch,
+    fetchReviewerAnnouncements: fetchReviewerAnnouncements,
+    createReviewerAnnouncement: createReviewerAnnouncement,
+    updateReviewerAnnouncement: updateReviewerAnnouncement,
+    setReviewerAnnouncementStatus: setReviewerAnnouncementStatus,
+    deleteReviewerAnnouncement: deleteReviewerAnnouncement,
+    fetchAgentAnnouncements: fetchAgentAnnouncements,
+    dismissAgentAnnouncement: dismissAgentAnnouncement,
     updateReviewerLocation: updateReviewerLocation,
     deleteReviewerLocation: deleteReviewerLocation,
     copyAssessmentLink: copyAssessmentLink,

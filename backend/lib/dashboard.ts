@@ -7,6 +7,11 @@ import { isMissingTableError, updateWithSchemaFallback } from "./supabaseWrite.j
 import { attachClientReport } from "./clientReport.js";
 import { ensureAgentSlug } from "./agentSlug.js";
 import { logger } from "./logger.js";
+import {
+  normalizeAgentLegacyRecords,
+  inferLaneFromIntent,
+  DASH_LANE_LABELS,
+} from "./agentHistory.js";
 
 // ---------------------------------------------------------------------------
 // Client pipeline status (agent-controlled dashboard dropdown)
@@ -290,10 +295,20 @@ export type AgentDashboard = {
   }>;
   messages: NotificationRecord[];
   clientAssessmentDetail: any[];
-  /** Matched clients for this agent (live data; empty when none). */
+  /**
+   * Matched clients for this agent (live data; empty when none). Includes
+   * LEGACY records: superseded matches whose client was later re-assigned,
+   * reviewer-archived clients, and lead-only assessments tied to this agent.
+   * Legacy records carry isLegacy = true and pipelineStatus "legacy" so the
+   * dashboard can show them with a Legacy pill instead of hiding them.
+   */
   matches: Array<{
     id: string;
+    /** The source match_recommendations row id when known (legacy records). */
+    matchId: string | null;
     name: string;
+    clientEmail: string | null;
+    clientPhone: string | null;
     archetype: string | null;
     transaction: string | null;
     buyingMarket: string | null;
@@ -302,13 +317,17 @@ export type AgentDashboard = {
     fit: number | null;
     status: string;
     date: string | null;
-    /** Which side this agent covers: buying | selling | both | general | null. */
+    /** Which side this agent covers: buying | selling | both | general. */
     lane: string | null;
     laneLabel: string | null;
     /** When the active match was finalized (falls back to the client date). */
     receivedAt: string | null;
-    /** Agent-controlled pipeline status (potential/active/under_contract/closed). */
+    /** Pipeline status (potential/active/under_contract/closed) or "legacy". */
     pipelineStatus: string;
+    /** True for historical records restored for backward compatibility. */
+    isLegacy: boolean;
+    /** False when only partial data exists (older/lead-only assessments). */
+    hasFullAssessment: boolean;
   }>;
   /**
    * The agent's OWN payment status with REQUITY (agents are also REQUITY
@@ -558,6 +577,52 @@ export async function getAgentDashboard(
     }
   }
 
+  // --- Legacy history sources (backward compatibility) ----------------------
+  // Older client assessments reached this agent through match_recommendations
+  // rows (client later re-assigned elsewhere) or agent-linked assessment_leads
+  // that never became clients rows. Both are merged back in as legacy records
+  // so history never disappears. Each source is resilient: a missing table or
+  // drifted columns degrade to an empty list, never a crash.
+  let legacyMatchRows: any[] = [];
+  try {
+    const { data, error } = await supabase
+      .from("match_recommendations")
+      .select(
+        "id, client_id, lead_id, match_lane, status, score, created_at, finalized_at, " +
+          "clients(*), assessment_leads(*)"
+      )
+      .eq("agent_id", agentId)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (!error) legacyMatchRows = (data ?? []) as any[];
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      console.error("[dashboard] legacy match history load failed:", error);
+    }
+  }
+
+  let legacyLeadRows: any[] = [];
+  try {
+    const { data, error } = await supabase
+      .from("assessment_leads")
+      .select("*")
+      .eq("agent_id", agentId)
+      .eq("status", "completed")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (!error) legacyLeadRows = (data ?? []) as any[];
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      console.error("[dashboard] legacy lead history load failed:", error);
+    }
+  }
+
+  const legacyRecords = normalizeAgentLegacyRecords({
+    assignedClients: list,
+    matchRows: legacyMatchRows,
+    leadRows: legacyLeadRows,
+  });
+
   // The agent's OWN payment status with REQUITY (migration 0012). Resilient:
   // a missing table means "not set" and the dashboard loads normally.
   let agentPaymentStatus: { status: string; label: string; updatedAt: string | null } | null = null;
@@ -601,20 +666,28 @@ export async function getAgentDashboard(
     cleanCity(c.transaction_intent_label) ??
     (c.transaction_intent ? String(c.transaction_intent) : null);
 
-  // Matches: clients matched/assigned to this agent (all clients in `list` are
-  // assigned to this agent). Live data only, never fabricated.
-  const LANE_LABELS: Record<string, string> = {
-    buying: "Buying",
-    selling: "Selling",
-    both: "Buying and Selling",
-    general: "General",
+  // A reviewer-archived client must show as Legacy (never silently vanish);
+  // only truly deleted/abandoned rows stay hidden.
+  const isReviewerArchived = (c: any): boolean => {
+    const lifecycle = (c?.status ?? "").toString().trim().toLowerCase();
+    return lifecycle === "archived" || Boolean(c?.archived_at);
   };
+
+  // Matches: clients matched/assigned to this agent (all clients in `list` are
+  // assigned to this agent), PLUS legacy history records. Live data only.
   const matches = list.map((c) => {
     const laneInfo = laneByClient.get(c.id) ?? null;
     const pipeline = derivePipelineStatus(c);
+    // No active match row (older record): infer the lane from the client's
+    // transaction intent instead of leaving it blank.
+    const lane = laneInfo ? laneInfo.lane : inferLaneFromIntent(c.transaction_intent);
+    const legacy = pipeline === "hidden" && isReviewerArchived(c);
     return {
       id: c.id,
+      matchId: null as string | null,
       name: c.full_name,
+      clientEmail: cleanCity(c.email),
+      clientPhone: cleanCity(c.phone),
       archetype: c.archetype ?? null,
       transaction: txnLabel(c),
       buyingMarket: cleanCity(c.buying_market_city),
@@ -623,12 +696,38 @@ export async function getAgentDashboard(
       fit: fitByClient.has(c.id) ? fitByClient.get(c.id)! : null,
       status: c.status,
       date: c.updated_at ?? c.created_at ?? null,
-      lane: laneInfo ? laneInfo.lane : null,
-      laneLabel: laneInfo ? LANE_LABELS[laneInfo.lane] ?? "General" : null,
+      lane,
+      laneLabel: (DASH_LANE_LABELS as Record<string, string>)[lane] ?? "General",
       receivedAt: laneInfo?.receivedAt ?? c.created_at ?? null,
-      pipelineStatus: pipeline === "hidden" ? "potential" : pipeline,
+      pipelineStatus: legacy ? "legacy" : pipeline === "hidden" ? "potential" : pipeline,
+      isLegacy: legacy,
+      hasFullAssessment: Boolean(c.archetype),
     };
   });
+
+  for (const r of legacyRecords) {
+    matches.push({
+      id: (r.clientId ?? r.leadId ?? r.matchId ?? r.key) as string,
+      matchId: r.matchId,
+      name: r.client.full_name ?? "Unknown client",
+      clientEmail: cleanCity(r.client.email),
+      clientPhone: cleanCity(r.client.phone),
+      archetype: r.client.archetype ?? null,
+      transaction: txnLabel(r.client),
+      buyingMarket: cleanCity(r.client.buying_market_city),
+      sellingMarket: cleanCity(r.client.selling_market_city),
+      market: cleanCity(r.client.market_city),
+      fit: r.fit,
+      status: r.status,
+      date: r.receivedAt,
+      lane: r.lane,
+      laneLabel: r.laneLabel,
+      receivedAt: r.receivedAt,
+      pipelineStatus: "legacy",
+      isLegacy: true,
+      hasFullAssessment: r.hasFullAssessment,
+    });
+  }
 
   // Closings: status-based. `deal_status` / `close_date` may be absent on a
   // not-yet-migrated DB (select * simply omits them) → no closings, clean state.
@@ -672,10 +771,29 @@ export async function getAgentDashboard(
     // derived from the canonical archetype data (no extra DB columns required),
     // plus the agent-controlled `pipelineStatus` used to classify the card into
     // the Client Assessments vs Closed section (or hide abandoned/deleted rows).
-    clientAssessmentDetail: list.map((c) => ({
-      ...attachClientReport(c),
-      pipelineStatus: derivePipelineStatus(c),
-    })),
+    // Legacy records (re-assigned, reviewer-archived, or lead-only history) are
+    // appended with pipelineStatus "legacy" so old assessments never disappear.
+    clientAssessmentDetail: [
+      ...list.map((c) => {
+        const pipeline = derivePipelineStatus(c);
+        const legacy = pipeline === "hidden" && isReviewerArchived(c);
+        return {
+          ...attachClientReport(c),
+          pipelineStatus: legacy ? "legacy" : pipeline,
+          isLegacy: legacy,
+          hasFullAssessment: Boolean(c.archetype),
+        };
+      }),
+      ...legacyRecords.map((r) => ({
+        ...attachClientReport(r.client),
+        pipelineStatus: "legacy",
+        isLegacy: true,
+        hasFullAssessment: r.hasFullAssessment,
+        receivedAt: r.receivedAt,
+        legacyMatchId: r.matchId,
+        legacyLeadId: r.leadId,
+      })),
+    ],
     matches,
     agentPaymentStatus,
     closings,

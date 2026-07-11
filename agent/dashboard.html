@@ -1505,6 +1505,9 @@
       </div>
 
       <section class="dashboard-view view-section active-view" id="dashboard-view">
+      <!-- REQUITY updates and announcements (authenticated agents only; fetched
+           after login, never rendered on public pages). -->
+      <div id="agent-announcements" style="margin-bottom:1rem;"></div>
       <!-- Reviewer-requested assessment update banner (hidden unless flagged). -->
       <div id="assessment-update-banner" hidden
            style="display:none;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:#FFF6EC;border:1px solid #FFD9AE;border-radius:12px;padding:0.9rem 1.1rem;margin-bottom:1rem;">
@@ -1622,6 +1625,7 @@
           <button type="button" class="match-tab" data-match-filter="closed">Closed</button>
           <button type="button" class="match-tab" data-match-filter="buying">Buying</button>
           <button type="button" class="match-tab" data-match-filter="selling">Selling</button>
+          <button type="button" class="match-tab" data-match-filter="legacy">Legacy</button>
         </div>
         <div class="deal-list" id="matches-list">
           <p class="card-desc" id="matches-empty">No client matches yet.</p>
@@ -2382,6 +2386,7 @@
         const s = (c && c.pipelineStatus ? String(c.pipelineStatus) : '').toLowerCase();
         if (PIPELINE_VALID.indexOf(s) !== -1) return s;
         if (s === 'hidden') return 'hidden';
+        if (s === 'legacy' || (c && c.isLegacy)) return 'legacy';
         return 'potential';
       }
 
@@ -2402,17 +2407,28 @@
       // "View details" accordion.
       function buildClientCard(c) {
         const current = clientPipelineStatus(c);
+        const isLegacy = current === 'legacy';
         const isReviewer = c.source === 'requity_reviewer';
         const badge = isReviewer ? '<span class="requity-match-badge">REQUITY Client Match</span>' : '';
-        const sourceText = isReviewer ? 'Received from REQUITY reviewer' : 'QR code client, stays in dashboard';
+        const sourceText = isLegacy
+          ? 'Older assessment kept for your records'
+          : isReviewer ? 'Received from REQUITY reviewer' : 'QR code client, stays in dashboard';
         const closedAt = (current === 'closed' && c.close_date)
           ? '<div><span>Closed date</span><strong>' + esc(new Date(c.close_date).toLocaleDateString()) + '</strong></div>'
+          : '';
+        // Legacy records are read-only history: a Legacy pill replaces the
+        // pipeline status dropdown (the client may no longer be assigned here).
+        const statusControl = isLegacy
+          ? '<span class="status-badge neutral">Legacy assessment</span>'
+          : statusSelectHtml(c, current);
+        const partialNote = (isLegacy && c.hasFullAssessment === false)
+          ? '<p class="card-desc">Some details are unavailable for this older assessment.</p>'
           : '';
         return (
           '<article class="client-detail-card" data-client-id="' + esc(String(c.id || '')) + '" data-pipeline="' + current + '">' +
             '<div class="client-card-top">' +
               '<div><h3>' + esc(c.full_name) + '</h3><p>Client archetype: <strong>' + esc(c.archetype || 'Pending') + '</strong></p></div>' +
-              '<div class="client-status-stack">' + badge + statusSelectHtml(c, current) + '</div>' +
+              '<div class="client-status-stack">' + badge + statusControl + '</div>' +
             '</div>' +
             '<div class="client-meta-grid">' +
               '<div><span>Transaction</span><strong>' + esc(clientTransactionText(c)) + '</strong></div>' +
@@ -2420,6 +2436,7 @@
               '<div><span>Source</span><strong>' + sourceText + '</strong></div>' +
               closedAt +
             '</div>' +
+            partialNote +
             '<details class="client-report-details">' +
               '<summary>View details</summary>' +
               buildClientReportHtml(c) +
@@ -2441,7 +2458,7 @@
           const s = clientPipelineStatus(c);
           if (s === 'hidden') return;
           if (s === 'closed') closed.push(c);
-          else active.push(c);
+          else active.push(c); // 'legacy' stays visible in the main section
         });
 
         if (grid) {
@@ -2582,6 +2599,7 @@
 
       function matchPipeline(m) {
         const s = String(m && m.pipelineStatus || '').toLowerCase();
+        if (s === 'legacy' || (m && m.isLegacy)) return 'legacy';
         return PIPELINE_VALID.indexOf(s) !== -1 ? s : 'potential';
       }
 
@@ -2591,6 +2609,7 @@
         if (filter === 'new') return s === 'potential';
         if (filter === 'active') return s === 'active' || s === 'under_contract';
         if (filter === 'closed') return s === 'closed';
+        if (filter === 'legacy') return s === 'legacy';
         if (filter === 'buying') return lane === 'buying' || lane === 'both';
         if (filter === 'selling') return lane === 'selling' || lane === 'both';
         return true;
@@ -2609,9 +2628,11 @@
 
       function buildMatchCard(m) {
         const pipeline = matchPipeline(m);
-        const pipelineBadge = '<span class="status-badge ' +
-          (pipeline === 'closed' ? 'neutral' : pipeline === 'potential' ? 'pending' : 'success') + '">' +
-          esc(PIPELINE_LABELS[pipeline] || 'Potential') + '</span>';
+        const pipelineBadge = pipeline === 'legacy'
+          ? '<span class="status-badge neutral">Legacy</span>'
+          : '<span class="status-badge ' +
+            (pipeline === 'closed' ? 'neutral' : pipeline === 'potential' ? 'pending' : 'success') + '">' +
+            esc(PIPELINE_LABELS[pipeline] || 'Potential') + '</span>';
         const laneChip = '<span class="deal-chip lane">' + esc(m.laneLabel || 'General') + '</span>';
         const when = m.receivedAt ? new Date(m.receivedAt).toLocaleDateString() : '';
         const fit = (m.fit !== null && m.fit !== undefined)
@@ -2622,9 +2643,11 @@
           matchMarketChips(m) +
           fit +
           pipelineBadge;
+        const partialNote = (m.hasFullAssessment === false)
+          ? '<div class="deal-sub">Some details are unavailable for this older assessment.</div>' : '';
         return '<div class="deal-card" data-match-client-id="' + esc(String(m.id || '')) + '">' +
           '<div class="deal-main"><div class="deal-name">' + esc(m.name || 'Unknown client') + '</div>' +
-          (when ? '<div class="deal-sub">Received ' + esc(when) + '</div>' : '') + '</div>' +
+          (when ? '<div class="deal-sub">Received ' + esc(when) + '</div>' : '') + partialNote + '</div>' +
           '<div class="deal-meta">' + meta + '</div>' +
           '<div class="deal-actions">' +
             '<button type="button" class="btn-secondary btn-sm" data-open-assessment="' + esc(String(m.id || '')) + '">View assessment</button>' +
@@ -2672,7 +2695,17 @@
       // section, expand the report, and briefly highlight the card.
       function openClientAssessment(clientId) {
         if (!clientId) return;
-        const item = __clientsCache.find((x) => String(x.id) === String(clientId));
+        let item = __clientsCache.find((x) => String(x.id) === String(clientId));
+        if (!item) {
+          // Older deep links may carry a match id or lead/assessment id instead
+          // of a client id; resolve through the match history before giving up.
+          const viaMatch = __matchesCache.find((m) =>
+            String(m.matchId || '') === String(clientId) || String(m.id) === String(clientId));
+          if (viaMatch) {
+            clientId = viaMatch.id;
+            item = __clientsCache.find((x) => String(x.id) === String(clientId));
+          }
+        }
         const status = item ? clientPipelineStatus(item) : 'potential';
         switchView(status === 'closed' ? 'closings-view' : 'clients-view');
         // The card is rendered synchronously; find it after the view switch.
@@ -3197,6 +3230,87 @@
           });
         }
       };
+    })();
+  </script>
+
+  <!-- REQUITY updates and announcements banner (authenticated agents only).
+       Fetched after the session is known; failures never affect the dashboard. -->
+  <script>
+    (function () {
+      var wrap = document.getElementById('agent-announcements');
+      if (!wrap || !window.RequityAPI || !window.RequityAPI.fetchAgentAnnouncements) return;
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+
+      // Priority styles: info calm navy, important orange accent, urgent strong
+      // but not alarming, maintenance neutral gray/navy.
+      var STYLES = {
+        info: { bg: '#F2F6FC', border: '#C9D9F0', accent: '#07366E' },
+        important: { bg: '#FFF6EC', border: '#FFD9AE', accent: '#B45309' },
+        urgent: { bg: '#FDF1F0', border: '#F2C4C0', accent: '#9C2A21' },
+        maintenance: { bg: '#F4F5F7', border: '#D7DCE3', accent: '#3D4C60' }
+      };
+
+      var items = [];
+      var expanded = false;
+
+      function bannerHtml(a) {
+        var c = STYLES[a.priority] || STYLES.info;
+        var cta = (a.ctaLabel && a.ctaUrl)
+          ? '<a href="' + esc(a.ctaUrl) + '" class="btn-outline btn-sm" style="text-decoration:none;white-space:nowrap;">' + esc(a.ctaLabel) + '</a>'
+          : '';
+        var dismiss = a.dismissible !== false
+          ? '<button type="button" data-ann-dismiss="' + esc(a.id) + '" aria-label="Dismiss update" ' +
+            'style="background:none;border:none;font-size:1.15rem;line-height:1;cursor:pointer;color:' + c.accent + ';padding:0 0.15rem;">&times;</button>'
+          : '';
+        return '<div data-ann-banner="' + esc(a.id) + '" style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.9rem;' +
+          'background:' + c.bg + ';border:1px solid ' + c.border + ';border-radius:12px;padding:0.85rem 1rem;margin-bottom:0.6rem;">' +
+          '<div style="min-width:0;">' +
+            '<strong style="color:' + c.accent + ';font-size:0.95rem;display:block;">' + esc(a.title) + '</strong>' +
+            '<div style="color:#4A607C;font-size:0.85rem;margin-top:0.2rem;white-space:pre-line;">' + esc(a.body) + '</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:0.5rem;flex-shrink:0;">' + cta + dismiss + '</div>' +
+        '</div>';
+      }
+
+      function render() {
+        if (!items.length) { wrap.innerHTML = ''; return; }
+        // Highest priority first (already sorted by the API); show the first
+        // banner and collapse the rest behind "View all updates".
+        var visible = expanded ? items : items.slice(0, 1);
+        var more = items.length - 1;
+        var toggle = (!expanded && more > 0)
+          ? '<button type="button" data-ann-expand="1" class="btn-outline btn-sm" style="margin-bottom:0.6rem;">View all updates (' + items.length + ')</button>'
+          : '';
+        wrap.innerHTML = visible.map(bannerHtml).join('') + toggle;
+      }
+
+      wrap.addEventListener('click', function (ev) {
+        var expandBtn = ev.target.closest ? ev.target.closest('[data-ann-expand]') : null;
+        if (expandBtn) { expanded = true; render(); return; }
+        var dismissBtn = ev.target.closest ? ev.target.closest('[data-ann-dismiss]') : null;
+        if (!dismissBtn) return;
+        var id = dismissBtn.getAttribute('data-ann-dismiss');
+        dismissBtn.disabled = true;
+        window.RequityAPI.dismissAgentAnnouncement(id).then(function () {
+          items = items.filter(function (a) { return a.id !== id; });
+          render();
+        }).catch(function () {
+          dismissBtn.disabled = false;
+        });
+      });
+
+      // Fetch after the page settles so the main dashboard request goes first.
+      window.addEventListener('load', function () {
+        window.RequityAPI.fetchAgentAnnouncements().then(function (list) {
+          items = Array.isArray(list) ? list : [];
+          render();
+        }).catch(function () { /* announcements are optional; stay silent */ });
+      });
     })();
   </script>
 </body>
