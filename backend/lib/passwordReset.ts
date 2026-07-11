@@ -1,11 +1,13 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
-import { sendAppEmail, EMAIL_SUBJECTS } from "./email.js";
+import { sendAppEmail, EMAIL_SUBJECTS, resolveEmailProvider } from "./email.js";
 import {
   buildRequityEmailHtml,
   buildPlainTextEmail,
   getPublicSiteUrl,
 } from "./emailTemplate.js";
+import { getOptionalEnv } from "./env.js";
+import { isMissingTableError } from "./supabaseWrite.js";
 
 /**
  * REQUITY-owned password reset flow (server-side ONLY).
@@ -36,6 +38,45 @@ function logReset(tag: string, fields: Record<string, unknown>): void {
     console.log(tag, JSON.stringify(fields));
   } catch {
     console.log(tag, fields);
+  }
+}
+
+/** Mask an email for logs: "j***@example.com". Never logs the full local part. */
+function maskEmail(email: string): string {
+  const at = email.indexOf("@");
+  if (at <= 0) return "***";
+  return `${email[0]}***@${email.slice(at + 1)}`;
+}
+
+/**
+ * Log (server-side only) which env vars the reset email flow depends on are
+ * missing. SENDGRID_SENDER_EMAIL / _NAME and the site URL have safe code
+ * defaults, so only the hard requirements are treated as blocking. Never
+ * exposes any value; names only.
+ */
+export function logPasswordResetConfig(): void {
+  const missing: string[] = [];
+  if (!getOptionalEnv("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "VITE_SUPABASE_URL")) {
+    missing.push("SUPABASE_URL");
+  }
+  if (!getOptionalEnv("SUPABASE_SERVICE_ROLE_KEY")) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (resolveEmailProvider() === "sendgrid" && !getOptionalEnv("SENDGRID_API_KEY")) {
+    missing.push("SENDGRID_API_KEY");
+  }
+  if (missing.length) {
+    console.error(`password-reset:missing-env ${missing.join(", ")}`);
+  }
+  const optionalMissing: string[] = [];
+  if (!getOptionalEnv("SENDGRID_SENDER_EMAIL")) optionalMissing.push("SENDGRID_SENDER_EMAIL");
+  if (!getOptionalEnv("SENDGRID_SENDER_NAME")) optionalMissing.push("SENDGRID_SENDER_NAME");
+  if (!getOptionalEnv("PUBLIC_SITE_URL", "VERCEL_FRONTEND_URL")) {
+    optionalMissing.push("PUBLIC_SITE_URL|VERCEL_FRONTEND_URL");
+  }
+  if (optionalMissing.length) {
+    logReset("PASSWORD_RESET_CONFIG", {
+      usingDefaultsFor: optionalMissing,
+      provider: resolveEmailProvider(),
+    });
   }
 }
 
@@ -129,13 +170,14 @@ export async function requestPasswordReset(params: RequestPasswordResetParams): 
 
   const userId = await findAuthUserIdByEmail(email);
   if (!userId) {
-    logReset("PASSWORD_RESET_REQUESTED", { userFound: false });
+    logReset("PASSWORD_RESET_REQUESTED", { userFound: false, email: maskEmail(email) });
     return;
   }
 
   const rawToken = generateRawToken();
   const tokenHash = sha256Hex(rawToken);
-  const expiresAt = new Date(Date.now() + TOKEN_TTL_MINUTES * 60_000).toISOString();
+  const createdAtMs = Date.now();
+  const expiresAt = new Date(createdAtMs + TOKEN_TTL_MINUTES * 60_000).toISOString();
 
   // Safest simple policy: a new request invalidates all older unused tokens
   // for this user, so exactly one reset link is live at a time.
@@ -159,32 +201,58 @@ export async function requestPasswordReset(params: RequestPasswordResetParams): 
     .single();
 
   if (insertError || !inserted?.id) {
+    // A missing table means migration 0013 was never applied to the live DB;
+    // without the token row no reset email can be sent, so make the fix
+    // unmissable in the logs.
+    if (insertError && isMissingTableError(insertError)) {
+      console.error(
+        `password-reset:missing-table ${TOKENS_TABLE}. ` +
+          "Run backend/supabase/migrations/0013_auth_password_reset_tokens.sql " +
+          "in the Supabase SQL Editor. No reset email was sent."
+      );
+    }
     logReset("PASSWORD_RESET_TOKEN_INSERT_FAILED", {
       userFound: true,
-      detail: insertError?.message ?? "no row returned",
+      email: maskEmail(email),
+      tokenCreated: false,
+      detail: (insertError?.message ?? "no row returned").slice(0, 200),
     });
     return;
   }
 
   const resetUrl = `${getPublicSiteUrl()}/agent/update-password.html?token=${encodeURIComponent(rawToken)}`;
   const { html, text } = buildResetEmail(resetUrl);
+  let resetUrlHost = "";
+  try {
+    resetUrlHost = new URL(resetUrl).host;
+  } catch {
+    /* host stays empty for logs */
+  }
 
   const result = await sendAppEmail({
     eventType: "password_reset_requested",
-    // Keyed by the token ROW id (a uuid), never the raw token or its hash.
-    eventKey: `password_reset_requested:${inserted.id}`,
+    // Unique per REQUEST: token row id (uuid) + creation timestamp. Never the
+    // raw token or its hash, and never a static per-email key, so repeated
+    // reset requests are never blocked by dedupe.
+    eventKey: `password_reset_requested:${inserted.id}:${createdAtMs}`,
     to: email,
     subject: EMAIL_SUBJECTS.passwordReset,
     html,
     text,
     tags: ["auth", "password-reset"],
-    metadata: { tokenRowId: inserted.id },
+    metadata: { userId, tokenId: inserted.id, purpose: "password_reset" },
   });
 
   logReset("PASSWORD_RESET_REQUESTED", {
     userFound: true,
-    emailStatus: result.status,
+    email: maskEmail(email),
+    tokenCreated: true,
     tokenRowId: inserted.id,
+    resetUrlHost,
+    emailStatus: result.status,
+    emailHttpStatus: result.httpStatus,
+    hasProviderMessageId: Boolean(result.messageId),
+    emailError: result.errorMessage,
   });
 }
 

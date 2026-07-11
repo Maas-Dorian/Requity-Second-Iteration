@@ -10,7 +10,10 @@ import {
   isValidEmail,
 } from "../_lib/http.js";
 import { checkRateLimit } from "../../backend/lib/rateLimit.js";
-import { requestPasswordReset } from "../../backend/lib/passwordReset.js";
+import {
+  requestPasswordReset,
+  logPasswordResetConfig,
+} from "../../backend/lib/passwordReset.js";
 
 /**
  * POST /api/auth/request-password-reset
@@ -32,6 +35,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   await runHandler(req, res, async () => {
     ensureMethod(req, "POST");
     assertPayloadSize(req);
+
+    console.log(`api:start ${ROUTE}`);
+    // Server-side only: logs "password-reset:missing-env <names>" when the
+    // flow cannot possibly send (never surfaced to the frontend).
+    logPasswordResetConfig();
 
     const ip = getClientIp(req);
     const ipLimit = checkRateLimit(ip, "password_reset_request");
