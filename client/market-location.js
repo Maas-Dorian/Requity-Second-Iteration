@@ -86,7 +86,7 @@
         banner.setAttribute("aria-label", "See REQUITY in your market");
         banner.innerHTML =
             '<h3>See REQUITY in your market</h3>' +
-            '<p>REQUITY can use your location to show the most relevant local page and help personalize your agent matching experience. You can also continue without sharing your location.</p>' +
+            '<p>REQUITY can use your location to show the most relevant local page and support your agent matching experience. You can also continue without sharing your location.</p>' +
             '<p class="mlb-privacy">We only use this to route you to a relevant REQUITY market page. You can continue without sharing.</p>' +
             '<div class="mlb-actions">' +
             '<button type="button" class="mlb-primary">Use my location</button>' +
