@@ -328,6 +328,8 @@ export type AgentDashboard = {
     isLegacy: boolean;
     /** False when only partial data exists (older/lead-only assessments). */
     hasFullAssessment: boolean;
+    /** True when the client answered the final expectations questions. */
+    hasClientExpectations: boolean;
   }>;
   /**
    * The agent's OWN payment status with REQUITY (agents are also REQUITY
@@ -702,6 +704,9 @@ export async function getAgentDashboard(
       pipelineStatus: legacy ? "legacy" : pipeline === "hidden" ? "potential" : pipeline,
       isLegacy: legacy,
       hasFullAssessment: Boolean(c.archetype),
+      hasClientExpectations: Boolean(
+        cleanCity(c.appreciation_style) || cleanCity(c.agent_expectations_notes)
+      ),
     };
   });
 
@@ -726,6 +731,9 @@ export async function getAgentDashboard(
       pipelineStatus: "legacy",
       isLegacy: true,
       hasFullAssessment: r.hasFullAssessment,
+      hasClientExpectations: Boolean(
+        cleanCity(r.client.appreciation_style) || cleanCity(r.client.agent_expectations_notes)
+      ),
     });
   }
 

@@ -23,6 +23,7 @@ import {
   type ClientArchetypeResult,
 } from "../../backend/lib/clientAssessments.js";
 import { checkRateLimit } from "../../backend/lib/rateLimit.js";
+import { APPRECIATION_STYLE_VALUES } from "../../backend/lib/clientReport.js";
 import { logApiStart, logValidationFailure, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "client-assessment/submit";
@@ -182,6 +183,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const sellingMarketState = stateField("sellingMarketState");
     const marketState = stateField("marketState");
 
+    // --- Final assessment questions (never scored) -----------------------
+    // appreciation_style: optional for backward compatibility with in-flight
+    // sessions on the previous question set, but when present it must be one
+    // of the five approved values.
+    const appreciationRaw =
+      optionalString(body, "appreciationStyle") ??
+      optionalString(body, "appreciation_style") ??
+      null;
+    let appreciationStyle: string | null = null;
+    if (appreciationRaw) {
+      const normalized = appreciationRaw.trim().toLowerCase();
+      if (!(APPRECIATION_STYLE_VALUES as readonly string[]).includes(normalized)) {
+        logValidationFailure(ROUTE, "invalid_appreciation_style", {});
+        throw new HttpError(400, "Invalid appreciation style selection.");
+      }
+      appreciationStyle = normalized;
+    }
+
+    // agent_expectations_notes: optional long-form text. Trim outer whitespace
+    // only (line breaks inside the answer are preserved), max 5,000 characters.
+    const notesValue = body["agentExpectationsNotes"] ?? body["agent_expectations_notes"];
+    let agentExpectationsNotes: string | null = null;
+    if (notesValue !== null && notesValue !== undefined && notesValue !== "") {
+      if (typeof notesValue !== "string") {
+        logValidationFailure(ROUTE, "invalid_agent_expectations_notes", {});
+        throw new HttpError(400, "Invalid expectations text.");
+      }
+      const trimmed = notesValue.trim();
+      if (trimmed.length > 5000) {
+        logValidationFailure(ROUTE, "agent_expectations_notes_too_long", {
+          length: trimmed.length,
+        });
+        throw new HttpError(400, "Expectations text must be 5,000 characters or fewer.");
+      }
+      agentExpectationsNotes = trimmed || null;
+    }
+
     try {
       const result = await submitClientAssessmentWithContact({
         token,
@@ -202,6 +240,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         buyingMarketState,
         sellingMarketState,
         marketState,
+        appreciationStyle,
+        agentExpectationsNotes,
       });
       sendJson(res, 200, result);
     } catch (error) {

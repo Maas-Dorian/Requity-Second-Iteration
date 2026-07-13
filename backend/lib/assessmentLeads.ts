@@ -292,6 +292,9 @@ export type CompleteAssessmentLeadInput = {
   sellingLatitude?: number | null;
   sellingLongitude?: number | null;
   locationNormalized?: string | null;
+  /** Final assessment questions (metadata, never scored). */
+  appreciationStyle?: string | null;
+  agentExpectationsNotes?: string | null;
 };
 
 /**
@@ -349,6 +352,8 @@ export async function completeAssessmentLead(
   setIf("selling_latitude", input.sellingLatitude);
   setIf("selling_longitude", input.sellingLongitude);
   setIf("location_normalized", input.locationNormalized);
+  setIf("appreciation_style", input.appreciationStyle);
+  setIf("agent_expectations_notes", input.agentExpectationsNotes);
   if (Object.keys(locationPatch).length) {
     try {
       await updateWithSchemaFallback("assessment_leads", locationPatch, { column: "id", value: lead.id });

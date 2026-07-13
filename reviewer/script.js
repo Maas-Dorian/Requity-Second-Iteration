@@ -346,10 +346,21 @@ document.addEventListener('DOMContentLoaded', () => {
             '</div>';
 
         if (!r || (!g && !buyer && !seller)) {
+            // Legacy/unknown-archetype records: still show the relationship
+            // preferences when the client answered the final questions.
+            var legacyValued = r ? (r.appreciationStyleLabel || r.appreciationStyle) : null;
+            var legacyNotes = r ? (r.agentExpectationsNotes || r.expectationsOrQuestions) : null;
+            var legacyPrefs =
+                '<div class="report-section"><h4>Agent Relationship Preferences</h4>' +
+                    '<span class="report-subhead">How they feel valued</span>' +
+                    '<p class="report-text">' + esc(legacyValued || 'Not answered') + '</p>' +
+                    '<span class="report-subhead">Expectations, questions, and additional information</span>' +
+                    '<p class="report-text" style="white-space:pre-line;">' + esc(legacyNotes || 'Not answered') + '</p>' +
+                '</div>';
             return '<div class="client-report">' + contact +
                 '<div class="report-section"><h4>Relational Roadmap</h4>' +
                     '<p class="report-text">Detailed guidance is not available for this client yet.</p>' +
-                '</div></div>';
+                '</div>' + legacyPrefs + '</div>';
         }
 
         const afterBullets = (r.whatThisClientIsAfter && r.whatThisClientIsAfter.length)
@@ -397,16 +408,23 @@ document.addEventListener('DOMContentLoaded', () => {
             [{ label: 'Approaches to Avoid', items: g ? (g.communication && g.communication.avoid) : null }]
         );
 
-        const appreciation = (r.appreciationStyle)
-            ? '<div class="report-section"><h4>Client\'s Appreciation Style</h4><p class="report-text">' + esc(r.appreciationStyle) + '</p></div>'
-            : '';
-        const expectations =
-            '<div class="report-section"><h4>Client\'s Expectations &amp; Questions</h4><p class="report-text">' +
-            esc(r.expectationsOrQuestions || 'No additional expectations provided') + '</p></div>';
+        // Agent Relationship Preferences: the two final assessment questions.
+        // Old assessments without these answers show "Not answered" (never hidden,
+        // never an error). Line breaks in the written response are preserved.
+        const valuedLabel = r.appreciationStyleLabel || r.appreciationStyle || 'Not answered';
+        const expectationsText = r.agentExpectationsNotes || r.expectationsOrQuestions || '';
+        const relationshipPrefs =
+            '<div class="report-section"><h4>Agent Relationship Preferences</h4>' +
+                '<span class="report-subhead">How they feel valued</span>' +
+                '<p class="report-text">' + esc(valuedLabel) + '</p>' +
+                '<span class="report-subhead">Expectations, questions, and additional information</span>' +
+                '<p class="report-text" style="white-space:pre-line;">' +
+                    esc(expectationsText || 'Not answered') + '</p>' +
+            '</div>';
 
         return '<div class="client-report">' + contact + after +
             '<div class="report-grid">' + buyerSection + sellerSection + '</div>' +
-            simultaneousSection + commSection + appreciation + expectations +
+            simultaneousSection + commSection + relationshipPrefs +
             '</div>';
     }
 
@@ -503,12 +521,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     '<div class="queue-info">' +
                         '<h3>' + esc(client.name) + '</h3>' +
                         '<div class="queue-meta">' + esc(client.transaction) + ' &middot; ' + esc(client.market) + ' &middot; ' + esc(client.archetype) + '</div>' +
+                        compactPrefsHtml(client) +
                         laneStatusHtml(client) +
                     '</div>' +
                     statusPillHtml(client.pipelineStatus) +
                 '</div>';
             elQueueList.insertAdjacentHTML('beforeend', html);
         });
+    }
+
+    // Compact relationship-preference indicators (queue cards only; the full
+    // open-ended response is intentionally reserved for View full assessment).
+    function compactPrefsHtml(client) {
+        var r = client && client.report;
+        if (!r) return '';
+        var bits = [];
+        var label = r.appreciationStyleLabel || null;
+        if (label) bits.push('Appreciation: ' + esc(label));
+        if (r.agentExpectationsNotes || r.expectationsOrQuestions) bits.push('Additional expectations provided');
+        if (!bits.length) return '';
+        return '<div class="queue-meta" style="margin-top:0.2rem;">' + bits.join(' &bull; ') + '</div>';
     }
 
     // Lane summary for buying-and-selling clients still in the queue (Part 5):
@@ -1342,6 +1374,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         var agentsLine = agentsInvolvedLine(entries);
 
+        // Compact relationship-preference indicators. The full open-ended
+        // response is only shown in the full assessment view, never here.
+        var prefBits = [];
+        if (first.appreciationStyleLabel) prefBits.push('Appreciation: ' + esc(first.appreciationStyleLabel));
+        if (first.hasExpectationsNotes) prefBits.push('Additional expectations provided');
+        var prefsLine = prefBits.length
+            ? '<div class="paired-agents-line">' + prefBits.join(' &middot; ') + '</div>'
+            : '';
+
         var detailBits = g.rows.map(function (p) {
             var bits = [];
             bits.push('<strong>' + esc(p.matchLaneLabel || 'General') + '</strong>: ' + esc(p.agentName || 'Unknown agent'));
@@ -1362,6 +1403,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 '</div>' +
             '</div>' +
             (agentsLine ? '<div class="paired-agents-line">' + agentsLine + '</div>' : '') +
+            prefsLine +
             '<div class="paired-lane-rows">' + laneRows + '</div>' +
             transactionTeamHtml(entries) +
             '<div class="paired-actions">' +

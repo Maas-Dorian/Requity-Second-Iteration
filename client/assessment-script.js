@@ -172,6 +172,35 @@ const consumerAssessmentQuestions = [
       { value: "right_choice", text: "I made the right choice.", description: "This decision will serve me well" },
       { value: "stress_free", text: "The process was stress-free.", description: "I felt supported throughout" }
     ]
+  },
+  // --- Final questions (metadata only, NEVER included in archetype scoring).
+  // These two questions must stay at the absolute end of the assessment:
+  // appreciation_style is second-to-last, agent_expectations_notes is last.
+  // scripts/qa-assessment-order.cjs fails the build check if this order breaks.
+  {
+    id: 17,
+    field: "appreciation_style",
+    progressLabel: "Appreciation Style",
+    question: "I\u2019d like to understand how you most appreciate being recognized and valued during this journey. Which of these resonates most with you?",
+    note: "Select the option that feels most meaningful. There is no wrong answer.",
+    options: [
+      { value: "uplifting_words", text: "Uplifting Words", description: "Recognition through sincere encouragement, positive feedback, or thoughtful praise. You feel seen when your achievements or progress are genuinely acknowledged." },
+      { value: "proactive_assistance", text: "Proactive Assistance", description: "Appreciation shown by anticipating needs and stepping in to help with details, obstacles, or next steps." },
+      { value: "memorable_gestures", text: "Memorable Gestures", description: "Recognition through thoughtful gestures or small meaningful moments that demonstrate care and attention." },
+      { value: "dedicated_attention", text: "Dedicated Attention", description: "Feeling valued when your agent invests focused time, listens carefully, remains present, and follows through thoughtfully." },
+      { value: "personalized_celebrations", text: "Personalized Celebrations", description: "Recognition through personal touches that celebrate milestones and make important moments feel meaningful." }
+    ]
+  },
+  {
+    id: 18,
+    field: "agent_expectations_notes",
+    type: "textarea",
+    optional: true,
+    progressLabel: "Expectations and Additional Information",
+    question: "What are your expectations from me as your agent? Do you have questions about the process? Is there anything else I need to know?",
+    note: "This is your opportunity to share any additional thoughts, questions, or expectations that have not been covered in the assessment.",
+    placeholder: "Share your thoughts, questions, or any special requirements...",
+    maxLength: 5000
   }
 ];
 
@@ -186,7 +215,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {}
 
     // --- State ---
-    let currentStepIndex = -1; // -1 = Contact Info, 0-15 = Questions, 16 = Final Page
+    // -1 = Contact Info, 0..(questions.length - 1) = Questions, length = Final Page.
+    let currentStepIndex = -1;
     let selectedGoal = null;
     let userAnswers = {};
     let isDemoRunning = false;
@@ -318,10 +348,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // Assessment Elements
     const qCounter = document.getElementById('qCounter');
     const qProgress = document.getElementById('qProgress');
+    const qStatusLabel = document.querySelector('#step-assessment .p-status');
     const questionText = document.getElementById('questionText');
     const questionOptionsContainer = document.getElementById('questionOptions');
     const backBtn = document.getElementById('backBtn');
     const continueBtn = document.getElementById('continueBtn');
+
+    // --- Question helpers ---------------------------------------------------
+    // The last two questions (appreciation_style, agent_expectations_notes) are
+    // metadata: they carry a `field` name, are never part of archetype scoring,
+    // and are submitted as their own payload fields (not in the numeric map).
+    function isScoredQuestion(q) { return !q.field; }
+    function isFinalQuestion(index) { return index === consumerAssessmentQuestions.length - 1; }
+    const CONTINUE_ICON = '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>';
+    function setContinueLabel(index) {
+        continueBtn.innerHTML = (isFinalQuestion(index) ? 'Complete Assessment' : 'Continue') + CONTINUE_ICON;
+    }
+    // Numeric answers map (question id -> selected value) for SCORED questions
+    // only. The two final metadata questions never enter this map.
+    function scoredAnswersMap() {
+        const answers = {};
+        Object.keys(userAnswers).forEach(idx => {
+            const q = consumerAssessmentQuestions[Number(idx)];
+            if (q && isScoredQuestion(q)) answers[q.id] = userAnswers[idx];
+        });
+        return answers;
+    }
+    function answerForField(fieldName) {
+        for (let i = 0; i < consumerAssessmentQuestions.length; i++) {
+            if (consumerAssessmentQuestions[i].field === fieldName) {
+                const v = userAnswers[i];
+                if (v === null || v === undefined) return null;
+                const s = String(v).trim();
+                return s ? s : null;
+            }
+        }
+        return null;
+    }
 
     // Utility Elements
     const mainCard = document.getElementById('mainCard');
@@ -563,8 +626,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (leadProgressTimer) clearTimeout(leadProgressTimer);
         // Debounce so rapid answer changes do not spam the API.
         leadProgressTimer = setTimeout(() => {
-            const partial = {};
-            Object.keys(userAnswers).forEach(idx => { partial[Number(idx) + 1] = userAnswers[idx]; });
+            // Scored answers only; the two final metadata questions are
+            // submitted separately and never feed archetype scoring.
+            const partial = scoredAnswersMap();
             let archetype = null;
             try {
                 if (window.RequityAPI.calculateClientArchetype) {
@@ -573,7 +637,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) { /* ignore */ }
             Promise.resolve(window.RequityAPI.updateAssessmentLeadProgress({
                 leadId: leadId,
-                answeredCount: Object.keys(userAnswers).length,
+                answeredCount: Object.keys(partial).length,
                 partialAnswers: partial,
                 archetype: archetype,
             })).catch(() => { /* never block the assessment */ });
@@ -588,6 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
         qCounter.innerText = `Question ${index + 1} of ${consumerAssessmentQuestions.length}`;
         const progressPercent = ((index + 1) / consumerAssessmentQuestions.length) * 100;
         qProgress.style.width = `${progressPercent}%`;
+        if (qStatusLabel) qStatusLabel.textContent = qData.progressLabel || 'Assessment';
         
         questionText.innerText = qData.question;
 
@@ -607,30 +672,52 @@ document.addEventListener('DOMContentLoaded', () => {
             noteEl.style.display = 'none';
         }
         
-        // Render Options
         questionOptionsContainer.innerHTML = '';
-        qData.options.forEach(opt => {
-            const card = document.createElement('div');
-            card.className = 'option-card';
-            card.dataset.value = opt.value;
-            
-            // Restore previous selection if exists
-            if(userAnswers[index] === opt.value) {
-                card.classList.add('selected');
-            }
-            
-            card.innerHTML = `
-                <span class="opt-title">${opt.text}</span>
-                <span class="opt-desc">${opt.description}</span>
-            `;
-            
-            card.addEventListener('click', () => selectAnswer(index, opt.value, card));
-            questionOptionsContainer.appendChild(card);
-        });
 
-        // Toggle Buttons
-        continueBtn.disabled = !userAnswers[index];
-        backBtn.style.visibility = index === 0 ? 'visible' : 'visible'; // Always visible in assessment
+        if (qData.type === 'textarea') {
+            // Final open-ended question: optional long-form answer. The entered
+            // text persists in userAnswers so navigating backward never loses it.
+            const textarea = document.createElement('textarea');
+            textarea.id = 'openEndedAnswer';
+            textarea.className = 'open-ended-textarea';
+            textarea.rows = 8;
+            textarea.maxLength = qData.maxLength || 5000;
+            textarea.placeholder = qData.placeholder || '';
+            textarea.value = (userAnswers[index] !== undefined && userAnswers[index] !== null)
+                ? String(userAnswers[index]) : '';
+            textarea.addEventListener('input', () => {
+                userAnswers[index] = textarea.value;
+            });
+            questionOptionsContainer.appendChild(textarea);
+            // Optional question: completing with a blank answer is allowed.
+            continueBtn.disabled = false;
+        } else {
+            // Single-select option cards (all other questions).
+            qData.options.forEach(opt => {
+                const card = document.createElement('div');
+                card.className = 'option-card';
+                card.dataset.value = opt.value;
+                
+                // Restore previous selection if exists
+                if(userAnswers[index] === opt.value) {
+                    card.classList.add('selected');
+                }
+                
+                card.innerHTML = `
+                    <span class="opt-title">${opt.text}</span>
+                    <span class="opt-desc">${opt.description}</span>
+                `;
+                
+                card.addEventListener('click', () => selectAnswer(index, opt.value, card));
+                questionOptionsContainer.appendChild(card);
+            });
+            continueBtn.disabled = !userAnswers[index];
+        }
+
+        // Toggle Buttons. The final question's primary button reads
+        // "Complete Assessment"; every other question keeps "Continue".
+        setContinueLabel(index);
+        backBtn.style.visibility = 'visible'; // Always visible in assessment
     }
 
     function selectAnswer(qIndex, value, cardElement) {
@@ -772,8 +859,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function submitAssessment() {
         if (!window.RequityAPI) return Promise.reject(new Error('REQUITY is not configured.'));
-        const answers = {};
-        Object.keys(userAnswers).forEach(idx => { answers[Number(idx) + 1] = userAnswers[idx]; });
+        // Scored answers only (question id -> value). The two final questions
+        // are sent as their own fields and never affect archetype scoring.
+        const answers = scoredAnswersMap();
         const src = getClientSource();
         const payload = {
             token: src.token,
@@ -795,6 +883,8 @@ document.addEventListener('DOMContentLoaded', () => {
             sellingMarketState: needsSellingMarket() ? (sellingStateText() || null) : null,
             marketState: isOtherIntent() ? (otherStateText() || null) : null,
             answers: answers,
+            appreciationStyle: answerForField('appreciation_style'),
+            agentExpectationsNotes: answerForField('agent_expectations_notes'),
             source: src.source,
             agentId: src.agentId,
             agentSlug: src.agentSlug,

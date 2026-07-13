@@ -21,6 +21,49 @@ import {
 
 export type SimultaneousProfile = { approaches: string[]; avoid: string };
 
+// ---------------------------------------------------------------------------
+// Appreciation style (final client assessment questions)
+// ---------------------------------------------------------------------------
+
+/** Approved stored values for the appreciation_style assessment question. */
+export const APPRECIATION_STYLE_VALUES = [
+  "uplifting_words",
+  "proactive_assistance",
+  "memorable_gestures",
+  "dedicated_attention",
+  "personalized_celebrations",
+] as const;
+
+export type AppreciationStyle = (typeof APPRECIATION_STYLE_VALUES)[number];
+
+const APPRECIATION_STYLE_LABELS: Record<string, string> = {
+  uplifting_words: "Uplifting Words",
+  proactive_assistance: "Proactive Assistance",
+  memorable_gestures: "Memorable Gestures",
+  dedicated_attention: "Dedicated Attention",
+  personalized_celebrations: "Personalized Celebrations",
+};
+
+export function isApprovedAppreciationStyle(value: unknown): value is AppreciationStyle {
+  return (
+    typeof value === "string" &&
+    (APPRECIATION_STYLE_VALUES as readonly string[]).includes(value.trim().toLowerCase())
+  );
+}
+
+/**
+ * Shared formatter: readable label for a stored appreciation style value.
+ * Approved values map to their display label; any other non-empty value is
+ * returned as-is (legacy free-text support); empty/missing returns null so
+ * callers can render "Not answered" / "Not provided".
+ */
+export function formatAppreciationStyle(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  return APPRECIATION_STYLE_LABELS[raw.toLowerCase()] ?? raw;
+}
+
 export type ClientReportDetail = {
   /** Approved client archetype display name, or null if not approved. */
   archetypeDisplayName: string | null;
@@ -32,9 +75,13 @@ export type ClientReportDetail = {
   sellerProfile: ClientArchetypeProfile | null;
   simultaneousProfile: SimultaneousProfile | null;
   guidelines: ArchetypeGuidelines | null;
-  /** Only populated when the client actually supplied it; never fabricated. */
+  /** Raw stored appreciation style value (e.g. "dedicated_attention"), or null. */
   appreciationStyle: string | null;
-  /** Only populated when the client actually supplied it; never fabricated. */
+  /** Readable label for the appreciation style, or null when not answered. */
+  appreciationStyleLabel: string | null;
+  /** Open-ended expectations/questions the client submitted, or null. */
+  agentExpectationsNotes: string | null;
+  /** Legacy alias of agentExpectationsNotes kept for existing renderers. */
   expectationsOrQuestions: string | null;
 };
 
@@ -46,7 +93,9 @@ export type BuildClientReportInput = {
   marketCity?: string | null;
   /** Optional, only if the client/profile actually carries it. */
   appreciationStyle?: string | null;
-  /** Optional, only if the client/profile actually carries it. */
+  /** Optional open-ended expectations text (agent_expectations_notes). */
+  agentExpectationsNotes?: string | null;
+  /** Legacy alias accepted when agentExpectationsNotes is not provided. */
   expectationsOrQuestions?: string | null;
 };
 
@@ -108,7 +157,9 @@ export function buildClientReportDetail(input: BuildClientReportInput): ClientRe
     simultaneousProfile,
     guidelines,
     appreciationStyle: cleanStr(input.appreciationStyle),
-    expectationsOrQuestions: cleanStr(input.expectationsOrQuestions),
+    appreciationStyleLabel: formatAppreciationStyle(input.appreciationStyle),
+    agentExpectationsNotes: cleanStr(input.agentExpectationsNotes ?? input.expectationsOrQuestions),
+    expectationsOrQuestions: cleanStr(input.agentExpectationsNotes ?? input.expectationsOrQuestions),
   };
 }
 
@@ -128,7 +179,20 @@ export function attachClientReport<T extends Record<string, any>>(
       transactionIntentLabel: row.transaction_intent_label ?? null,
       marketCity: row.market_city ?? null,
       // These columns may not exist; reading an absent field yields undefined → null.
-      appreciationStyle: row.appreciation_style ?? null,
+      // Historical field names (camelCase, legacy expectations columns, and the
+      // result JSON embed) are all accepted so old records keep working.
+      appreciationStyle:
+        row.appreciation_style ??
+        row.appreciationStyle ??
+        (row.result && typeof row.result === "object" ? (row.result as any).appreciationStyle : null) ??
+        null,
+      agentExpectationsNotes:
+        row.agent_expectations_notes ??
+        row.agentExpectationsNotes ??
+        (row.result && typeof row.result === "object"
+          ? (row.result as any).agentExpectationsNotes
+          : null) ??
+        null,
       expectationsOrQuestions:
         row.expectations_or_questions ?? row.expectations ?? null,
     }),

@@ -54,6 +54,16 @@ export function escapeHtml(value: string | null | undefined): string {
     .replace(/'/g, "&#39;");
 }
 
+/**
+ * Escape a dynamic value for HTML and convert line breaks to <br> so
+ * multi-line client answers render safely with their formatting preserved.
+ * Escaping always happens BEFORE the <br> insertion, so user content can
+ * never inject markup.
+ */
+export function escapeHtmlMultiline(value: string | null | undefined): string {
+  return escapeHtml(value).replace(/\r\n|\r|\n/g, "<br>");
+}
+
 export type EmailDetail = { label: string; value: string | null | undefined };
 
 export type EmailContentInput = {
@@ -83,7 +93,7 @@ function detailsTableHtml(rows: { label: string; value: string }[]): string {
       (d) =>
         `<tr><td style="padding:6px 12px 6px 0;font-size:14px;color:#777;width:170px;vertical-align:top;">${escapeHtml(
           d.label
-        )}</td><td style="padding:6px 0;font-size:15px;color:#1f1f1f;font-weight:600;">${escapeHtml(
+        )}</td><td style="padding:6px 0;font-size:15px;color:#1f1f1f;font-weight:600;">${escapeHtmlMultiline(
           d.value
         )}</td></tr>`
     )
@@ -152,7 +162,7 @@ function headingHtml(text: string): string {
 }
 
 function paragraphHtml(text: string): string {
-  return `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#4a4a4a;">${escapeHtml(
+  return `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#4a4a4a;">${escapeHtmlMultiline(
     text
   )}</p>`;
 }

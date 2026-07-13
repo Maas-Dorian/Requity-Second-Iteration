@@ -5,7 +5,7 @@ import {
   type RichEmailContent,
   type EmailSection,
 } from "./emailTemplate.js";
-import { buildClientReportDetail } from "./clientReport.js";
+import { buildClientReportDetail, formatAppreciationStyle } from "./clientReport.js";
 import {
   AGENT_ARCHETYPE_DETAILS,
   getCompatibleClientTypes,
@@ -179,14 +179,23 @@ export function buildClientAssessmentEmailReport(input: ClientAssessmentReportIn
 
   sections.push({ kind: "bullets", heading: "Best ways to work with this client", items: bestWays });
 
-  if (clean(input.appreciationStyle)) {
-    sections.push({ kind: "heading", text: "Appreciation style" });
-    sections.push({ kind: "paragraph", text: input.appreciationStyle });
-  }
-  if (clean(input.expectationsOrQuestions)) {
-    sections.push({ kind: "heading", text: "Expectations and questions" });
-    sections.push({ kind: "paragraph", text: input.expectationsOrQuestions });
-  }
+  // Final assessment questions. Always shown so the agent knows whether the
+  // client answered; readable labels only, never snake_case stored values.
+  sections.push({ kind: "heading", text: "What this client wants from their agent" });
+  sections.push({
+    kind: "details",
+    rows: [
+      {
+        label: "How they feel valued",
+        value: formatAppreciationStyle(input.appreciationStyle) ?? "Not provided",
+      },
+    ],
+  });
+  sections.push({ kind: "paragraph", text: "Expectations, questions, and additional information:" });
+  sections.push({
+    kind: "paragraph",
+    text: clean(input.expectationsOrQuestions) ?? "Not provided",
+  });
   if (clean(input.reviewerNotes)) {
     sections.push({ kind: "heading", text: "Reviewer notes" });
     sections.push({ kind: "paragraph", text: input.reviewerNotes });

@@ -90,6 +90,8 @@ export function clientShapeFromLead(lead: any): Record<string, any> {
     selling_market_city: lead.selling_market_city ?? null,
     transaction_intent: lead.transaction_intent ?? null,
     transaction_intent_label: lead.transaction_intent_label ?? null,
+    appreciation_style: lead.appreciation_style ?? null,
+    agent_expectations_notes: lead.agent_expectations_notes ?? null,
     notes: lead.notes ?? null,
     created_at: lead.created_at ?? null,
     updated_at: lead.updated_at ?? lead.last_activity_at ?? null,

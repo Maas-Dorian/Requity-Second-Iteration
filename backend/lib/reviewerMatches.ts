@@ -21,7 +21,7 @@ import {
 import { insertWithSchemaFallback } from "./supabaseWrite.js";
 import { env } from "./env.js";
 import { assignArchetype, isApprovedClientArchetype } from "./archetypes.js";
-import { attachClientReport } from "./clientReport.js";
+import { attachClientReport, formatAppreciationStyle } from "./clientReport.js";
 import {
   derivePipelineStatus,
   pipelineStatusLabel,
@@ -669,6 +669,8 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
       market_city: lead.market_city ?? null,
       buying_market_city: lead.buying_market_city ?? null,
       selling_market_city: lead.selling_market_city ?? null,
+      appreciation_style: lead.appreciation_style ?? null,
+      agent_expectations_notes: lead.agent_expectations_notes ?? null,
       pipeline_status: lead.pipeline_status ?? null,
       source: "requity_reviewer",
       status: "reviewer_matching",
@@ -700,6 +702,10 @@ export type PairedClientItem = {
   buyingMarket: string | null;
   sellingMarket: string | null;
   market: string | null;
+  /** Readable appreciation style label ("Dedicated Attention"), or null. */
+  appreciationStyleLabel: string | null;
+  /** True when the client submitted open-ended expectations text. */
+  hasExpectationsNotes: boolean;
   agentId: string | null;
   agentName: string | null;
   agentEmail: string | null;
@@ -916,6 +922,8 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
         buyingMarket: cleanText(client.buying_market_city),
         sellingMarket: cleanText(client.selling_market_city),
         market: cleanText(client.market_city),
+        appreciationStyleLabel: formatAppreciationStyle(client.appreciation_style),
+        hasExpectationsNotes: !!cleanText(client.agent_expectations_notes),
         agentId: agent.id ?? row.agent_id ?? null,
         agentName: cleanText(agent.display_name),
         agentEmail: cleanText(agent.email),
@@ -972,6 +980,8 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
         buyingMarket: cleanText(client.buying_market_city),
         sellingMarket: cleanText(client.selling_market_city),
         market: cleanText(client.market_city),
+        appreciationStyleLabel: formatAppreciationStyle(client.appreciation_style),
+        hasExpectationsNotes: !!cleanText(client.agent_expectations_notes),
         agentId: agent.id ?? client.assigned_agent_id ?? null,
         agentName: cleanText(agent.display_name),
         agentEmail: cleanText(agent.email),
@@ -1321,6 +1331,8 @@ async function finalizeAssignment(
         marketCity: party?.market_city ?? null,
         matchLane: lane,
         laneMarketSummary: laneMarketSummary(party, lane),
+        appreciationStyle: party?.appreciation_style ?? null,
+        agentExpectationsNotes: party?.agent_expectations_notes ?? null,
         clientId: target.clientId ?? target.leadId ?? null,
         agentId: agent.id ?? null,
         matchId: options?.matchId ?? null,
@@ -1642,6 +1654,8 @@ export async function assignReviewerMatch(
         newAgentName: agent.display_name ?? null,
         newAgentEmail: agent.email ?? null,
         matchType: lane,
+        appreciationStyle: party?.appreciation_style ?? null,
+        agentExpectationsNotes: party?.agent_expectations_notes ?? null,
         replacedAt: now,
         reviewerEmail,
         reason: params.replaceReason ?? null,
@@ -1658,6 +1672,8 @@ export async function assignReviewerMatch(
         clientArchetype: party?.archetype ?? null,
         agentArchetype: agent.archetype ?? null,
         locationSummary: locationMatchSummary(party, agent),
+        appreciationStyle: party?.appreciation_style ?? null,
+        agentExpectationsNotes: party?.agent_expectations_notes ?? null,
         finalizedAt: now,
         reviewerEmail,
       });
@@ -1748,6 +1764,8 @@ export async function resendMatchEmail(matchId: string): Promise<{
     marketCity: party?.market_city ?? null,
     matchLane: lane,
     laneMarketSummary: laneMarketSummary(party, lane),
+    appreciationStyle: party?.appreciation_style ?? null,
+    agentExpectationsNotes: party?.agent_expectations_notes ?? null,
     clientId: targetId,
     agentId: agent.id ?? null,
     matchId,

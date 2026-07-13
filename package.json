@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "check:dashes": "node scripts/check-no-cross-dashes.js",
     "check:domain": "node scripts/check-no-old-domain.js",
-    "build": "node scripts/check-no-cross-dashes.js && node scripts/check-no-old-domain.js && node scripts/generate-config.js && tsc --noEmit",
+    "check:assessment-order": "node scripts/qa-assessment-order.cjs",
+    "build": "node scripts/check-no-cross-dashes.js && node scripts/check-no-old-domain.js && node scripts/qa-assessment-order.cjs && node scripts/generate-config.js && tsc --noEmit",
     "seed:internal-users": "tsx backend/scripts/seed-internal-users.ts"
   },
   "dependencies": {

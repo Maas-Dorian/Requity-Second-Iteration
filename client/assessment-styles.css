@@ -608,3 +608,29 @@ img, svg, canvas, video { max-width: 100%; height: auto; }
   accent-color: #FF7500;
   cursor: pointer;
 }
+
+/* Final open-ended question (agent_expectations_notes). Matches the existing
+   input styling; tall enough for a detailed answer and mobile friendly. */
+.open-ended-textarea {
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.55;
+  width: 100%;
+  min-height: 190px;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--blue-border);
+  border-radius: var(--radius-sm);
+  background: var(--soft-blue);
+  color: var(--deep-text);
+  transition: var(--transition-smooth);
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+  display: block;
+}
+.open-ended-textarea:focus {
+  border-color: var(--primary-blue);
+  background: var(--white);
+  box-shadow: 0 0 0 3px rgba(30, 63, 122, 0.05);
+}
+.open-ended-textarea::placeholder { color: #A0B3C6; }

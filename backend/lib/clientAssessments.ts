@@ -485,6 +485,10 @@ export type SubmitClientAssessmentWithContactParams = {
   marketState?: string | null;
   buyingMarketState?: string | null;
   sellingMarketState?: string | null;
+  /** Final assessment question: how the client feels valued (approved value, never scored). */
+  appreciationStyle?: string | null;
+  /** Final assessment question: open-ended expectations text (never scored). */
+  agentExpectationsNotes?: string | null;
 };
 
 export type SubmitClientAssessmentWithContactResult = SubmitClientAssessmentResult & {
@@ -581,6 +585,11 @@ export async function submitClientAssessmentWithContact(
   const sellingMarketState = (params.sellingMarketState ?? "").trim() || null;
   const marketState = (params.marketState ?? "").trim() || null;
 
+  // Final assessment questions (metadata, never scored). Trim outer whitespace
+  // only so line breaks inside the open-ended answer are preserved.
+  const appreciationStyle = (params.appreciationStyle ?? "").trim().toLowerCase() || null;
+  const agentExpectationsNotes = (params.agentExpectationsNotes ?? "").trim() || null;
+
   // Resolve structured location (state + coordinates) per market. Geocoding is
   // cached + never throws, so a failure never blocks the assessment submit; we
   // still save city/state text and fall back to text matching.
@@ -632,6 +641,8 @@ export async function submitClientAssessmentWithContact(
         latitude: fallbackLoc?.latitude ?? null,
         longitude: fallbackLoc?.longitude ?? null,
         location_normalized: locationNormalized,
+        appreciation_style: appreciationStyle,
+        agent_expectations_notes: agentExpectationsNotes,
         status,
       },
       { required: ["full_name", "source"] }
@@ -657,6 +668,10 @@ export async function submitClientAssessmentWithContact(
     marketCity,
     buyingMarketCity,
     sellingMarketCity,
+    // Final assessment questions embedded in the JSON so they survive even
+    // when the scalar columns are absent on a drifted database.
+    appreciationStyle,
+    agentExpectationsNotes,
   };
   const assessmentPayload = {
     client_id: clientId,
@@ -679,6 +694,8 @@ export async function submitClientAssessmentWithContact(
     latitude: fallbackLoc?.latitude ?? null,
     longitude: fallbackLoc?.longitude ?? null,
     location_normalized: locationNormalized,
+    appreciation_style: appreciationStyle,
+    agent_expectations_notes: agentExpectationsNotes,
     status: "completed" as const,
     completed_at: completedAt,
   };
@@ -741,6 +758,8 @@ export async function submitClientAssessmentWithContact(
       sellingLatitude: sellingLoc?.latitude ?? null,
       sellingLongitude: sellingLoc?.longitude ?? null,
       locationNormalized,
+      appreciationStyle,
+      agentExpectationsNotes,
     });
     if (!lead && !assessmentId) {
       const started = await upsertAssessmentLeadStart({
@@ -775,6 +794,8 @@ export async function submitClientAssessmentWithContact(
         sellingLatitude: sellingLoc?.latitude ?? null,
         sellingLongitude: sellingLoc?.longitude ?? null,
         locationNormalized,
+        appreciationStyle,
+        agentExpectationsNotes,
       });
     }
     leadSaved = !!lead;
@@ -883,6 +904,8 @@ export async function submitClientAssessmentWithContact(
       sellingMarketCity,
       marketCity,
       clientArchetype: result.archetype,
+      appreciationStyle,
+      expectationsOrQuestions: agentExpectationsNotes,
       assignedAgentName: agentDisplayName ?? null,
     });
     emailed = delivery.emailed;
@@ -907,6 +930,8 @@ export async function submitClientAssessmentWithContact(
       sellingMarket: sellingMarketCity,
       generalMarket: !buyingMarketCity && !sellingMarketCity ? marketCity : null,
       clientArchetype: result.archetype,
+      appreciationStyle,
+      agentExpectationsNotes,
       assignedAgentName: agentDisplayName ?? null,
       source: params.source,
       submittedAt: new Date().toISOString(),

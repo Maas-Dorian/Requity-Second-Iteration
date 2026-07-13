@@ -2261,6 +2261,20 @@
         return '<div class="report-section"><div class="detail-card-section-title">' + esc(title) + '</div>' + body + '</div>';
       }
 
+      // "What this client wants from their agent" section from the two final
+      // assessment questions. Missing answers show "Not answered"; the written
+      // response keeps its line breaks.
+      function clientWantsSectionHtml(r) {
+        const valuedLabel = (r && (r.appreciationStyleLabel || r.appreciationStyle)) || 'Not answered';
+        const notes = (r && (r.agentExpectationsNotes || r.expectationsOrQuestions)) || '';
+        return '<div class="report-section"><div class="detail-card-section-title">What this client wants from their agent</div>' +
+          detailBlock('accent', 'How they feel valued',
+            '<p class="report-text">' + esc(valuedLabel) + '</p>') +
+          detailBlock('accent', 'Their expectations and questions',
+            '<p class="report-text" style="white-space:pre-line;">' + esc(notes || 'Not answered') + '</p>') +
+        '</div>';
+      }
+
       // Full Relational-Roadmap-style detail for one client assessment.
       function buildClientReportHtml(c) {
         const r = (c && c.report) ? c.report : null;
@@ -2295,10 +2309,12 @@
         }
 
         if (!r || (!g && !buyer && !seller)) {
+          // Legacy/unknown-archetype records: still show the client's answers
+          // to the final questions when present.
           return '<div class="client-report">' + contact +
             '<div class="report-section"><h4>Relational Roadmap</h4>' +
               '<p class="report-text">Detailed guidance is not available for this client yet.</p>' +
-            '</div></div>';
+            '</div>' + clientWantsSectionHtml(r) + '</div>';
         }
 
         // What This Client Is After (positive / recommended framing).
@@ -2343,24 +2359,17 @@
           [{ label: 'Approaches to Avoid', items: g ? g.communication && g.communication.avoid : null }]
         );
 
-        // Appreciation Style (only when supplied, never fabricated)
-        const appreciation = (r.appreciationStyle)
-          ? '<div class="report-section"><div class="detail-card-section-title">Client\'s Appreciation Style</div>' +
-              detailBlock('accent', '', '<p class="report-text">' + esc(r.appreciationStyle) + '</p>') + '</div>'
-          : '';
-        // Expectations / Questions
-        const expectations =
-          '<div class="report-section"><div class="detail-card-section-title">Client\'s Expectations &amp; Questions</div>' +
-            detailBlock('accent', '', '<p class="report-text">' +
-              esc(r.expectationsOrQuestions || 'No additional expectations provided') + '</p>') + '</div>';
+        // What this client wants from their agent: the two final assessment
+        // questions. Old assessments without these answers show "Not answered"
+        // (never hidden, never an error). Line breaks are preserved.
+        const wantsSection = clientWantsSectionHtml(r);
 
         const fullReport =
           after +
           '<div class="report-grid">' + buyerSection + sellerSection + '</div>' +
           simultaneousSection +
           commSection +
-          appreciation +
-          expectations;
+          wantsSection;
 
         return '<div class="client-report">' + contact + fullReport + '</div>';
       }
@@ -2645,9 +2654,12 @@
           pipelineBadge;
         const partialNote = (m.hasFullAssessment === false)
           ? '<div class="deal-sub">Some details are unavailable for this older assessment.</div>' : '';
+        // Compact indicator only; the full answers live in View assessment.
+        const expectationsNote = m.hasClientExpectations
+          ? '<div class="deal-sub">Client expectations included</div>' : '';
         return '<div class="deal-card" data-match-client-id="' + esc(String(m.id || '')) + '">' +
           '<div class="deal-main"><div class="deal-name">' + esc(m.name || 'Unknown client') + '</div>' +
-          (when ? '<div class="deal-sub">Received ' + esc(when) + '</div>' : '') + partialNote + '</div>' +
+          (when ? '<div class="deal-sub">Received ' + esc(when) + '</div>' : '') + partialNote + expectationsNote + '</div>' +
           '<div class="deal-meta">' + meta + '</div>' +
           '<div class="deal-actions">' +
             '<button type="button" class="btn-secondary btn-sm" data-open-assessment="' + esc(String(m.id || '')) + '">View assessment</button>' +

@@ -9,10 +9,15 @@ import {
 import {
   buildRequityEmailHtml,
   buildPlainTextEmail,
+  buildRequityReportHtml,
+  buildRequityReportText,
   agentDashboardUrl,
   reviewerDashboardUrl,
   type EmailContentInput,
+  type EmailSection,
+  type RichEmailContent,
 } from "./emailTemplate.js";
+import { formatAppreciationStyle } from "./clientReport.js";
 import {
   buildClientAssessmentEmailReport,
   buildAgentArchetypeEmailReport,
@@ -535,6 +540,10 @@ export type ClientMatchedEmailInput = {
   matchLane?: string | null;
   /** Lane-relevant market copy (buying market for buying lane, etc). */
   laneMarketSummary?: string | null;
+  /** Final assessment answers: how the client feels valued (stored value). */
+  appreciationStyle?: string | null;
+  /** Final assessment answers: open-ended expectations text. */
+  agentExpectationsNotes?: string | null;
   /** Event metadata for the email audit trail. */
   clientId?: string | null;
   agentId?: string | null;
@@ -569,8 +578,40 @@ export async function sendClientMatchedEmail(
       transaction: input.transactionIntentLabel ?? null,
       market: input.marketCity ?? null,
     },
-    build: (r) =>
-      builtFromContent(subject, {
+    build: (r) => {
+      const sections: EmailSection[] = [
+        {
+          kind: "details",
+          rows: [
+            { label: "Match lane", value: laneLabel },
+            { label: "Client", value: input.clientName },
+            { label: "Client archetype", value: input.clientArchetype },
+            { label: "Agent", value: input.agentName },
+            { label: "Match", value: input.matchLabel },
+            { label: "Transaction", value: input.transactionIntentLabel },
+            { label: "Market", value: input.laneMarketSummary ?? input.marketCity },
+          ],
+        },
+        // Final assessment answers. Always shown (with a truthful "Not
+        // provided" fallback) so the agent knows how this client wants to
+        // work with them before the first conversation. Readable labels only.
+        { kind: "heading", text: "What this client wants from their agent" },
+        {
+          kind: "details",
+          rows: [
+            {
+              label: "How they feel valued",
+              value: formatAppreciationStyle(input.appreciationStyle) ?? "Not provided",
+            },
+          ],
+        },
+        { kind: "paragraph", text: "Expectations, questions, and additional information:" },
+        {
+          kind: "paragraph",
+          text: (input.agentExpectationsNotes ?? "").trim() || "Not provided",
+        },
+      ];
+      const content: RichEmailContent = {
         title:
           lane && lane !== "general"
             ? `A new REQUITY ${laneLabel.toLowerCase()} match is ready`
@@ -578,18 +619,16 @@ export async function sendClientMatchedEmail(
         intro: `${
           input.clientName || "A client"
         } has been matched and is ready for your review. Open your dashboard to see the match details.`,
-        details: [
-          { label: "Match lane", value: laneLabel },
-          { label: "Client", value: input.clientName },
-          { label: "Client archetype", value: input.clientArchetype },
-          { label: "Agent", value: input.agentName },
-          { label: "Match", value: input.matchLabel },
-          { label: "Transaction", value: input.transactionIntentLabel },
-          { label: "Market", value: input.laneMarketSummary ?? input.marketCity },
-        ],
+        sections,
         ctaLabel: "View match in REQUITY",
         ctaUrl: dashboardUrlForRole(r.role),
-      }),
+      };
+      return {
+        subject,
+        html: buildRequityReportHtml(content),
+        text: buildRequityReportText(content),
+      };
+    },
   });
 }
 
@@ -873,6 +912,9 @@ export type ReviewerAssessmentSubmittedEmailInput = {
   sellingMarket?: string | null;
   generalMarket?: string | null;
   clientArchetype?: string | null;
+  /** Final assessment answers (compact labeled rows in the reviewer email). */
+  appreciationStyle?: string | null;
+  agentExpectationsNotes?: string | null;
   assignedAgentName?: string | null;
   source?: string | null;
   submittedAt?: string | null;
@@ -902,6 +944,14 @@ export async function sendReviewerAssessmentSubmittedEmail(
       { label: "Selling market", value: input.sellingMarket },
       { label: "Market", value: input.generalMarket },
       { label: "Client archetype", value: input.clientArchetype },
+      {
+        label: "Appreciation style",
+        value: formatAppreciationStyle(input.appreciationStyle) ?? "Not answered",
+      },
+      {
+        label: "Additional expectations",
+        value: (input.agentExpectationsNotes ?? "").trim() || "Not provided",
+      },
       { label: "Assigned agent", value: input.assignedAgentName },
       { label: "Source", value: assessmentSourceLabel(input.source) },
       { label: "Submitted", value: input.submittedAt ?? new Date().toISOString() },
@@ -965,6 +1015,9 @@ export type ReviewerMatchFinalizedEmailInput = {
   clientArchetype?: string | null;
   agentArchetype?: string | null;
   locationSummary?: string | null;
+  /** Final assessment answers (compact labeled rows in the reviewer email). */
+  appreciationStyle?: string | null;
+  agentExpectationsNotes?: string | null;
   finalizedAt?: string | null;
   reviewerEmail?: string | null;
 };
@@ -998,6 +1051,14 @@ export async function sendReviewerMatchFinalizedEmail(
       { label: "Client archetype", value: input.clientArchetype },
       { label: "Agent archetype", value: input.agentArchetype },
       { label: "Location match", value: input.locationSummary },
+      {
+        label: "Appreciation style",
+        value: formatAppreciationStyle(input.appreciationStyle) ?? "Not answered",
+      },
+      {
+        label: "Additional expectations",
+        value: (input.agentExpectationsNotes ?? "").trim() || "Not provided",
+      },
       { label: "Finalized", value: input.finalizedAt ?? new Date().toISOString() },
       { label: "Finalized by", value: input.reviewerEmail },
     ],
@@ -1019,6 +1080,9 @@ export type ReviewerMatchReplacedEmailInput = {
   newAgentName?: string | null;
   newAgentEmail?: string | null;
   matchType?: string | null;
+  /** Final assessment answers (compact labeled rows in the reviewer email). */
+  appreciationStyle?: string | null;
+  agentExpectationsNotes?: string | null;
   replacedAt?: string | null;
   reviewerEmail?: string | null;
   reason?: string | null;
@@ -1054,6 +1118,14 @@ export async function sendReviewerMatchReplacedEmail(
       { label: "New agent", value: input.newAgentName },
       { label: "New agent email", value: input.newAgentEmail },
       { label: "Match type", value: matchType },
+      {
+        label: "Appreciation style",
+        value: formatAppreciationStyle(input.appreciationStyle) ?? "Not answered",
+      },
+      {
+        label: "Additional expectations",
+        value: (input.agentExpectationsNotes ?? "").trim() || "Not provided",
+      },
       { label: "Replaced", value: input.replacedAt ?? new Date().toISOString() },
       { label: "Replaced by", value: input.reviewerEmail },
       { label: "Reason", value: input.reason },
