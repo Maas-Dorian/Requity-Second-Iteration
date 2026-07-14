@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Assessment Results | Requity</title>
+  <meta name="description" content="Review your REQUITY working-style results before activating your agent account." />
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://www.requityapp.com/agent/assessment-results.html" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --deep-blue: #07366E;
+      --primary-blue: #1E3F7A;
+      --accent-orange: #FF7500;
+      --white: #FFFFFF;
+      --soft-blue: #EEF4FB;
+      --light-surface: #F3F7FC;
+      --blue-border: #D3E0F2;
+      --primary-text: #102033;
+      --secondary-text: #4A607C;
+      --requity-blue: #003366;
+      --requity-orange: #FF6A00;
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --shadow-md: 0 4px 20px rgba(7, 54, 110, 0.06);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-family);
+      color: var(--primary-text);
+      background: var(--light-surface);
+      line-height: 1.55;
+      min-height: 100vh;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    .re, .uity { font-family: 'Nunito', sans-serif; }
+    .shell { width: 100%; max-width: 680px; margin: 0 auto; }
+    .logo {
+      display: flex; align-items: baseline; justify-content: center;
+      font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em;
+      color: var(--requity-blue); line-height: 1; margin-bottom: 1.75rem;
+    }
+    .q-container { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 0.9em; height: 0.9em; margin: 0 0.05em; transform: translateY(0.05em); color: var(--requity-orange); }
+    .q-ring { position: absolute; width: 0.85em; height: 0.85em; border: 0.15em solid currentColor; border-radius: 50%; }
+    .q-tail { position: absolute; bottom: 0.13em; right: -0.08em; width: 0.5em; height: 0.16em; background-color: currentColor; transform: rotate(42deg); transform-origin: center; border-radius: 1em; }
+    .card {
+      background: var(--white);
+      border: 1px solid var(--blue-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      padding: 2.25rem;
+      margin-bottom: 1.25rem;
+    }
+    h1 { font-size: 1.6rem; color: var(--deep-blue); margin-bottom: 0.4rem; text-align: center; }
+    .subhead { color: var(--secondary-text); font-size: 0.95rem; text-align: center; margin-bottom: 1.75rem; }
+    .section { margin-bottom: 1.5rem; }
+    .section h2 { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--primary-blue); margin-bottom: 0.4rem; }
+    .section p { color: var(--primary-text); font-size: 0.97rem; }
+    .archetype-name { font-size: 1.5rem; font-weight: 800; color: var(--deep-blue); }
+    .strengths { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+    .strengths li { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.95rem; }
+    .strengths li::before { content: ""; flex: 0 0 auto; width: 8px; height: 8px; margin-top: 0.42rem; border-radius: 50%; background: var(--accent-orange); }
+    .note {
+      background: var(--soft-blue); border: 1px solid var(--blue-border);
+      border-radius: var(--radius-sm); padding: 0.9rem 1rem; font-size: 0.88rem; color: var(--secondary-text);
+    }
+    .next-card h2 { font-size: 1.15rem; color: var(--deep-blue); margin-bottom: 0.4rem; }
+    .next-card p { color: var(--secondary-text); font-size: 0.95rem; margin-bottom: 1.15rem; }
+    .btn-primary {
+      display: inline-block; width: 100%; text-align: center;
+      background: var(--accent-orange); color: var(--white); padding: 0.85rem 1.5rem; font-size: 0.98rem;
+      border: none; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer; font-family: inherit;
+      transition: background 0.2s ease; text-decoration: none;
+    }
+    .btn-primary:hover { background: #E66A00; }
+    .btn-primary:disabled { opacity: 0.6; cursor: default; }
+    .state-msg { font-size: 0.9rem; padding: 0.8rem 0.95rem; border-radius: var(--radius-sm); display: none; margin-bottom: 1rem; }
+    .state-msg.show { display: block; }
+    .state-msg.error { background: #FCE8E6; color: #B3261E; }
+    .state-msg.info { background: var(--soft-blue); color: var(--primary-blue); }
+    .loading { text-align: center; color: var(--secondary-text); padding: 2.5rem 0; }
+    [hidden] { display: none !important; }
+  </style>
+  <script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <div class="logo">
+      <span class="re">RE</span>
+      <div class="q-container"><div class="q-ring"></div><div class="q-tail"></div></div>
+      <span class="uity">UITY</span>
+    </div>
+
+    <div class="card" id="loading-card">
+      <div class="loading">Loading your results...</div>
+    </div>
+
+    <div class="card" id="results-card" hidden>
+      <h1>Your REQUITY working style</h1>
+      <p class="subhead">Review your working-style results before activating your account.</p>
+
+      <div class="state-msg" id="results-msg"></div>
+
+      <div class="section">
+        <h2>Your archetype</h2>
+        <p class="archetype-name" id="r-archetype"></p>
+      </div>
+
+      <div class="section">
+        <h2>Your working style</h2>
+        <p id="r-style"></p>
+      </div>
+
+      <div class="section">
+        <h2>Summary</h2>
+        <p id="r-summary"></p>
+      </div>
+
+      <div class="section">
+        <h2>Your strengths</h2>
+        <ul class="strengths" id="r-strengths"></ul>
+      </div>
+
+      <div class="section">
+        <h2>How this supports client relationships</h2>
+        <p>Your working style shapes how you communicate, how you guide clients through important decisions, and how you support them when the process gets stressful. Clients tend to feel most confident with an agent whose natural style fits how they like to be guided.</p>
+      </div>
+
+      <div class="section">
+        <h2>How REQUITY uses this information</h2>
+        <p>REQUITY uses your assessment to help reviewers understand how you communicate, guide clients, and work through important decisions. It is one part of our human-reviewed matching process.</p>
+        <p style="margin-top: 0.5rem;">Your profile is considered alongside market coverage, client needs, communication preferences, and reviewer judgment.</p>
+      </div>
+
+      <div class="note">
+        Your archetype is not a score or ranking. It is a working-style summary designed to support clearer client relationships.
+      </div>
+    </div>
+
+    <div class="card next-card" id="next-card" hidden>
+      <h2 id="next-title">Activate your REQUITY access</h2>
+      <p id="next-body">A one-time $50 platform access fee activates your agent account and allows you to use the REQUITY agent platform.</p>
+      <button class="btn-primary" id="continue-btn" type="button">Continue</button>
+    </div>
+  </div>
+
+  <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
+  <script src="../frontend/shared/analytics.js"></script>
+  <script src="../frontend/shared/api.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async function () {
+      var API = window.RequityAPI;
+      var loadingCard = document.getElementById("loading-card");
+      var resultsCard = document.getElementById("results-card");
+      var nextCard = document.getElementById("next-card");
+      var resultsMsg = document.getElementById("results-msg");
+      var continueBtn = document.getElementById("continue-btn");
+      var nextTitle = document.getElementById("next-title");
+      var nextBody = document.getElementById("next-body");
+
+      function rqTrack(name, props) {
+        try { if (window.RequityAnalytics) window.RequityAnalytics.track(name, props); } catch (e) {}
+      }
+      function showResultsMsg(text, kind) {
+        resultsMsg.textContent = text;
+        resultsMsg.className = "state-msg show " + (kind || "info");
+      }
+
+      if (!API) { window.location.replace("login.html"); return; }
+      var session = await API.requireAgentSession();
+      if (!session.ok) {
+        if (session.reason === "no_session") { window.location.replace("login.html"); return; }
+        loadingCard.querySelector(".loading").textContent = "We could not verify your session. Please refresh this page.";
+        return;
+      }
+
+      var status;
+      try {
+        status = await API.fetchAgentAccessStatus();
+      } catch (err) {
+        loadingCard.querySelector(".loading").textContent = "We could not load your results. Please refresh this page.";
+        return;
+      }
+
+      // Assessment not completed yet: results cannot be shown. Agents who
+      // skip the assessment by design (payment already the next step) go to
+      // the activation page instead so they can never loop back here.
+      if (!status.results) {
+        if (status.onboardingState === "payment_required") {
+          window.location.replace("activate-access.html");
+        } else if (status.onboardingState === "access_granted") {
+          window.location.replace("dashboard.html");
+        } else {
+          window.location.replace("assessment.html");
+        }
+        return;
+      }
+
+      // Render the approved results copy (server-provided; no formulas).
+      document.getElementById("r-archetype").textContent = status.results.archetype || "";
+      document.getElementById("r-style").textContent = status.results.workingStyle || "";
+      document.getElementById("r-summary").textContent = status.results.summary || "";
+      var list = document.getElementById("r-strengths");
+      (status.results.strengths || []).slice(0, 5).forEach(function (s) {
+        var li = document.createElement("li");
+        li.textContent = s;
+        list.appendChild(li);
+      });
+
+      var canAccess = status.canAccess === true;
+      var state = status.onboardingState;
+
+      if (state === "suspended") {
+        nextTitle.textContent = "Your access requires review";
+        nextBody.textContent = "Your platform access requires review. Contact REQUITY support.";
+        continueBtn.textContent = "Back to sign in";
+        continueBtn.addEventListener("click", function () { window.location.href = "login.html"; });
+      } else if (canAccess) {
+        nextTitle.textContent = "Activate your REQUITY access";
+        nextBody.textContent = "Your REQUITY access has been granted. Continue to your dashboard.";
+        continueBtn.textContent = "Continue to dashboard";
+        continueBtn.addEventListener("click", function () { window.location.href = "dashboard.html"; });
+      } else if (state === "payment_pending") {
+        nextTitle.textContent = "We are confirming your payment";
+        nextBody.textContent = "We are confirming your payment. This usually takes only a moment.";
+        continueBtn.textContent = "Check payment status";
+        continueBtn.addEventListener("click", function () { window.location.href = "payment-success.html"; });
+      } else {
+        nextTitle.textContent = "Activate your REQUITY access";
+        nextBody.textContent = "A one-time $50 platform access fee activates your agent account and allows you to use the REQUITY agent platform.";
+        continueBtn.textContent = "Continue to payment";
+        continueBtn.addEventListener("click", async function () {
+          continueBtn.disabled = true;
+          try { await API.acknowledgeAssessmentResults(); } catch (e) { /* bookkeeping only */ }
+          window.location.href = "activate-access.html";
+        });
+      }
+
+      loadingCard.hidden = true;
+      resultsCard.hidden = false;
+      nextCard.hidden = false;
+
+      rqTrack("agent_assessment_results_viewed", {
+        archetype_present: Boolean(status.results.archetype),
+        style_present: Boolean(status.results.workingStyle),
+        access_status: status.accessStatus || "unknown"
+      });
+    });
+  </script>
+</body>
+</html>

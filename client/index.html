@@ -185,7 +185,7 @@
             <div class="nav-links">
                 <a href="#how-it-works">How it works</a>
                 <a href="/agent/index.html" class="nav-audience-link">For agents and more</a>
-                <a href="/client/assessment.html" class="js-assessment-cta" data-assessment-cta>Find your match</a>
+                <a href="/client/assessment.html" class="js-assessment-cta" data-assessment-cta>Find your agent</a>
             </div>
         </div>
     </nav>
@@ -198,7 +198,7 @@
                     <h1 class="hero-headline">Find a real estate agent you can feel confident moving forward with.</h1>
                     <p class="hero-subheadline">REQUITY uses a short assessment and human review to help buyers and sellers connect with real estate agents whose communication style, guidance, and working approach fit their needs.</p>
                     <div class="hero-actions">
-                        <button class="btn btn-primary js-assessment-cta" data-assessment-cta>Find your agent match</button>
+                        <button class="btn btn-primary js-assessment-cta" data-assessment-cta>Find your agent</button>
                         <a href="/agent/index.html" class="btn btn-text">For real estate agents</a>
                     </div>
                     <div class="hero-trust-pills" aria-label="Why REQUITY">
@@ -247,6 +247,22 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Founder introduction video (shared section; keep in sync with
+             FOUNDER_VIDEO_SECTION in scripts/seo-content/chrome.mjs) -->
+        <section id="meet-the-founder" class="section founder-video-section">
+            <div class="container" style="max-width: 980px;">
+                <h2 class="section-title text-center">Meet the founder of REQUITY</h2>
+                <p class="support-copy text-center mx-auto" style="max-width: 720px;">Learn why REQUITY was created and how our human-reviewed matching process helps buyers and sellers make a more informed choice when selecting a real estate agent.</p>
+                <div class="founder-video-frame mt-l">
+                    <video controls playsinline preload="metadata" aria-label="Introduction to REQUITY from the founder" data-founder-video>
+                        <source src="/assets/videos/requity-founder-introduction.mp4" type="video/mp4" />
+                        <!-- TODO: add a <track kind="captions"> when /assets/videos/requity-founder-introduction.vtt exists -->
+                        Your browser does not support the video element.
+                    </video>
                 </div>
             </div>
         </section>
@@ -352,7 +368,7 @@
                             </label>
                         </div>
                     </div>
-                    <button class="btn btn-primary full-width mt-m" id="mockSubmitBtn">Find your match</button>
+                    <button class="btn btn-primary full-width mt-m" id="mockSubmitBtn">Find your agent</button>
                 </div>
             </div>
         </section>
@@ -574,7 +590,7 @@
             <div class="container final-cta">
                 <h2 class="section-title">Ready to find your match?</h2>
                 <p class="support-copy mx-auto" style="max-width: 600px;">Share your home goals and let REQUITY use a short assessment and human review to help connect you with a real estate agent whose approach fits how you want to move forward.</p>
-                <button class="btn btn-primary mt-m js-assessment-cta" data-assessment-cta>Find your match</button>
+                <button class="btn btn-primary mt-m js-assessment-cta" data-assessment-cta>Find your agent</button>
             </div>
         </section>
     </main>
@@ -625,6 +641,8 @@
         <div class="footer-bottom">© 2026 REQUITY. All rights reserved.</div>
     </footer>
 
+    <script>window.REQUITY_PAGE_TYPE = "generic";</script>
+    <script src="/frontend/shared/analytics.js"></script>
     <script src="/client/script.js"></script>
     <!-- Optional market routing: homepage only. Asks once, stores the answer
          in localStorage, and never forces a redirect. -->

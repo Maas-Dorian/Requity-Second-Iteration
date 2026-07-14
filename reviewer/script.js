@@ -8,6 +8,35 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // --- Analytics (safe no-op wrapper) -------------------------------------
+    // Reviewer workflow instrumentation. Only categorical/banded metadata is
+    // sent; never client or agent identities, search text, or contact info.
+    function rqTrack(name, props) {
+        try { if (window.RequityAnalytics) window.RequityAnalytics.track(name, props); } catch (e) { /* ignore */ }
+    }
+    function rqDistanceBand(miles) {
+        if (miles == null || isNaN(miles)) return 'unavailable';
+        if (miles <= 10) return '0_to_10';
+        if (miles <= 25) return '11_to_25';
+        if (miles <= 50) return '26_to_50';
+        if (miles <= 75) return '51_to_75';
+        return 'over_75';
+    }
+    function rqFitBand(score) {
+        if (score == null || isNaN(score)) return 'unknown';
+        if (score >= 85) return 'top';
+        if (score >= 70) return 'strong';
+        if (score >= 50) return 'moderate';
+        return 'limited';
+    }
+    function rqCountBand(n) {
+        n = Number(n) || 0;
+        if (n === 0) return 'zero';
+        if (n <= 5) return '1_to_5';
+        if (n <= 10) return '6_to_10';
+        return 'over_10';
+    }
+
     // --- Empty / error copy ------------------------------------------------
     const EMPTY_QUEUE_TITLE = 'No pending matches yet.';
     const EMPTY_QUEUE_SUB = 'Completed client assessments will appear here when they are ready for review.';
@@ -702,6 +731,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (client.sellingMarket) marketBits.push('Selling: ' + esc(client.sellingMarket));
         var marketHtml = marketBits.length ? marketBits.join(' &middot; ') : esc(client.market);
 
+        // Compact appreciation-style field (Part 10). The full open-ended
+        // response stays inside View full assessment; only an indicator that
+        // expectations exist is shown here.
+        var deskReport = client.report || null;
+        var valuedLabel = (deskReport && (deskReport.appreciationStyleLabel || deskReport.appreciationStyle)) || 'Not answered';
+        var hasExpectations = !!(deskReport && (deskReport.agentExpectationsNotes || deskReport.expectationsOrQuestions));
+
         elDeskClientCard.innerHTML =
             '<div class="desk-client-head">' +
                 '<div>' +
@@ -717,7 +753,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 '<div><span class="detail-label">Market</span><span class="detail-value">' + marketHtml + '</span></div>' +
                 '<div><span class="detail-label">Archetype</span><span class="detail-value">' + esc(client.archetype) + '</span></div>' +
                 '<div><span class="detail-label">Communication style</span><span class="detail-value">' + esc(client.style) + '</span></div>' +
+                '<div><span class="detail-label">How they feel valued</span><span class="detail-value">' + esc(valuedLabel) + '</span></div>' +
             '</div>' +
+            (hasExpectations ? '<div class="queue-meta" style="margin-top:0.35rem;">Additional expectations provided</div>' : '') +
             deskTopNeedsHtml(client) +
             '<div class="desk-client-actions">' +
                 '<button type="button" class="btn btn-outline btn-sm" id="desk-assessment-toggle">' +
@@ -731,6 +769,13 @@ document.addEventListener('DOMContentLoaded', () => {
         var assessBtn = document.getElementById('desk-assessment-toggle');
         if (assessBtn) assessBtn.addEventListener('click', function () {
             state.deskShowAssessment = !state.deskShowAssessment;
+            if (state.deskShowAssessment) {
+                rqTrack('reviewer_assessment_opened', {
+                    location: 'match_desk',
+                    transaction_type: queueIntentOf(client) || null,
+                    lane: state.deskLane
+                });
+            }
             renderDeskClientCard(client);
         });
     }
@@ -1002,6 +1047,11 @@ document.addEventListener('DOMContentLoaded', () => {
         var pill = ev.target.closest ? ev.target.closest('[data-desk-lane]') : null;
         if (!pill) return;
         state.deskLane = pill.getAttribute('data-desk-lane');
+        var laneClient = clients.find(function (c) { return c.id === state.activeClientId; });
+        rqTrack('reviewer_lane_selected', {
+            lane: state.deskLane,
+            transaction_type: laneClient ? (queueIntentOf(laneClient) || null) : null
+        });
         closeDeskConfirm();
         renderDesk();
     });
@@ -1012,7 +1062,17 @@ document.addEventListener('DOMContentLoaded', () => {
             deskSearchTimer = setTimeout(function () {
                 state.deskAgentSearch = (elDeskAgentSearch.value || '').trim();
                 const client = clients.find(function (c) { return c.id === state.activeClientId; });
-                if (client) renderDeskAgentList(client);
+                if (client) {
+                    renderDeskAgentList(client);
+                    // Search text is never sent, only that a search happened
+                    // and how many results it produced.
+                    rqTrack('reviewer_agent_search_used', {
+                        lane: state.deskLane,
+                        result_count: deskFilteredFits(client).length,
+                        filter_count: (state.deskHideLimited ? 1 : 0) + (state.deskInRangeOnly ? 1 : 0),
+                        search_has_text: !!state.deskAgentSearch
+                    });
+                }
             }, 200);
         });
     }
@@ -1270,7 +1330,7 @@ document.addEventListener('DOMContentLoaded', () => {
             '<div class="paired-lane-blurb">' + esc(buildMatchBlurb(p, lane)) + '</div>' +
             '<div class="paired-lane-actions">' +
                 '<button type="button" class="btn btn-outline btn-sm" data-paired-act="change" data-paired-key="' + esc(pairedKey(p)) + '" data-cm-lane="' + esc(lane) + '">' + esc(laneChangeLabel(lane)) + '</button>' +
-                (p.matchId ? ('<button type="button" class="btn btn-outline btn-sm" data-paired-act="resend" data-paired-key="' + esc(pairedKey(p)) + '">Resend email</button>') : '') +
+                (p.matchId ? ('<button type="button" class="btn btn-outline btn-sm" data-paired-act="resend" data-paired-key="' + esc(pairedKey(p)) + '">Resend agent email</button>') : '') +
                 '<button type="button" class="btn btn-outline btn-sm" data-paired-act="agentpay" data-paired-key="' + esc(pairedKey(p)) + '">' + esc(payAction) + '</button>' +
             '</div>' +
             warning +
@@ -1392,6 +1452,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return '<div class="paired-detail-line">' + bits.join(' &middot; ') + '</div>';
         }).join('');
 
+        // Resend client email lives at the CLIENT-card level (never inside one
+        // agent lane) and is only enabled when every required lane is matched,
+        // so a partial buying-and-selling match can never email the client.
+        var fullyMatched = entries.length > 0 && entries.every(function (e) { return e.kind === 'match'; });
+        var resendClientBtn = '<button type="button" class="btn btn-outline btn-sm" data-paired-act="resendclient" data-paired-key="' + esc(pairedKey(first)) + '"' +
+            (fullyMatched ? '' : ' disabled title="Available once every side of this match is complete."') +
+            '>Resend client email</button>';
+
         return '<div class="lead-top">' +
                 '<div><div class="lead-name">' + esc(first.clientName || 'Unknown client') +
                     ' <span class="intent-chip intent-' + esc(intent) + '">' + esc(intentLabel) + '</span></div>' +
@@ -1407,9 +1475,12 @@ document.addEventListener('DOMContentLoaded', () => {
             '<div class="paired-lane-rows">' + laneRows + '</div>' +
             transactionTeamHtml(entries) +
             '<div class="paired-actions">' +
+                '<button type="button" class="btn btn-outline btn-sm" data-paired-act="assessment" data-paired-key="' + esc(pairedKey(first)) + '">Client assessment</button>' +
+                resendClientBtn +
                 '<button type="button" class="btn btn-outline btn-sm" data-paired-act="view" data-paired-key="' + esc(pairedKey(first)) + '">View details</button>' +
                 '<button type="button" class="btn btn-outline btn-sm" onclick="removePairedClient(\'' + esc(first.clientId || '') + '\', \'' + esc(first.leadId || '') + '\')">Archive</button>' +
             '</div>' +
+            '<div class="paired-assessment hidden" data-assessment-slot></div>' +
             '<div class="paired-details hidden">' +
                 '<div class="lead-meta">' + pairedMarketHtml(first) + '</div>' +
                 detailBits +
@@ -1508,6 +1579,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!fit) return;
         state.selectedAgentId = fit.agentId;
         state.selectedAgentName = fit.name;
+        // Analytics: banded fit/distance only; the agent identity is never sent.
+        var pay = agentPaymentFor(fit.agentId);
+        rqTrack('reviewer_agent_selected', {
+            lane: state.deskLane,
+            distance_band: rqDistanceBand(fit.distanceMiles),
+            fit_band: rqFitBand(fit.fit),
+            agent_payment_status: (pay && pay.status) || 'unknown',
+            active_match_count_band: rqCountBand(fit.activeMatchCount)
+        });
         renderDeskSelectedCard(client);
         renderDeskAgentList(client);
     };
@@ -1695,11 +1775,146 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderPaired();
             }).catch(function (err) {
                 btn.disabled = false;
-                btn.textContent = 'Resend email';
+                btn.textContent = 'Resend agent email';
                 addLog('Could not resend the match email. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
             });
             return;
         }
+        if (act === 'resendclient') {
+            if (!window.RequityAPI || !window.RequityAPI.resendReviewerClientEmail) return;
+            if (btn.disabled) return;
+            var rcParams = p.clientId ? { clientId: p.clientId } : { leadId: p.leadId };
+            btn.disabled = true;
+            btn.textContent = 'Sending…';
+            Promise.resolve(window.RequityAPI.resendReviewerClientEmail(rcParams)).then(function () {
+                btn.textContent = 'Resend client email';
+                btn.disabled = false;
+                addLog('Resent the client match email to ' + (p.clientName || 'the client') + '.');
+            }).catch(function (err) {
+                btn.disabled = false;
+                btn.textContent = 'Resend client email';
+                addLog('Could not resend the client email. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
+            });
+            return;
+        }
+        if (act === 'assessment') {
+            togglePairedAssessment(p, btn);
+            return;
+        }
+    }
+
+    // --- Paired "Client assessment" dropdown (Part 11) -----------------------
+    // Details are fetched only when first opened, cached per client/lead for
+    // the session, and re-rendered from cache on later toggles.
+    var pairedAssessmentCache = {};
+
+    function pairedAssessmentTargetKey(p) {
+        return p.clientId ? ('client:' + p.clientId) : ('lead:' + (p.leadId || ''));
+    }
+
+    function pairedAssessmentHtml(data) {
+        var field = function (label, value) {
+            return '<div class="profile-field"><span class="detail-label">' + esc(label) +
+                '</span><span class="detail-value">' + esc(value || 'Not answered') + '</span></div>';
+        };
+        var marketBits = [];
+        if (data.buyingMarket) marketBits.push('Buying: ' + data.buyingMarket);
+        if (data.sellingMarket) marketBits.push('Selling: ' + data.sellingMarket);
+        if (!marketBits.length && data.market) marketBits.push(data.market);
+        var needs = (data.topNeeds || []).length
+            ? '<div class="profile-field"><span class="detail-label">Top needs</span><ul class="report-list">' +
+                data.topNeeds.map(function (n) { return '<li>' + esc(String(n)) + '</li>'; }).join('') + '</ul></div>'
+            : field('Top needs', 'Not available');
+        var legacyNote = data.legacy
+            ? '<div class="queue-meta" style="margin-top:0.35rem;">Some details are unavailable for this older assessment.</div>'
+            : '';
+        var expectations = (data.agentExpectationsNotes || '').trim();
+        return '<h4 style="margin:0 0 0.5rem;">Client Assessment</h4>' +
+            '<div class="profile-grid">' +
+                field('Transaction', data.transactionIntentLabel) +
+                field('Markets', marketBits.join(' · ') || null) +
+                field('Communication style', data.communicationStyle) +
+                field('Client archetype', data.archetype) +
+                needs +
+                field('How they feel valued', data.appreciationStyleLabel || 'Not answered') +
+            '</div>' +
+            '<span class="report-subhead">Expectations and questions</span>' +
+            '<p class="report-text" style="white-space:pre-line;">' + esc(expectations || 'Not answered') + '</p>' +
+            legacyNote +
+            '<button type="button" class="btn btn-outline btn-sm" data-paired-full-report>View full assessment</button>' +
+            '<div class="paired-full-report hidden"></div>';
+    }
+
+    function bindPairedFullReport(slot, data) {
+        var fullBtn = slot.querySelector('[data-paired-full-report]');
+        var fullBox = slot.querySelector('.paired-full-report');
+        if (!fullBtn || !fullBox) return;
+        fullBtn.addEventListener('click', function () {
+            var hidden = fullBox.classList.toggle('hidden');
+            fullBtn.textContent = hidden ? 'View full assessment' : 'Hide full assessment';
+            if (!hidden && !fullBox.innerHTML) {
+                // Reuse the Match Desk full-report renderer with a client-shaped object.
+                fullBox.innerHTML = buildClientReportHtml({
+                    id: data.id,
+                    name: data.clientName,
+                    email: data.clientEmail,
+                    phone: null,
+                    birthday: null,
+                    archetype: data.archetype,
+                    transaction: data.transactionIntentLabel,
+                    market: data.market,
+                    buyingMarket: data.buyingMarket,
+                    sellingMarket: data.sellingMarket,
+                    report: data.report
+                });
+            }
+        });
+    }
+
+    function togglePairedAssessment(p, btn) {
+        var card = btn.closest ? btn.closest('.paired-card') : null;
+        var slot = card ? card.querySelector('[data-assessment-slot]') : null;
+        if (!slot) return;
+
+        var isHidden = slot.classList.contains('hidden');
+        if (!isHidden) {
+            // Collapse only; cached content stays for the next open.
+            slot.classList.add('hidden');
+            btn.textContent = 'Client assessment';
+            return;
+        }
+        slot.classList.remove('hidden');
+        btn.textContent = 'Hide client assessment';
+        rqTrack('reviewer_assessment_opened', {
+            location: 'paired_clients',
+            transaction_type: (p && p.transactionIntent) || null,
+            is_legacy: !!(p && p.leadId && !p.clientId)
+        });
+
+        var key = pairedAssessmentTargetKey(p);
+        var cached = pairedAssessmentCache[key];
+        if (cached) {
+            if (!slot.getAttribute('data-assessment-loaded')) {
+                slot.innerHTML = pairedAssessmentHtml(cached);
+                slot.setAttribute('data-assessment-loaded', '1');
+                bindPairedFullReport(slot, cached);
+            }
+            return;
+        }
+        if (!window.RequityAPI || !window.RequityAPI.fetchReviewerClientAssessment) {
+            slot.innerHTML = '<div class="leads-empty">We could not load this assessment.</div>';
+            return;
+        }
+        slot.innerHTML = '<div class="leads-empty">Loading assessment...</div>';
+        var params = p.clientId ? { clientId: p.clientId } : { leadId: p.leadId };
+        Promise.resolve(window.RequityAPI.fetchReviewerClientAssessment(params)).then(function (data) {
+            pairedAssessmentCache[key] = data || {};
+            slot.innerHTML = pairedAssessmentHtml(pairedAssessmentCache[key]);
+            slot.setAttribute('data-assessment-loaded', '1');
+            bindPairedFullReport(slot, pairedAssessmentCache[key]);
+        }).catch(function () {
+            slot.innerHTML = '<div class="leads-empty">We could not load this assessment.</div>';
+        });
     }
 
     function bindPairedActions(container) {

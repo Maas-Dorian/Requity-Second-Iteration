@@ -389,6 +389,23 @@ window.addEventListener('DOMContentLoaded', () => {
     let marketState = '';
     let serviceRadiusMiles = 50;
     const answers = {};
+
+    // --- Analytics (safe no-op wrapper; answer VALUES are never sent) -------
+    const viewedAgentQuestions = {};
+    function rqTrack(name, props) {
+        try { if (window.RequityAnalytics) window.RequityAnalytics.track(name, props); } catch (e) { /* ignore */ }
+    }
+    function rqTrackOnce(flag, name, props) {
+        try { if (window.RequityAnalytics) window.RequityAnalytics.trackOnce(flag, name, props); } catch (e) { /* ignore */ }
+    }
+    function agentQuestionProps(index) {
+        return {
+            question_id: 'agent_question_' + (index + 1),
+            question_index: index + 1,
+            total_questions: agentSurveyQuestions.length,
+            completion_percent: Math.round(((index + 1) / agentSurveyQuestions.length) * 100)
+        };
+    }
     const questionCount = document.getElementById('agent-question-count');
     const questionText = document.getElementById('agent-question-text');
     const optionsWrap = document.getElementById('agent-options');
@@ -414,6 +431,12 @@ window.addEventListener('DOMContentLoaded', () => {
     function startQuestions() {
         if (marketCard) marketCard.hidden = true;
         if (card) card.hidden = false;
+        // Analytics: assessment started once per session (reloads never
+        // double-count). Confirmed completion is tracked server-side.
+        rqTrackOnce('agent_assessment_started', 'agent_assessment_started', {
+            assessment_version: 'v1',
+            total_questions: agentSurveyQuestions.length
+        });
         renderQuestion();
     }
     if (marketCard && marketInput && marketContinue) {
@@ -461,9 +484,19 @@ window.addEventListener('DOMContentLoaded', () => {
         back.disabled = current === 0;
         next.textContent = current === agentSurveyQuestions.length - 1 ? 'Submit Assessment' : 'Continue';
         next.disabled = !answers[current + 1];
+        // Analytics: viewed once per question (re-renders after answering or
+        // going back never re-fire it).
+        if (!viewedAgentQuestions[current]) {
+            viewedAgentQuestions[current] = true;
+            rqTrack('agent_assessment_question_viewed', agentQuestionProps(current));
+        }
         optionsWrap.querySelectorAll('.agent-answer').forEach(button => {
             button.addEventListener('click', () => {
+                const isFirstAnswer = !answers[current + 1];
                 answers[current + 1] = button.dataset.value;
+                if (isFirstAnswer) {
+                    rqTrack('agent_assessment_question_answered', agentQuestionProps(current));
+                }
                 renderQuestion();
             });
         });
@@ -513,11 +546,11 @@ window.addEventListener('DOMContentLoaded', () => {
                 heading.textContent = `Your agent profile is ready: ${result.archetype}.`;
             }
             resultCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // The save succeeded and the archetype is now on the agent row, so the
-            // dashboard will recognize the assessment as complete. Briefly show the
-            // result, then redirect to the dashboard. The result card also keeps a
-            // manual "Go to your dashboard" link as a fallback.
-            setTimeout(function () { window.location.href = 'dashboard.html'; }, 2200);
+            // The save succeeded and the archetype is now on the agent row.
+            // Briefly show the confirmation, then continue to the full
+            // assessment-results page, which routes grandfathered/complimentary
+            // agents to the dashboard and new agents to access activation.
+            setTimeout(function () { window.location.href = 'assessment-results.html'; }, 2200);
         } catch (err) {
             console.warn('[REQUITY] Agent assessment submission error:', err);
             // #region agent log

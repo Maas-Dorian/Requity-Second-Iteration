@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activate Your Agent Access | Requity</title>
+  <meta name="description" content="Activate your REQUITY agent platform access with a one-time payment." />
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://www.requityapp.com/agent/activate-access.html" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --deep-blue: #07366E;
+      --primary-blue: #1E3F7A;
+      --accent-orange: #FF7500;
+      --white: #FFFFFF;
+      --soft-blue: #EEF4FB;
+      --light-surface: #F3F7FC;
+      --blue-border: #D3E0F2;
+      --primary-text: #102033;
+      --secondary-text: #4A607C;
+      --requity-blue: #003366;
+      --requity-orange: #FF6A00;
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --shadow-md: 0 4px 20px rgba(7, 54, 110, 0.06);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-family);
+      color: var(--primary-text);
+      background: var(--light-surface);
+      line-height: 1.55;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 2.5rem 1.25rem;
+    }
+    .re, .uity { font-family: 'Nunito', sans-serif; }
+    .shell { width: 100%; max-width: 520px; }
+    .logo {
+      display: flex; align-items: baseline; justify-content: center;
+      font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em;
+      color: var(--requity-blue); line-height: 1; margin-bottom: 1.75rem;
+    }
+    .q-container { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 0.9em; height: 0.9em; margin: 0 0.05em; transform: translateY(0.05em); color: var(--requity-orange); }
+    .q-ring { position: absolute; width: 0.85em; height: 0.85em; border: 0.15em solid currentColor; border-radius: 50%; }
+    .q-tail { position: absolute; bottom: 0.13em; right: -0.08em; width: 0.5em; height: 0.16em; background-color: currentColor; transform: rotate(42deg); transform-origin: center; border-radius: 1em; }
+    .card {
+      background: var(--white);
+      border: 1px solid var(--blue-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      padding: 2.25rem;
+    }
+    h1 { font-size: 1.45rem; color: var(--deep-blue); margin-bottom: 0.35rem; text-align: center; }
+    .price { text-align: center; font-size: 1.05rem; font-weight: 700; color: var(--primary-blue); margin-bottom: 1.4rem; }
+    .includes { list-style: none; display: flex; flex-direction: column; gap: 0.55rem; margin-bottom: 1.4rem; }
+    .includes li { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.94rem; }
+    .includes li::before { content: ""; flex: 0 0 auto; width: 8px; height: 8px; margin-top: 0.42rem; border-radius: 50%; background: var(--accent-orange); }
+    .reassure {
+      background: var(--soft-blue); border: 1px solid var(--blue-border);
+      border-radius: var(--radius-sm); padding: 0.85rem 1rem; font-size: 0.87rem; color: var(--secondary-text);
+      margin-bottom: 1.4rem;
+    }
+    .btn-primary {
+      display: block; width: 100%; text-align: center;
+      background: var(--accent-orange); color: var(--white); padding: 0.9rem 1.5rem; font-size: 1rem;
+      border: none; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer; font-family: inherit;
+      transition: background 0.2s ease; text-decoration: none;
+    }
+    .btn-primary:hover { background: #E66A00; }
+    .btn-primary:disabled { opacity: 0.6; cursor: default; }
+    .btn-secondary {
+      display: block; width: 100%; text-align: center; margin-top: 0.7rem;
+      background: var(--white); color: var(--primary-blue); padding: 0.85rem 1.5rem; font-size: 0.95rem;
+      border: 1px solid var(--blue-border); border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; font-family: inherit;
+      text-decoration: none;
+    }
+    .btn-secondary:hover { background: var(--soft-blue); }
+    .foot-note { text-align: center; margin-top: 1.15rem; font-size: 0.8rem; color: var(--secondary-text); }
+    .state-msg { font-size: 0.9rem; padding: 0.8rem 0.95rem; border-radius: var(--radius-sm); display: none; margin-bottom: 1.1rem; }
+    .state-msg.show { display: block; }
+    .state-msg.error { background: #FCE8E6; color: #B3261E; }
+    .state-msg.info { background: var(--soft-blue); color: var(--primary-blue); }
+    .loading { text-align: center; color: var(--secondary-text); padding: 2rem 0; }
+    [hidden] { display: none !important; }
+  </style>
+  <script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <div class="logo">
+      <span class="re">RE</span>
+      <div class="q-container"><div class="q-ring"></div><div class="q-tail"></div></div>
+      <span class="uity">UITY</span>
+    </div>
+
+    <div class="card">
+      <div class="loading" id="loading">Loading...</div>
+
+      <div id="pay-content" hidden>
+        <h1>Activate your REQUITY agent access</h1>
+        <p class="price">One-time payment: $50</p>
+
+        <div class="state-msg" id="pay-msg"></div>
+
+        <ul class="includes">
+          <li>Access to the REQUITY agent dashboard</li>
+          <li>Ability to receive and review matched client assessments</li>
+          <li>Agent profile and market management</li>
+          <li>REQUITY platform updates and communication</li>
+          <li>No recurring platform subscription for this access fee</li>
+        </ul>
+
+        <div class="reassure">
+          Payment activates your platform access. Client opportunities depend on market demand, client needs, reviewer decisions, and agent fit.
+        </div>
+
+        <button class="btn-primary" id="pay-btn" type="button">Pay $50 securely</button>
+        <a class="btn-secondary" href="assessment-results.html">Back to assessment results</a>
+
+        <p class="foot-note">Payments are processed securely by Stripe. REQUITY does not store your card details.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
+  <script src="../frontend/shared/analytics.js"></script>
+  <script src="../frontend/shared/api.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async function () {
+      var API = window.RequityAPI;
+      var loading = document.getElementById("loading");
+      var payContent = document.getElementById("pay-content");
+      var payBtn = document.getElementById("pay-btn");
+      var payMsg = document.getElementById("pay-msg");
+      var isStarting = false;
+
+      function rqTrack(name, props) {
+        try { if (window.RequityAnalytics) window.RequityAnalytics.track(name, props); } catch (e) {}
+      }
+      function showMsg(text, kind) {
+        payMsg.textContent = text;
+        payMsg.className = "state-msg show " + (kind || "info");
+      }
+
+      if (!API) { window.location.replace("login.html"); return; }
+      var session = await API.requireAgentSession();
+      if (!session.ok) {
+        if (session.reason === "no_session") { window.location.replace("login.html"); return; }
+        loading.textContent = "We could not verify your session. Please refresh this page.";
+        return;
+      }
+
+      var status;
+      try {
+        status = await API.fetchAgentAccessStatus();
+      } catch (err) {
+        loading.textContent = "We could not load your access status. Please refresh this page.";
+        return;
+      }
+
+      // Already granted: never show the payment gate.
+      if (status.canAccess === true) { window.location.replace("dashboard.html"); return; }
+      // Assessment first, then results, then payment.
+      if (status.onboardingState === "complete_assessment") { window.location.replace("assessment.html"); return; }
+      if (status.onboardingState === "suspended") {
+        loading.textContent = "Your platform access requires review. Contact REQUITY support.";
+        return;
+      }
+
+      loading.hidden = true;
+      payContent.hidden = false;
+
+      rqTrack("agent_payment_page_viewed", {
+        amount: 50,
+        currency: "usd",
+        access_status: status.accessStatus || "unknown"
+      });
+
+      // Returned from a cancelled Stripe Checkout.
+      var params = new URLSearchParams(window.location.search);
+      if (params.get("payment") === "cancelled") {
+        showMsg("Your payment was cancelled. You can try again whenever you are ready.", "info");
+        rqTrack("agent_checkout_cancelled", { amount: 50, currency: "usd" });
+      } else if (status.accessStatus === "payment_failed") {
+        showMsg("We could not confirm your payment. Try again or contact REQUITY support.", "error");
+      } else if (status.accessStatus === "checkout_started") {
+        showMsg("Your payment session is ready.", "info");
+      } else if (status.accessStatus === "payment_pending") {
+        showMsg("We are confirming your payment. This usually takes only a moment.", "info");
+      }
+
+      payBtn.addEventListener("click", async function () {
+        if (isStarting) return;
+        isStarting = true;
+        payBtn.disabled = true;
+        payBtn.textContent = "Preparing secure checkout...";
+        rqTrack("agent_checkout_started", { amount: 50, currency: "usd" });
+        try {
+          var result = await API.createAccessCheckoutSession();
+          if (result && result.alreadyGranted) {
+            window.location.replace("dashboard.html");
+            return;
+          }
+          if (result && result.url) {
+            window.location.href = result.url;
+            return;
+          }
+          showMsg("We could not start the payment. Please try again.", "error");
+        } catch (err) {
+          if (err && err.code === "ASSESSMENT_REQUIRED") {
+            window.location.replace("assessment.html");
+            return;
+          }
+          showMsg((err && err.serverError) || "We could not start the payment. Please try again.", "error");
+        }
+        isStarting = false;
+        payBtn.disabled = false;
+        payBtn.textContent = "Pay $50 securely";
+      });
+    });
+  </script>
+</body>
+</html>

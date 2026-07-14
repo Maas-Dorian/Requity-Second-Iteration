@@ -1368,6 +1368,7 @@
     }
 
   </style>
+  <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
   <div id="circle-pattern-container">
@@ -1702,6 +1703,7 @@
 
   <!-- Supabase config (copy frontend/shared/config.example.js to config.js with real public values). -->
   <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
+  <script src="../frontend/shared/analytics.js"></script>
   <script src="../frontend/shared/api.js"></script>
 
   <script>
@@ -2121,10 +2123,35 @@
       const me = session.me;
       agentId = me && me.agent ? me.agent.id : null;
 
-      // No onboarding redirect: an authenticated agent ALWAYS sees the dashboard.
-      // When they have no archetype yet, __requityRenderAgentArchetype shows the
-      // "Discover your Agent Archetype" button / onboarding state in place, we
-      // never bounce them to the assessment or login page from here.
+      // Platform access gate: new agents whose one-time $50 access payment is
+      // not confirmed cannot use the dashboard. canAccessPlatform is false
+      // ONLY for post-launch unpaid agents (grandfathered, paid, and
+      // complimentary agents are always true; a pre-migration server omits the
+      // field = full access, so existing agents can never be locked out here).
+      // The server enforces the same gate on every protected API (402).
+      if (me && me.agent && me.agent.canAccessPlatform === false) {
+        var accessStatus = me.agent.accessStatus || '';
+        var meEmail = me.agent.email || (me.user && me.user.email) || null;
+        var skipsAssessment = Boolean(API.isResolutionsAgentEmail && API.isResolutionsAgentEmail(meEmail));
+        if (accessStatus === 'payment_pending') {
+          window.location.replace('payment-success.html');
+        } else if (skipsAssessment) {
+          // Resolutions agents never take the assessment; send them straight
+          // to payment activation (never assessment.html, which would loop).
+          window.location.replace('activate-access.html');
+        } else if (me.agent.archetype || me.agent.archetype_completed_at || me.agent.archetypeCompletedAt) {
+          window.location.replace('assessment-results.html');
+        } else {
+          window.location.replace('assessment.html');
+        }
+        return;
+      }
+
+      // No other onboarding redirect: an authenticated agent with platform
+      // access ALWAYS sees the dashboard. When they have no archetype yet,
+      // __requityRenderAgentArchetype shows the "Discover your Agent
+      // Archetype" button / onboarding state in place, we never bounce them
+      // to the assessment or login page from here.
 
       // Auth is fully resolved (token validated/refreshed by requireAgentSession).
       // Now load the real QR/link. Safe debug logs (no tokens/keys/PII).
@@ -2729,6 +2756,16 @@
         void card.offsetWidth;
         card.classList.add('deep-link-target');
         card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Analytics: assessment opened by the matched agent. Categorical
+        // status only; never client identity or assessment content.
+        try {
+          if (window.RequityAnalytics) {
+            window.RequityAnalytics.track('agent_client_assessment_viewed', {
+              match_status: status,
+              is_legacy: false
+            });
+          }
+        } catch (e) { /* ignore */ }
       }
       window.__requityOpenClientAssessment = openClientAssessment;
 
@@ -2831,6 +2868,26 @@
         // No agentId: the API derives the agent from the authenticated session.
         const dash = await API.fetchAgentDashboard();
         if (!dash) { renderWeeklyActivity(null); return; }
+        // Analytics: dashboard activation with banded counts only (no
+        // identities, no message content). Once per page load.
+        try {
+          if (window.RequityAnalytics) {
+            var bandOf = function (n) {
+              n = Number(n) || 0;
+              if (n === 0) return 'zero';
+              if (n <= 5) return '1_to_5';
+              if (n <= 10) return '6_to_10';
+              return 'over_10';
+            };
+            var unread = (dash.messages || []).filter(function (m) { return m && m.unread; }).length;
+            window.RequityAnalytics.track('agent_dashboard_viewed', {
+              active_match_count_band: bandOf((dash.matches || []).length),
+              unread_message_count_band: bandOf(unread),
+              payment_status: (dash.agentPaymentStatus && dash.agentPaymentStatus.status) || 'none',
+              has_announcement: !!(dash.agent && dash.agent.needsAssessmentUpdate)
+            });
+          }
+        } catch (e) { /* ignore */ }
         const linkInput = document.getElementById('assessmentLink');
         if (linkInput && dash.assessmentLink) linkInput.value = dash.assessmentLink;
         renderClients(dash.clientAssessmentDetail);
@@ -2884,6 +2941,14 @@
           else if (wantView && document.getElementById(wantView)) switchView(wantView);
         } catch (e) { /* deep link is best-effort only */ }
       } catch (e) {
+        // Server-side access gate (402): the one-time access payment is not
+        // confirmed for this agent. Route into the activation flow instead of
+        // showing a broken dashboard. Grandfathered/paid/complimentary agents
+        // never receive this.
+        if (e && (e.status === 402 || e.code === 'agent_access_payment_required')) {
+          window.location.replace('assessment-results.html');
+          return;
+        }
         console.warn('[dashboard] failed to load live data:', e.message);
         const clientsEmpty = document.getElementById('clients-empty');
         if (clientsEmpty) clientsEmpty.textContent = 'We could not load your dashboard data. Please refresh or try again later.';
@@ -3301,12 +3366,36 @@
         wrap.innerHTML = visible.map(bannerHtml).join('') + toggle;
       }
 
+      // Analytics: announcement engagement. Priority/flags only, never the
+      // announcement title or body.
+      function trackAnn(name, a) {
+        try {
+          if (window.RequityAnalytics) {
+            window.RequityAnalytics.track(name, {
+              priority: (a && a.priority) || 'info',
+              audience_type: 'agent',
+              has_cta: !!(a && a.ctaLabel && a.ctaUrl)
+            });
+          }
+        } catch (e) { /* ignore */ }
+      }
+      function findAnn(id) {
+        return items.filter(function (a) { return a.id === id; })[0] || null;
+      }
+
       wrap.addEventListener('click', function (ev) {
         var expandBtn = ev.target.closest ? ev.target.closest('[data-ann-expand]') : null;
         if (expandBtn) { expanded = true; render(); return; }
+        var ctaLink = ev.target.closest ? ev.target.closest('[data-ann-banner] a') : null;
+        if (ctaLink) {
+          var banner = ctaLink.closest('[data-ann-banner]');
+          trackAnn('agent_announcement_cta_clicked', findAnn(banner && banner.getAttribute('data-ann-banner')));
+          return;
+        }
         var dismissBtn = ev.target.closest ? ev.target.closest('[data-ann-dismiss]') : null;
         if (!dismissBtn) return;
         var id = dismissBtn.getAttribute('data-ann-dismiss');
+        trackAnn('agent_announcement_dismissed', findAnn(id));
         dismissBtn.disabled = true;
         window.RequityAPI.dismissAgentAnnouncement(id).then(function () {
           items = items.filter(function (a) { return a.id !== id; });
@@ -3320,6 +3409,7 @@
       window.addEventListener('load', function () {
         window.RequityAPI.fetchAgentAnnouncements().then(function (list) {
           items = Array.isArray(list) ? list : [];
+          if (items.length) trackAnn('agent_announcement_viewed', items[0]);
           render();
         }).catch(function () { /* announcements are optional; stay silent */ });
       });

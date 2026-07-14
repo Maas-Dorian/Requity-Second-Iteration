@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import { isMissingTableError } from "./supabaseWrite.js";
 import { ACTIVE_MATCH_STATUSES, isArchivedRow, matchLaneLabel } from "./reviewerMatches.js";
+import { trackServerEventInBackground, ANALYTICS_EVENTS, amountBand } from "./vercelAnalytics.js";
 
 /**
  * Reviewer payment status tracking (migration 0012), AGENTS ONLY.
@@ -106,6 +107,16 @@ export async function setReviewerPaymentStatus(params: {
   if (!entityId) throw new Error("An agent id is required.");
 
   const supabase = getSupabaseAdmin();
+
+  // Previous status for analytics only (best effort; failures are ignored).
+  let previousStatus: string | null = null;
+  try {
+    const prev = await getAgentPaymentStatus(entityId);
+    previousStatus = prev?.status ?? null;
+  } catch {
+    previousStatus = null;
+  }
+
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("reviewer_payment_statuses")
@@ -129,6 +140,16 @@ export async function setReviewerPaymentStatus(params: {
     }
     throw new Error(`setReviewerPaymentStatus failed: ${error.message}`);
   }
+
+  // Analytics: banded amount only (never the exact figure), no identities.
+  trackServerEventInBackground(ANALYTICS_EVENTS.AGENT_PAYMENT_STATUS_CHANGED, {
+    previous_status: previousStatus ?? "none",
+    new_status: params.status,
+    amount_band: amountBand(params.amountCents ?? null),
+    payment_type: "referral",
+    changed_by: "reviewer",
+  });
+
   return toRecord(data);
 }
 

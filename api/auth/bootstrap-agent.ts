@@ -15,6 +15,7 @@ import { ensureAgentSlug } from "../../backend/lib/agentSlug.js";
 import { buildAgentAssessmentLinks } from "../../backend/lib/dashboard.js";
 import { normalizePublicOrigin } from "../../backend/lib/env.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
+import { trackServerEvent, ANALYTICS_EVENTS } from "../../backend/lib/vercelAnalytics.js";
 
 const ROUTE = "auth/bootstrap-agent";
 
@@ -84,6 +85,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         role: profile?.role ?? null,
         hasPublicSlug: Boolean(publicSlug),
       });
+
+      // Source-of-truth signup events: fired only for a BRAND-NEW profile
+      // (sign-in auto-bootstrap and backfills never re-fire them), and only
+      // after the profile + agent rows exist. Categorical flags only, no PII.
+      if (!existingProfile && profile && profile.id) {
+        await trackServerEvent(ANALYTICS_EVENTS.AGENT_ACCOUNT_CREATED, {
+          signup_source: "agent_login_page",
+          account_type: "agent",
+        });
+        if (agent && agent.id) {
+          await trackServerEvent(ANALYTICS_EVENTS.AGENT_SIGNUP_COMPLETED, {
+            signup_source: "agent_login_page",
+            has_phone: Boolean(sanitizePhone(body["phone"])),
+            has_location: false,
+            has_license_info: Boolean(optionalString(body, "licenseNumber")),
+            payment_status: "none",
+            assessment_required: true,
+          });
+        }
+      }
 
       // Resolutions agents (@resolutions.realtor) skip the agent assessment. Log
       // the bypass (no PII beyond the domain marker) so the routing is auditable.

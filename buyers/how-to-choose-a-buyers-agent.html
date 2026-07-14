@@ -107,6 +107,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/client/styles.css">
     <script defer src="/_vercel/insights/script.js"></script>
+    <script>window.REQUITY_PAGE_TYPE = "buyer";</script>
+    <script defer src="/frontend/shared/analytics.js"></script>
 </head>
 <body>
 
@@ -128,7 +130,7 @@
             <div class="nav-links">
                 <a href="/">Home</a>
                 <a href="/resources.html">Resources</a>
-                <a href="/client/assessment.html">Find your match</a>
+                <a href="/client/assessment.html">Find your agent</a>
             </div>
         </div>
     </nav>
@@ -141,6 +143,37 @@
                 <p class="support-copy mt-m">The sections below walk through each criterion, with the questions that expose real differences between candidates. None of them require special knowledge on your part, just attention to how specific and honest the answers are.</p>
             </div>
         </section>
+
+        <!-- Founder introduction video (shared section; keep in sync with client/index.html) -->
+        <section id="meet-the-founder" class="section founder-video-section">
+            <div class="container" style="max-width: 980px;">
+                <h2 class="section-title text-center">Meet the founder of REQUITY</h2>
+                <p class="support-copy text-center mx-auto" style="max-width: 720px;">Learn why REQUITY was created and how our human-reviewed matching process helps buyers and sellers make a more informed choice when selecting a real estate agent.</p>
+                <div class="founder-video-frame mt-l">
+                    <video controls playsinline preload="metadata" aria-label="Introduction to REQUITY from the founder" data-founder-video>
+                        <source src="/assets/videos/requity-founder-introduction.mp4" type="video/mp4" />
+                        <!-- TODO: add a <track kind="captions"> when /assets/videos/requity-founder-introduction.vtt exists -->
+                        Your browser does not support the video element.
+                    </video>
+                </div>
+            </div>
+        </section>
+        <script>
+        (function () {
+            var video = document.querySelector('[data-founder-video]');
+            if (!video) return;
+            var section = video.closest('.founder-video-section');
+            function hideSection() {
+                if (section) section.style.display = 'none';
+                if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+                    console.warn('[REQUITY] Founder introduction video failed to load; hiding the section.');
+                }
+            }
+            video.addEventListener('error', hideSection);
+            var sources = video.querySelectorAll('source');
+            if (sources.length) sources[sources.length - 1].addEventListener('error', hideSection);
+        })();
+        </script>
 
         <section class="section bg-soft-blue">
             <div class="container" style="max-width: 860px;">
@@ -190,8 +223,8 @@
         <section class="section text-center">
             <div class="container final-cta">
                 <h2 class="section-title">Ready to find your agent match?</h2>
-                <p class="support-copy mx-auto" style="max-width: 600px;">Complete a short assessment and let Requity help you connect with a real estate agent you can feel confident moving forward with.</p>
-                <a href="/client/assessment.html" class="btn btn-primary mt-m">Find your agent match</a>
+                <p class="support-copy mx-auto" style="max-width: 600px;">Complete a short relationship style assessment and let Requity help you connect with a real estate agent who fits how you communicate.</p>
+                <a href="/client/assessment.html" class="btn btn-primary mt-m">Find your agent</a>
             </div>
         </section>
 

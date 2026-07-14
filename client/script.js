@@ -380,4 +380,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initRequityPatternBackgrounds();
 
+    // --- Founder introduction video: safe fallback ---------------------------
+    // If the MP4 is missing or fails to load, hide the whole section instead of
+    // showing a broken player. Logs a warning for local debugging only.
+    (function initFounderVideoFallback() {
+        const video = document.querySelector('[data-founder-video]');
+        if (!video) return;
+        const section = video.closest('.founder-video-section');
+        const hideSection = function () {
+            if (section) section.style.display = 'none';
+            const host = window.location.hostname;
+            if (host === 'localhost' || host === '127.0.0.1') {
+                console.warn('[REQUITY] Founder introduction video failed to load; hiding the "Meet the founder" section. Expected file: /assets/videos/requity-founder-introduction.mp4');
+            }
+        };
+        video.addEventListener('error', hideSection);
+        const sources = video.querySelectorAll('source');
+        const lastSource = sources.length ? sources[sources.length - 1] : null;
+        if (lastSource) lastSource.addEventListener('error', hideSection);
+    })();
+
 });

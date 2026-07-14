@@ -134,7 +134,7 @@ function renderPage(m) {
   );
   html = replaceAnchored(
     html,
-    '<meta name="description" content="Requity helps buyers and sellers find real estate agents through relationship style assessments, communication insights, transaction needs, and agent client compatibility matching.">',
+    '<meta name="description" content="REQUITY helps buyers and sellers find real estate agents through a short assessment, human review, and a clearer matching process built around communication style and needs.">',
     `<meta name="description" content="${esc(m.metaDescription)}">`,
     "meta description"
   );
@@ -152,7 +152,7 @@ function renderPage(m) {
   );
   html = replaceAnchored(
     html,
-    '<meta property="og:description" content="Requity helps buyers and sellers find real estate agents through personality based assessments, communication insights, and compatibility matching." />',
+    '<meta property="og:description" content="REQUITY helps buyers and sellers find real estate agents through a short assessment, human review, and a clearer matching process built around communication style and needs." />',
     `<meta property="og:description" content="${esc(m.metaDescription)}" />`,
     "og:description"
   );
@@ -170,7 +170,7 @@ function renderPage(m) {
   );
   html = replaceAnchored(
     html,
-    '<meta name="twitter:description" content="Find a real estate agent who fits your communication style, goals, and buying or selling needs." />',
+    '<meta name="twitter:description" content="Find a real estate agent through a short assessment and human-reviewed matching built around your communication style, goals, and needs." />',
     `<meta name="twitter:description" content="${esc(m.metaDescription)}" />`,
     "twitter:description"
   );
@@ -206,25 +206,27 @@ function renderPage(m) {
   );
   html = replaceAnchored(
     html,
-    '<h1 class="hero-headline">Find a real estate agent who fits how you communicate.</h1>',
+    '<h1 class="hero-headline">Find a real estate agent you can feel confident moving forward with.</h1>',
     `<h1 class="hero-headline">${esc(m.heroHeadline)}</h1>`,
     "hero headline"
   );
   html = replaceAnchored(
     html,
-    '<p class="hero-subheadline">Requity uses personality based assessments and relationship insights to help buyers and sellers connect with real estate agents whose working style fits their needs.</p>',
+    '<p class="hero-subheadline">REQUITY uses a short assessment and human review to help buyers and sellers connect with real estate agents whose communication style, guidance, and working approach fit their needs.</p>',
     `<p class="hero-subheadline">${esc(m.heroSubheadline)}</p>`,
     "hero subheadline"
   );
+  // Client CTAs are standardized to "Find your agent" on every market page
+  // (market context still travels in the assessment URL, never the label).
   html = replaceAnchored(
     html,
-    '<button class="btn btn-primary js-assessment-cta" data-assessment-cta>Find your agent match</button>',
+    '<button class="btn btn-primary js-assessment-cta" data-assessment-cta>Find your agent</button>',
     `<button class="btn btn-primary js-assessment-cta" data-assessment-cta>${esc(m.primaryCta)}</button>`,
     "hero primary CTA"
   );
   html = replaceAnchored(
     html,
-    '<button class="btn btn-primary mt-m js-assessment-cta" data-assessment-cta>Find your match</button>',
+    '<button class="btn btn-primary mt-m js-assessment-cta" data-assessment-cta>Find your agent</button>',
     `<button class="btn btn-primary mt-m js-assessment-cta" data-assessment-cta>${esc(m.primaryCta)}</button>`,
     "final CTA button"
   );
@@ -243,11 +245,13 @@ function renderPage(m) {
   html = html.split('href="/client/assessment.html"').join(`href="${m.assessmentUrl}"`);
 
   // --- Scripts: market context in, homepage location prompt out -----------
+  // Page type + market slug feed both CTA URLs (script.js) and analytics
+  // (frontend/shared/analytics.js). Only categorical values, never PII.
   html = replaceAnchored(
     html,
-    '<script src="/client/script.js"></script>',
-    `<script>window.REQUITY_PAGE_MARKET = "${m.slug}";</script>\n    <script src="/client/script.js"></script>`,
-    "script.js include"
+    '<script>window.REQUITY_PAGE_TYPE = "generic";</script>',
+    `<script>window.REQUITY_PAGE_TYPE = "market"; window.REQUITY_PAGE_MARKET = "${m.slug}";</script>`,
+    "page type script"
   );
   html = replaceAnchored(
     html,

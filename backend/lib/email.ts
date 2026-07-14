@@ -18,12 +18,15 @@ import {
   type RichEmailContent,
 } from "./emailTemplate.js";
 import { formatAppreciationStyle } from "./clientReport.js";
+import { trackServerEventInBackground, ANALYTICS_EVENTS } from "./vercelAnalytics.js";
 import {
   buildClientAssessmentEmailReport,
   buildAgentArchetypeEmailReport,
   buildClientMatchReviewStartedEmail,
   buildGetToKnowAgentEmail,
+  buildClientFinalMatchEmail,
   type BuiltEmail,
+  type ClientFinalMatchEmailInput,
 } from "./emailReports.js";
 
 /**
@@ -74,7 +77,10 @@ export {
   buildAgentArchetypeEmailReport,
   buildClientMatchReviewStartedEmail,
   buildGetToKnowAgentEmail,
+  buildClientFinalMatchEmail,
   type BuiltEmail,
+  type ClientFinalMatchEmailInput,
+  type FinalMatchAgentInput,
 } from "./emailReports.js";
 
 export type EmailDeliveryStatus = "sent" | "skipped" | "failed";
@@ -193,6 +199,37 @@ export const EMAIL_SUBJECTS = {
 
 // --- Unified provider-based send (Part 2 deliverable) ----------------------
 
+// Match-related email event types tracked as "match_email_sent" analytics
+// events, mapped to the recipient audience. Analytics never receives the
+// recipient address, subject, or body; only categorical send metadata.
+const MATCH_EMAIL_RECIPIENT_TYPES: Record<string, "agent" | "client" | "reviewer"> = {
+  client_matched: "agent",
+  match_superseded_agent: "agent",
+  client_matched_get_to_know_agent: "client",
+  client_match_complete: "client",
+  client_match_review_started: "client",
+  reviewer_match_finalized: "reviewer",
+  reviewer_match_replaced: "reviewer",
+  reviewer_match_review_started: "reviewer",
+};
+
+function trackMatchEmailAnalytics(params: SendAppEmailParams, providerStatus: string): void {
+  const recipientType = MATCH_EMAIL_RECIPIENT_TYPES[params.eventType];
+  if (!recipientType) return;
+  const meta = params.metadata ?? {};
+  const lane = typeof meta["lane"] === "string" ? meta["lane"] : null;
+  const isResend = meta["resend"] === true || /resend/i.test(params.eventKey ?? "");
+  const isReplacement =
+    params.eventType === "match_superseded_agent" || params.eventType === "reviewer_match_replaced";
+  trackServerEventInBackground(ANALYTICS_EVENTS.MATCH_EMAIL_SENT, {
+    recipient_type: recipientType,
+    email_type: params.eventType,
+    lane,
+    send_type: isReplacement ? "replacement" : isResend ? "resend" : "initial",
+    provider_status: providerStatus,
+  });
+}
+
 export type SendAppEmailParams = {
   /** Coarse event type, e.g. "assessment_completed". Also used as a tag. */
   eventType: string;
@@ -258,6 +295,7 @@ export async function sendAppEmail(params: SendAppEmailParams): Promise<SendAppE
       payload: { ...(params.metadata ?? {}), reason: "No recipient found" },
     });
     logEmail("EMAIL_SEND_RESULT", { provider, eventType: params.eventType, status: "skipped" });
+    trackMatchEmailAnalytics(params, "skipped");
     return {
       emailed: false,
       provider,
@@ -359,6 +397,8 @@ export async function sendAppEmail(params: SendAppEmailParams): Promise<SendAppE
       message: safeShortError(errorMessage),
     });
   }
+
+  trackMatchEmailAnalytics(params, status);
 
   return {
     emailed: sent,
@@ -601,14 +641,14 @@ export async function sendClientMatchedEmail(
           rows: [
             {
               label: "How they feel valued",
-              value: formatAppreciationStyle(input.appreciationStyle) ?? "Not provided",
+              value: formatAppreciationStyle(input.appreciationStyle) ?? "Not answered",
             },
           ],
         },
         { kind: "paragraph", text: "Expectations, questions, and additional information:" },
         {
           kind: "paragraph",
-          text: (input.agentExpectationsNotes ?? "").trim() || "Not provided",
+          text: (input.agentExpectationsNotes ?? "").trim() || "Not answered",
         },
       ];
       const content: RichEmailContent = {
@@ -809,6 +849,46 @@ export async function sendClientMatchedGetToKnowAgentEmail(
     text: built.text,
     tags: ["client_matched_get_to_know_agent"],
     metadata: { ...(built.meta ?? {}), clientId: clientId || null, agentId: agentId || null },
+  });
+  return toDeliveryResult(res);
+}
+
+// ---------------------------------------------------------------------------
+// client_match_complete -> client (the ONE final match email, sent only when
+// the client's full match is complete; combined for buying-and-selling).
+// ---------------------------------------------------------------------------
+
+export type ClientFinalMatchEmailSendInput = ClientFinalMatchEmailInput & {
+  /**
+   * Deterministic dedupe key built from the client id + the sorted active
+   * match ids (e.g. "client_match_complete:<clientId>:<matchIdA>:<matchIdB>").
+   * Reviewer-triggered resends pass a unique resend key instead.
+   */
+  eventKey?: string | null;
+  clientEmail?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+/**
+ * Send the single client-facing FINAL match email (event type
+ * "client_match_complete"). The caller is responsible for only invoking this
+ * when the full match is complete (see shouldSendClientFinalMatchEmail in
+ * reviewerMatches.ts); the deterministic eventKey prevents duplicate sends.
+ */
+export async function sendClientFinalMatchEmail(
+  input: ClientFinalMatchEmailSendInput
+): Promise<EmailDeliveryResult> {
+  const built = buildClientFinalMatchEmail(input);
+  const res = await sendAppEmail({
+    eventType: "client_match_complete",
+    eventKey: input.eventKey ?? null,
+    to: (input.clientEmail ?? "").trim(),
+    toName: input.clientName ?? null,
+    subject: built.subject,
+    html: built.html,
+    text: built.text,
+    tags: ["client_match_complete"],
+    metadata: { ...(input.metadata ?? {}), ...(built.meta ?? {}) },
   });
   return toDeliveryResult(res);
 }
@@ -1135,6 +1215,87 @@ export async function sendReviewerMatchReplacedEmail(
       newAgentName: input.newAgentName ?? null,
       matchType,
     },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Agent platform access payment confirmed (Stripe). Sent ONLY after the
+// verified Stripe webhook confirms payment; never from the browser redirect.
+// Deduped per Checkout Session, so a replayed webhook can never double-send.
+// ---------------------------------------------------------------------------
+
+export type AgentAccessPaymentConfirmedEmailInput = {
+  /** Stripe Checkout Session id, used ONLY for the dedupe key (never shown). */
+  checkoutSessionId?: string | null;
+  agentEmail?: string | null;
+  agentName?: string | null;
+};
+
+/**
+ * Email the agent that their one-time $50 platform access payment was
+ * confirmed and their account is active (event type
+ * "agent_platform_access_payment_confirmed"). Never includes card details.
+ */
+export async function sendAgentAccessPaymentConfirmedEmail(
+  input: AgentAccessPaymentConfirmedEmailInput
+): Promise<EmailDeliveryResult> {
+  const sessionId = (input.checkoutSessionId ?? "").trim();
+  return sendBuiltToRecipients({
+    eventType: "agent_platform_access_payment_confirmed",
+    baseEventKey: sessionId ? `agent_platform_access_payment_confirmed:${sessionId}` : null,
+    recipients: [
+      { email: (input.agentEmail ?? "").trim(), name: input.agentName ?? null, role: "agent" },
+    ],
+    metadata: { agentName: input.agentName ?? null },
+    build: () =>
+      builtFromContent("Your REQUITY agent access is active", {
+        title: "Your REQUITY agent access is active",
+        intro: `Hi ${
+          input.agentName || "there"
+        }, your payment was confirmed and your REQUITY agent account is ready. Your one-time platform access fee of $50 was received; there is no recurring subscription for this access fee.`,
+        details: [
+          { label: "Payment", value: "Confirmed" },
+          { label: "Amount", value: "$50 (one-time platform access fee)" },
+          {
+            label: "What is included",
+            value:
+              "Agent dashboard access, matched client assessments, profile and market management, and REQUITY platform updates.",
+          },
+          {
+            label: "Support",
+            value: "Reply to this email and the REQUITY team will help.",
+          },
+        ],
+        ctaLabel: "Go to your dashboard",
+        ctaUrl: dashboardUrlForRole("agent"),
+      }),
+  });
+}
+
+/**
+ * Compact reviewer/admin notification that an agent platform access payment
+ * was received. No card details, no amounts beyond the fixed fee.
+ */
+export async function sendReviewerAgentAccessPaymentEmail(input: {
+  checkoutSessionId?: string | null;
+  agentName?: string | null;
+  agentEmail?: string | null;
+}): Promise<EmailDeliveryResult> {
+  const sessionId = (input.checkoutSessionId ?? "").trim();
+  return sendReviewerNotification({
+    eventType: "reviewer_agent_access_payment_received",
+    dedupeBase: sessionId ? `reviewer_agent_access_payment_received:${sessionId}` : null,
+    subject: "Agent platform access payment received",
+    title: "Agent platform access payment received",
+    intro: `${
+      input.agentName || "An agent"
+    } completed the one-time $50 REQUITY platform access payment. Their agent dashboard access is now active.`,
+    details: [
+      { label: "Agent", value: input.agentName },
+      { label: "Agent email", value: input.agentEmail },
+      { label: "Amount", value: "$50 (one-time)" },
+    ],
+    metadata: { agentName: input.agentName ?? null },
   });
 }
 

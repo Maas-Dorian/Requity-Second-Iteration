@@ -46,7 +46,9 @@ function market({
     metaDescription: `Find a real estate agent in ${name} who fits your communication style, goals, and buying or selling needs. Start your free REQUITY assessment.`,
     heroHeadline: `Find a real estate agent in ${name} who fits how you communicate.`,
     heroSubheadline: `REQUITY uses personality based assessments and relationship insights to help buyers and sellers ${inPhrase} connect with real estate agents whose working style fits their needs.`,
-    primaryCta: `Find your ${name} agent match`,
+    // Client CTA labels are standardized: the market context stays in the
+    // headline, SEO metadata, and assessmentUrl, never in the button label.
+    primaryCta: "Find your agent",
     localTitle: `Real estate agent matching built around fit in ${name}`,
     localBody: `Choosing a real estate agent is not only about finding someone nearby. It is about finding someone whose communication style, pace, and guidance match how you make decisions. REQUITY helps buyers and sellers ${inPhrase} start with a short assessment, then uses human review to support a better agent match.`,
     localBullets: [

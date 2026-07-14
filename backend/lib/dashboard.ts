@@ -5,6 +5,7 @@ import { getAgentNotifications, type NotificationRecord } from "./messages.js";
 import { getAgentAssessmentActivity, type AgentAssessmentActivity } from "./analytics.js";
 import { isMissingTableError, updateWithSchemaFallback } from "./supabaseWrite.js";
 import { attachClientReport } from "./clientReport.js";
+import { enrichRowsWithClientExpectations } from "./clientExpectations.js";
 import { ensureAgentSlug } from "./agentSlug.js";
 import { logger } from "./logger.js";
 import {
@@ -617,6 +618,26 @@ export async function getAgentDashboard(
     if (!isMissingTableError(error)) {
       console.error("[dashboard] legacy lead history load failed:", error);
     }
+  }
+
+  // Backfill appreciation style + expectations onto every client/lead row
+  // BEFORE legacy normalization (which copies fields), so the agent dashboard
+  // shows the final assessment answers even when the scalar columns are
+  // missing/null on the live schema (values live in the assessments result
+  // JSON). Resilient: enrichment failures leave the rows unchanged.
+  try {
+    await enrichRowsWithClientExpectations(list, "client");
+    await enrichRowsWithClientExpectations(
+      legacyMatchRows.map((m: any) => m?.clients).filter(Boolean),
+      "client"
+    );
+    await enrichRowsWithClientExpectations(
+      legacyMatchRows.map((m: any) => m?.assessment_leads).filter(Boolean),
+      "lead"
+    );
+    await enrichRowsWithClientExpectations(legacyLeadRows, "lead");
+  } catch (error) {
+    console.error("[dashboard] client expectations enrichment failed:", error);
   }
 
   const legacyRecords = normalizeAgentLegacyRecords({

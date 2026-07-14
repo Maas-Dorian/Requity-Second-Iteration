@@ -12,6 +12,7 @@ import {
   generateAgentAssessmentQrPng,
 } from "../../backend/lib/qrCode.js";
 import { requireAgent } from "../../backend/lib/auth.js";
+import { requireAgentPlatformAccess } from "../../backend/lib/agentAccess.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "agent/qr";
@@ -37,6 +38,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // query param. An admin may optionally pass ?agentId= to view another agent;
     // otherwise we use the caller's own agent row (agents AND admins can have one).
     const profile = await requireAgent(req);
+    // Hard access gate: unpaid new agents cannot use platform features.
+    await requireAgentPlatformAccess(profile);
     const overrideId = getQueryParam(req, "agentId");
     const agentId =
       profile.role === "admin" && overrideId ? overrideId : profile.agentId;

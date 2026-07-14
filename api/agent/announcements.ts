@@ -11,6 +11,7 @@ import {
   dismissAgentAnnouncement,
 } from "../../backend/lib/announcements.js";
 import { requireAgent } from "../../backend/lib/auth.js";
+import { requireAgentPlatformAccess } from "../../backend/lib/agentAccess.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "agent/announcements";
@@ -29,6 +30,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   await runHandler(req, res, async () => {
     logApiStart(ROUTE);
     const profile = await requireAgent(req);
+    // Hard access gate: announcements are a dashboard feature.
+    await requireAgentPlatformAccess(profile);
     const agentId = profile.agentId;
     if (!agentId) {
       // A profile without an agent record has no announcements; empty is fine.

@@ -24,6 +24,7 @@ import { getUserFromRequest, mapSupabaseUserToProfile } from "../../backend/lib/
 import { ensureAgentForUser } from "../../backend/lib/users.js";
 import { checkRateLimit } from "../../backend/lib/rateLimit.js";
 import { logApiStart, logValidationFailure, logSupabaseError } from "../../backend/lib/logger.js";
+import { trackServerEvent, ANALYTICS_EVENTS, marketSlug } from "../../backend/lib/vercelAnalytics.js";
 
 const ROUTE = "agent-assessment/submit";
 
@@ -82,6 +83,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           serviceRadiusMiles,
           agentId: agent.id,
           profileId: profile.profileId,
+        });
+        // Source-of-truth completion event: fires only after the save succeeded.
+        await trackServerEvent(ANALYTICS_EVENTS.AGENT_ASSESSMENT_COMPLETED, {
+          market: marketSlug(marketCity),
+          assessment_version: "v1",
+          total_questions: Object.keys(answers ?? {}).length,
+          has_archetype: Boolean((result as { archetype?: unknown } | null)?.archetype),
         });
         sendJson(res, 200, result);
       } catch (error) {

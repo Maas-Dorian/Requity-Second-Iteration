@@ -16,6 +16,7 @@ import {
   PAYMENT_STATUSES,
 } from "../../backend/lib/payments.js";
 import { requireReviewer } from "../../backend/lib/auth.js";
+import { getAgentAccessSummaries } from "../../backend/lib/agentAccess.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "reviewer/payments";
@@ -46,7 +47,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
       try {
         const result = await listReviewerPayments({ status });
-        sendJson(res, 200, { ok: true, ...result });
+        // Merge Stripe-confirmed platform access state into each agent row so
+        // the reviewer sees one unified payment display (never card data).
+        const accessMap = await getAgentAccessSummaries(
+          result.records.map((r) => r.entityId)
+        );
+        const records = result.records.map((r) => ({
+          ...r,
+          access: accessMap.get(r.entityId) ?? null,
+        }));
+        sendJson(res, 200, { ok: true, ...result, records });
       } catch (error) {
         logSupabaseError(ROUTE, error);
         throw error;

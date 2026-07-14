@@ -13,6 +13,7 @@ import {
   type PipelineStatus,
 } from "../../backend/lib/dashboard.js";
 import { requireAgent } from "../../backend/lib/auth.js";
+import { requireAgentPlatformAccess } from "../../backend/lib/agentAccess.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "dashboard/client-status";
@@ -30,6 +31,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     logApiStart(ROUTE);
 
     const profile = await requireAgent(req);
+    // Hard access gate: unpaid new agents cannot use platform features.
+    await requireAgentPlatformAccess(profile);
 
     const body = getJsonBody(req);
     const clientId = requireString(body, "clientId");

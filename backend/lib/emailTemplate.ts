@@ -64,7 +64,16 @@ export function escapeHtmlMultiline(value: string | null | undefined): string {
   return escapeHtml(value).replace(/\r\n|\r|\n/g, "<br>");
 }
 
-export type EmailDetail = { label: string; value: string | null | undefined };
+export type EmailDetail = {
+  label: string;
+  value: string | null | undefined;
+  /**
+   * Optional safe link target (e.g. "mailto:agent@example.com" or
+   * "tel:+15025551234"). Rendered as a brand-styled anchor in HTML (never a
+   * default blue underlined link); plain text always uses the visible value.
+   */
+  href?: string | null;
+};
 
 export type EmailContentInput = {
   title: string;
@@ -75,9 +84,15 @@ export type EmailContentInput = {
 };
 
 /** Keep only detail rows that have a non-empty value (never show null/undefined). */
-export function usableDetails(details?: EmailDetail[]): { label: string; value: string }[] {
+export function usableDetails(
+  details?: EmailDetail[]
+): { label: string; value: string; href: string | null }[] {
   return (details ?? [])
-    .map((d) => ({ label: d.label, value: (d.value ?? "").toString().trim() }))
+    .map((d) => ({
+      label: d.label,
+      value: (d.value ?? "").toString().trim(),
+      href: (d.href ?? "").toString().trim() || null,
+    }))
     .filter((d) => d.value.length > 0);
 }
 
@@ -86,17 +101,23 @@ function usableItems(items?: (string | null | undefined)[]): string[] {
   return (items ?? []).map((i) => (i ?? "").toString().trim()).filter((i) => i.length > 0);
 }
 
-function detailsTableHtml(rows: { label: string; value: string }[]): string {
+function detailsTableHtml(rows: { label: string; value: string; href?: string | null }[]): string {
   if (!rows.length) return "";
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 4px;border-collapse:collapse;">${rows
-    .map(
-      (d) =>
-        `<tr><td style="padding:6px 12px 6px 0;font-size:14px;color:#777;width:170px;vertical-align:top;">${escapeHtml(
-          d.label
-        )}</td><td style="padding:6px 0;font-size:15px;color:#1f1f1f;font-weight:600;">${escapeHtmlMultiline(
-          d.value
-        )}</td></tr>`
-    )
+    .map((d) => {
+      const href = (d.href ?? "").trim();
+      // Only mailto:/tel: links are ever rendered as anchors, styled in the
+      // brand color without an underline (never a default blue link).
+      const valueHtml =
+        href && /^(mailto:|tel:)/i.test(href)
+          ? `<a href="${escapeHtml(href)}" style="color:#b8652f;text-decoration:none;font-weight:600;">${escapeHtmlMultiline(
+              d.value
+            )}</a>`
+          : escapeHtmlMultiline(d.value);
+      return `<tr><td style="padding:6px 12px 6px 0;font-size:14px;color:#777;width:170px;vertical-align:top;">${escapeHtml(
+        d.label
+      )}</td><td style="padding:6px 0;font-size:15px;color:#1f1f1f;font-weight:600;">${valueHtml}</td></tr>`;
+    })
     .join("")}</table>`;
 }
 

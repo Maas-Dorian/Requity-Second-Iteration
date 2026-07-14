@@ -12,16 +12,28 @@ import {
 } from "./messages.js";
 import {
   sendClientMatchedEmail,
-  sendClientMatchedGetToKnowAgentEmail,
+  sendClientFinalMatchEmail,
   sendPreviousAgentMatchEndedEmail,
   sendReviewerMatchFinalizedEmail,
   sendReviewerMatchReplacedEmail,
   type EmailTarget,
+  type FinalMatchAgentInput,
 } from "./email.js";
 import { insertWithSchemaFallback } from "./supabaseWrite.js";
 import { env } from "./env.js";
 import { assignArchetype, isApprovedClientArchetype } from "./archetypes.js";
 import { attachClientReport, formatAppreciationStyle } from "./clientReport.js";
+import {
+  trackServerEventInBackground,
+  ANALYTICS_EVENTS,
+  marketSlug,
+  fitBand,
+  hoursBetween,
+} from "./vercelAnalytics.js";
+import {
+  enrichRowsWithClientExpectations,
+  enrichRowWithClientExpectations,
+} from "./clientExpectations.js";
 import {
   derivePipelineStatus,
   pipelineStatusLabel,
@@ -509,6 +521,9 @@ export async function listReviewerQueue(): Promise<ReviewerQueueItem[]> {
       .eq("status", "reviewer_matching")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
+    // Backfill appreciation style + expectations from the durable assessments
+    // JSON when the scalar columns are missing/null (schema-drift resilience).
+    await enrichRowsWithClientExpectations((clients ?? []) as any[], "client");
     for (const client of clients ?? []) {
       // Archived (soft deleted) clients never appear in active views (Part 7).
       if (isArchivedRow(client)) continue;
@@ -587,6 +602,10 @@ async function leadOnlyQueueItems(_seed: Set<string>): Promise<ReviewerQueueItem
     .limit(200);
   if (error) throw new Error(error.message);
   if (!leads || !leads.length) return [];
+
+  // Backfill appreciation style + expectations from the linked assessments
+  // rows when the lead scalar columns are missing/null.
+  await enrichRowsWithClientExpectations(leads as any[], "lead");
 
   // Which of these emails already exist as a client row (any status)? Those are
   // already (or were) in the pipeline and must not be duplicated here.
@@ -900,6 +919,14 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
       }
     }
 
+    // Backfill appreciation style + expectations so the paired cards (and the
+    // Client Assessment dropdown seed data) always have readable values.
+    await enrichRowsWithClientExpectations(
+      rows.map((r) => r.clients).filter(Boolean) as any[],
+      "client"
+    );
+    await enrichRowsWithClientExpectations(Array.from(leadById.values()), "lead");
+
     for (const row of rows) {
       const lead = !row.clients && row.lead_id ? leadById.get(row.lead_id) ?? null : null;
       const client = row.clients ?? lead ?? {};
@@ -959,6 +986,7 @@ export async function listPairedClients(): Promise<PairedClientItem[]> {
       .not("assigned_agent_id", "is", null)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
+    await enrichRowsWithClientExpectations((data ?? []) as any[], "client");
     for (const client of (data ?? []) as any[]) {
       if (client.id && representedClients.has(client.id)) continue;
       if (isArchivedRow(client)) continue;
@@ -1246,8 +1274,11 @@ async function insertActiveMatchRow(values: Record<string, unknown>): Promise<st
  * Shared assignment side-effects for the NEW active match:
  *  - assign the client -> agent (when a clients row exists),
  *  - create the reviewer-match notification for the agent,
- *  - email the agent (dedupe per client+agent) and the reviewer fallback,
- *  - email the client a "get to know your agent" intro (dedupe per client+agent).
+ *  - email the agent (dedupe per client+agent) and the reviewer fallback.
+ * The CLIENT-facing final match email is NOT sent here: it is sent by
+ * maybeSendClientFinalMatchEmail only when the client's full match is
+ * complete (both lanes for buying-and-selling clients), so a both-client
+ * never receives two separate client emails.
  * `party` is the client OR lead row (used for names/email/market).
  */
 async function finalizeAssignment(
@@ -1268,16 +1299,13 @@ async function finalizeAssignment(
     matchId?: string | null;
     /** When false, skip the agent match email (reviewer unchecked "Notify new agent"). */
     notifyNewAgent?: boolean;
-    /** When false, skip the client "get to know your agent" email. */
-    notifyClient?: boolean;
   }
-): Promise<{ notified: boolean; emailed: boolean; clientEmailed: boolean }> {
+): Promise<{ notified: boolean; emailed: boolean }> {
   const supabase = getSupabaseAdmin();
   const targetId = target.clientId ?? target.leadId ?? party?.id ?? "unknown";
   const markAssigned = options?.markAssigned !== false;
   const lane: MatchLane = options?.matchLane ?? defaultLaneForIntent(party?.transaction_intent);
   const notifyNewAgent = options?.notifyNewAgent !== false;
-  const notifyClient = options?.notifyClient !== false;
 
   if (target.clientId) {
     const update: Record<string, unknown> = { assigned_agent_id: agent.id };
@@ -1343,38 +1371,217 @@ async function finalizeAssignment(
     }
   }
 
-  // Client-facing "get to know your agent" email (match finalized). Uses the
-  // content-rich SendGrid builder so the client sees who their agent is and what
-  // the archetype means without logging in. Best-effort: never blocks matching.
-  // Deduped per client + agent + recipient, so a replacement match sends a fresh
-  // intro for the new agent. Agent phone is only shown when the agent approved
-  // public display (agents.phone_public).
-  let clientEmailed = false;
-  const clientEmail = notifyClient ? (party?.email ?? "").trim() : "";
-  if (clientEmail) {
-    try {
-      const delivery = await sendClientMatchedGetToKnowAgentEmail({
-        clientIdOrLeadId: target.clientId ?? target.leadId ?? null,
-        agentId: agent.id ?? null,
-        clientName: party?.full_name ?? null,
-        clientEmail,
-        agentName: agent.display_name ?? null,
-        agentEmail: agent.email ?? null,
-        agentPhone: agent.phone ?? null,
-        agentPhonePublic: agent.phone_public === true,
-        agentMarket: agent.market_city ?? null,
-        agentArchetype: agent.archetype ?? null,
-      });
-      clientEmailed = delivery.emailed;
-    } catch (error) {
-      console.error(
-        "[reviewerMatches] get-to-know-agent email failed:",
-        error instanceof Error ? error.message : error
-      );
-    }
+  return { notified, emailed };
+}
+
+// --- Client FINAL match email (one email per completed match) ---------------
+
+/**
+ * Normalize an agent row's phone to ONE value, checking every phone field this
+ * repo (or an imported dataset) may have used. Returns null when absent.
+ */
+export function normalizeAgentPhone(agentRow: any): string | null {
+  if (!agentRow || typeof agentRow !== "object") return null;
+  return (
+    cleanText(agentRow.phone) ??
+    cleanText(agentRow.phone_number) ??
+    cleanText(agentRow.phoneNumber) ??
+    cleanText(agentRow.mobile) ??
+    cleanText(agentRow.mobile_phone) ??
+    cleanText(agentRow.contact_phone) ??
+    null
+  );
+}
+
+/**
+ * True only when the client's FULL match is complete:
+ *  - buying-only: the buying match is active,
+ *  - selling-only: the selling match is active,
+ *  - buying-and-selling: BOTH lane matches are active (or one both/general
+ *    match covers everything),
+ *  - general/legacy: the relevant match is active.
+ */
+export function shouldSendClientFinalMatchEmail(client: any, activeMatchRows: any[]): boolean {
+  const status = buildLaneStatus(client?.transaction_intent ?? null, activeMatchRows ?? []);
+  return status.fullyMatched && status.activeMatches.length > 0;
+}
+
+/** One agent's contact block for the final client email, from a match row. */
+function finalMatchAgentFromRow(row: any): FinalMatchAgentInput {
+  const agent = (row?.agents as any) ?? {};
+  return {
+    agentName: cleanText(agent.display_name),
+    agentEmail: cleanText(agent.email),
+    agentPhone: normalizeAgentPhone(agent),
+    agentArchetype: cleanText(agent.archetype),
+  };
+}
+
+/**
+ * Send the ONE client-facing final match email when (and only when) the
+ * client's full match is complete. Best-effort: never throws to the matching
+ * flow. Dedupe key is deterministic per client + the sorted active match ids,
+ * so a both-client completing their second lane gets exactly one combined
+ * email and retries never double-send. `resend: true` (reviewer action) uses a
+ * unique timestamped key so an explicit resend always goes out.
+ */
+async function maybeSendClientFinalMatchEmail(
+  party: any,
+  target: { clientId: string | null; leadId: string | null },
+  activeRows: any[],
+  options?: { resend?: boolean }
+): Promise<{ emailed: boolean; emailStatus: string; recipients: string[]; skippedReason?: string }> {
+  const targetId = target.clientId ?? target.leadId ?? party?.id ?? null;
+  const clientEmail = cleanText(party?.email);
+  if (!clientEmail) {
+    return { emailed: false, emailStatus: "skipped", recipients: [], skippedReason: "No client email on file" };
+  }
+  if (!shouldSendClientFinalMatchEmail(party, activeRows)) {
+    console.log("CLIENT_FINAL_EMAIL_WAITING", {
+      targetId,
+      intent: party?.transaction_intent ?? null,
+      activeLanes: (activeRows ?? []).map((r) => laneOfRow(r)),
+    });
+    return {
+      emailed: false,
+      emailStatus: "skipped",
+      recipients: [],
+      skippedReason: "Match not fully complete yet",
+    };
   }
 
-  return { notified, emailed, clientEmailed };
+  // Newest active row per lane (activeRows arrive newest-first).
+  const byLane = new Map<MatchLane, any>();
+  for (const row of activeRows ?? []) {
+    const lane = laneOfRow(row);
+    if (!byLane.has(lane)) byLane.set(lane, row);
+  }
+  const buyingRow = byLane.get("buying") ?? null;
+  const sellingRow = byLane.get("selling") ?? null;
+  const bothRow = byLane.get("both") ?? null;
+  const generalRow = byLane.get("general") ?? null;
+
+  const matchIds = (activeRows ?? [])
+    .map((r) => r?.id)
+    .filter(Boolean)
+    .map(String)
+    .sort();
+  const eventKey = options?.resend
+    ? `client_match_complete:${targetId}:resend:${Date.now()}`
+    : `client_match_complete:${targetId}:${matchIds.join(":")}`;
+
+  try {
+    const delivery = await sendClientFinalMatchEmail({
+      eventKey,
+      clientEmail,
+      clientName: party?.full_name ?? null,
+      buyingAgent: buyingRow ? finalMatchAgentFromRow(buyingRow) : null,
+      sellingAgent: sellingRow ? finalMatchAgentFromRow(sellingRow) : null,
+      bothAgent: bothRow ? finalMatchAgentFromRow(bothRow) : null,
+      generalAgent: generalRow ? finalMatchAgentFromRow(generalRow) : null,
+      buyingMarket: cleanText(party?.buying_market_city),
+      sellingMarket: cleanText(party?.selling_market_city),
+      generalMarket: cleanText(party?.market_city),
+      metadata: {
+        clientId: target.clientId ?? null,
+        leadId: target.leadId ?? null,
+        matchIds,
+        resend: options?.resend === true,
+      },
+    });
+    console.log("CLIENT_FINAL_EMAIL_RESULT", {
+      targetId,
+      emailed: delivery.emailed,
+      emailStatus: delivery.emailStatus,
+      matchIds,
+      resend: options?.resend === true,
+    });
+    trackServerEventInBackground(ANALYTICS_EVENTS.CLIENT_FINAL_MATCH_EMAIL_SENT, {
+      transaction_type:
+        party?.transaction_intent === "both"
+          ? "buying_and_selling"
+          : party?.transaction_intent === "other"
+            ? "general"
+            : (party?.transaction_intent ?? null),
+      market: marketSlug(party?.buying_market_city ?? party?.selling_market_city ?? party?.market_city),
+      agent_count: new Set(
+        (activeRows ?? []).map((r: any) => r?.agent_id).filter(Boolean).map(String)
+      ).size || 1,
+      send_type: options?.resend === true ? "resend" : "initial",
+      provider_status: delivery.emailStatus,
+    });
+    return {
+      emailed: delivery.emailed,
+      emailStatus: delivery.emailStatus,
+      recipients: delivery.recipients,
+    };
+  } catch (error) {
+    console.error(
+      "[reviewerMatches] client final match email failed:",
+      error instanceof Error ? error.message : error
+    );
+    return { emailed: false, emailStatus: "failed", recipients: [clientEmail] };
+  }
+}
+
+/**
+ * Reviewer "Resend client email" action: re-send the final client match email
+ * for a client/lead whose full match is complete. Throws 400 when the match is
+ * not complete yet (the button should be disabled in that state).
+ */
+export async function resendClientFinalMatchEmail(target: {
+  clientId?: string | null;
+  leadId?: string | null;
+}): Promise<{ ok: true; emailed: boolean; emailStatus: string; recipients: string[] }> {
+  const supabase = getSupabaseAdmin();
+  const clientId = target.clientId ?? null;
+  const leadId = target.leadId ?? null;
+  if (!clientId && !leadId) {
+    throw Object.assign(new Error("A clientId or leadId is required."), { status: 400 });
+  }
+
+  let party: any = null;
+  if (clientId) {
+    const { data } = await supabase.from("clients").select("*").eq("id", clientId).maybeSingle();
+    party = data ?? null;
+  }
+  if (!party && leadId) {
+    const { data } = await supabase
+      .from("assessment_leads")
+      .select("*")
+      .eq("id", leadId)
+      .maybeSingle();
+    party = data ?? null;
+  }
+  if (!party) {
+    throw Object.assign(new Error("Client not found."), { status: 404 });
+  }
+  await enrichRowWithClientExpectations(party, clientId ? "client" : "lead");
+
+  const activeRows = await findActiveMatchesForTarget({ clientId, leadId });
+  if (!shouldSendClientFinalMatchEmail(party, activeRows)) {
+    throw Object.assign(
+      new Error("The client match is not complete yet, so the client email cannot be sent."),
+      { status: 400 }
+    );
+  }
+  if (!cleanText(party?.email)) {
+    throw Object.assign(new Error("This client has no email on file."), { status: 400 });
+  }
+
+  const result = await maybeSendClientFinalMatchEmail(
+    party,
+    { clientId, leadId },
+    activeRows,
+    { resend: true }
+  );
+  console.log("CLIENT_FINAL_EMAIL_RESENT", { clientId, leadId, emailed: result.emailed });
+  return {
+    ok: true,
+    emailed: result.emailed,
+    emailStatus: result.emailStatus,
+    recipients: result.recipients,
+  };
 }
 
 export type AssignReviewerMatchParams = {
@@ -1501,6 +1708,11 @@ export async function assignReviewerMatch(
       .maybeSingle();
     party = data ?? null;
   }
+  // Appreciation style + expectations must be present on the party row so the
+  // agent match email (and the final client email context) never drop them.
+  if (party) {
+    await enrichRowWithClientExpectations(party, clientId && party.id === clientId ? "client" : "lead");
+  }
 
   const lane: MatchLane = isMatchLane(params.matchLane)
     ? params.matchLane
@@ -1594,12 +1806,13 @@ export async function assignReviewerMatch(
 
   // Lane coverage AFTER this match: remaining non-conflicting actives + new one.
   const remainingActive = existingActive.filter((row) => !lanesOverlap(laneOfRow(row), lane));
-  const laneStatus = buildLaneStatus(party?.transaction_intent, [
+  const activeRowsAfter = [
     ...remainingActive,
     { id: matchId, agent_id: agent.id, match_lane: lane, agents: agent },
-  ]);
+  ];
+  const laneStatus = buildLaneStatus(party?.transaction_intent, activeRowsAfter);
 
-  const { notified, emailed, clientEmailed } = await finalizeAssignment(
+  const { notified, emailed } = await finalizeAssignment(
     party ?? { id: clientId ?? leadId },
     agent,
     { clientId, leadId },
@@ -1608,10 +1821,22 @@ export async function assignReviewerMatch(
       markAssigned: laneStatus.fullyMatched,
       matchLane: lane,
       matchId,
-      notifyClient: params.notifyClient !== false,
       notifyNewAgent: params.notifyNewAgent !== false,
     }
   );
+
+  // ONE client-facing final match email, only when the full match is complete
+  // (a both-client's first lane match sends nothing to the client). Deduped by
+  // client + sorted active match ids. Best-effort: never blocks the match.
+  let clientEmailed = false;
+  if (params.notifyClient !== false) {
+    const clientSend = await maybeSendClientFinalMatchEmail(
+      party ?? { id: clientId ?? leadId },
+      { clientId, leadId },
+      activeRowsAfter
+    );
+    clientEmailed = clientSend.emailed;
+  }
 
   // Optional courtesy email to the PREVIOUS agent (default off). Best-effort.
   if (replaced && params.notifyPreviousAgent === true && replacedRow) {
@@ -1685,6 +1910,69 @@ export async function assignReviewerMatch(
     );
   }
 
+  // --- Analytics (fire-and-forget; categorical only, never identities) -----
+  // Confirmed match outcomes are the server-side source of truth. Failures
+  // here can never affect the match result.
+  const analyticsTransaction =
+    party?.transaction_intent === "both"
+      ? "buying_and_selling"
+      : party?.transaction_intent === "other"
+        ? "general"
+        : (party?.transaction_intent ?? null);
+  const analyticsMarket = marketSlug(
+    lane === "selling"
+      ? (party?.selling_market_city ?? party?.market_city)
+      : (party?.buying_market_city ?? party?.market_city)
+  );
+  trackServerEventInBackground(ANALYTICS_EVENTS.REVIEWER_MATCH_COMPLETED, {
+    lane,
+    transaction_type: analyticsTransaction,
+    market: analyticsMarket,
+    distance_band: "unavailable",
+    fit_band: fitBand(score),
+    same_agent_for_both: lane === "both",
+    notify_client: params.notifyClient !== false,
+    notify_agent: params.notifyNewAgent !== false,
+    time_from_assessment_hours: hoursBetween(party?.created_at ?? null, now),
+    match_type: replaced ? "replacement" : "first",
+  });
+  if (replaced) {
+    trackServerEventInBackground(ANALYTICS_EVENTS.REVIEWER_MATCH_CHANGED, {
+      lane,
+      transaction_type: analyticsTransaction,
+      market: analyticsMarket,
+      change_reason_category: params.replaceReason ? "reason_provided" : "not_specified",
+      previous_match_age_days: (() => {
+        const hours = hoursBetween(
+          replacedRow?.finalized_at ?? replacedRow?.created_at ?? null,
+          now
+        );
+        return hours === null ? null : Math.round((hours / 24) * 10) / 10;
+      })(),
+      notify_previous_agent: params.notifyPreviousAgent === true,
+    });
+  }
+  if (party?.transaction_intent === "both" && !laneStatus.fullyMatched) {
+    trackServerEventInBackground(ANALYTICS_EVENTS.CLIENT_PARTIAL_MATCH_COMPLETED, {
+      completed_lane: lane,
+      remaining_lane: laneStatus.unmatchedLanes[0] ?? null,
+      market: analyticsMarket,
+    });
+  }
+  if (laneStatus.fullyMatched) {
+    const distinctAgents = new Set(
+      activeRowsAfter.map((r: any) => r?.agent_id).filter(Boolean).map(String)
+    );
+    trackServerEventInBackground(ANALYTICS_EVENTS.CLIENT_MATCH_FULLY_COMPLETED, {
+      transaction_type: analyticsTransaction,
+      market: analyticsMarket,
+      agent_count: distinctAgents.size || 1,
+      time_to_match_hours: hoursBetween(party?.created_at ?? null, now),
+      same_agent_for_both: party?.transaction_intent === "both" && distinctAgents.size === 1,
+      client_email_sent: clientEmailed,
+    });
+  }
+
   console.log("MATCH_FINALIZED_ACTIVE", {
     clientId,
     leadId,
@@ -1741,6 +2029,7 @@ export async function resendMatchEmail(matchId: string): Promise<{
 
   // Party: clients row, or the backing assessment_leads row for lead matches.
   let party: any = (match as any).clients ?? null;
+  let partyKind: "client" | "lead" = "client";
   if (!party && (match as any).lead_id) {
     const { data: lead } = await supabase
       .from("assessment_leads")
@@ -1748,7 +2037,10 @@ export async function resendMatchEmail(matchId: string): Promise<{
       .eq("id", (match as any).lead_id)
       .maybeSingle();
     party = lead ?? null;
+    partyKind = "lead";
   }
+  // Resent emails must carry appreciation style + expectations too.
+  if (party) await enrichRowWithClientExpectations(party, partyKind);
 
   const lane = laneOfRow(match);
   const targetId = (match as any).client_id ?? (match as any).lead_id ?? matchId;
@@ -1820,6 +2112,11 @@ export async function unmatchReviewerMatch(matchId: string): Promise<{
     matchId,
     agentId: (match as any).agent_id ?? null,
     matchLane: laneOfRow(match),
+  });
+  trackServerEventInBackground(ANALYTICS_EVENTS.REVIEWER_MATCH_REMOVED, {
+    lane: laneOfRow(match),
+    removal_reason_category: "reviewer_unmatch",
+    moved_to_history: true,
   });
   return {
     ok: true,
@@ -2467,5 +2764,111 @@ export async function getReviewerMatchSuggestions(params: {
     },
     message: summary.message,
     suggestedActions: summary.suggestedActions,
+  };
+}
+
+// ============================================================================
+// Reviewer Client Assessment detail (Paired Clients dropdown)
+// ============================================================================
+
+export type ReviewerClientAssessmentResult = {
+  ok: true;
+  rowKind: "client" | "lead";
+  id: string;
+  clientName: string | null;
+  clientEmail: string | null;
+  transactionIntent: string | null;
+  transactionIntentLabel: string | null;
+  buyingMarket: string | null;
+  sellingMarket: string | null;
+  market: string | null;
+  /** Readable communication style summary (first recommended guideline). */
+  communicationStyle: string | null;
+  /** Approved client archetype display name, or null. */
+  archetype: string | null;
+  /** Up to 3 plain-language top needs. */
+  topNeeds: string[];
+  appreciationStyle: string | null;
+  /** Always readable: "Not answered" when the client did not answer. */
+  appreciationStyleLabel: string;
+  agentExpectationsNotes: string | null;
+  /** True when this looks like an older assessment missing the final answers. */
+  legacy: boolean;
+  /** Full report detail (same shape the Match Desk full assessment uses). */
+  report: ReturnType<typeof attachClientReport>["report"];
+};
+
+/**
+ * Assessment detail for ONE paired client/lead, loaded on demand by the
+ * reviewer Paired Clients "Client assessment" dropdown. Reads the same
+ * enrichment + report pipeline as the queue so values match the Match Desk.
+ * Reviewer authorization is enforced by the API route.
+ */
+export async function getReviewerClientAssessment(params: {
+  clientId?: string | null;
+  leadId?: string | null;
+}): Promise<ReviewerClientAssessmentResult> {
+  const supabase = getSupabaseAdmin();
+  const clientId = (params.clientId ?? "").trim() || null;
+  const leadId = (params.leadId ?? "").trim() || null;
+  if (!clientId && !leadId) {
+    throw Object.assign(new Error("A clientId or leadId is required."), { status: 400 });
+  }
+
+  let row: any = null;
+  let rowKind: "client" | "lead" = "client";
+  if (clientId) {
+    const { data } = await supabase.from("clients").select("*").eq("id", clientId).maybeSingle();
+    row = data ?? null;
+  }
+  if (!row && leadId) {
+    const { data } = await supabase
+      .from("assessment_leads")
+      .select("*")
+      .eq("id", leadId)
+      .maybeSingle();
+    if (data) {
+      rowKind = "lead";
+      // Leads may not carry a stored archetype; recompute from answers so the
+      // dropdown shows the same archetype the queue would.
+      const scored = assignArchetype((data.partial_answers as Record<string, string>) || {});
+      row = {
+        ...data,
+        archetype: isApprovedClientArchetype(data.archetype) ? data.archetype : scored.archetype,
+      };
+    }
+  }
+  if (!row) {
+    throw Object.assign(new Error("Client assessment not found."), { status: 404 });
+  }
+
+  await enrichRowWithClientExpectations(row, rowKind);
+  const enriched = attachClientReport(row) as any;
+  const report = enriched.report;
+
+  const communicationStyle =
+    (report?.guidelines?.communication?.recommended ?? [])[0] ??
+    (report?.buyerProfile?.communication ?? [])[0] ??
+    null;
+
+  return {
+    ok: true,
+    rowKind,
+    id: row.id,
+    clientName: cleanText(row.full_name),
+    clientEmail: cleanText(row.email),
+    transactionIntent: cleanText(row.transaction_intent),
+    transactionIntentLabel: transactionLabel(row),
+    buyingMarket: cleanText(row.buying_market_city),
+    sellingMarket: cleanText(row.selling_market_city),
+    market: cleanText(row.market_city),
+    communicationStyle,
+    archetype: report?.archetypeDisplayName ?? null,
+    topNeeds: (report?.whatThisClientIsAfter ?? []).slice(0, 3),
+    appreciationStyle: report?.appreciationStyle ?? null,
+    appreciationStyleLabel: report?.appreciationStyleLabel ?? "Not answered",
+    agentExpectationsNotes: report?.agentExpectationsNotes ?? null,
+    legacy: !report?.appreciationStyle && !report?.agentExpectationsNotes,
+    report,
   };
 }

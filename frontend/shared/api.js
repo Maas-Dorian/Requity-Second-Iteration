@@ -771,6 +771,34 @@
   }
 
   /**
+   * Reviewer: re-send the FINAL client-facing match email for a fully matched
+   * client. payload: { clientId? , leadId? }. Rejected (400) when the client's
+   * full match is not complete yet. Returns { ok, emailed, emailStatus }.
+   */
+  async function resendReviewerClientEmail(params) {
+    var p = params || {};
+    return apiPost("/reviewer/resend-client-email", {
+      clientId: p.clientId || undefined,
+      leadId: p.leadId || undefined,
+    });
+  }
+
+  /**
+   * Reviewer: assessment detail for ONE paired client/lead (loaded on demand
+   * by the Paired Clients "Client assessment" dropdown). params:
+   * { clientId? , leadId? }. Returns transaction, markets, communication style,
+   * archetype, top needs, appreciation style label, expectations, and the full
+   * report object.
+   */
+  async function fetchReviewerClientAssessment(params) {
+    var p = params || {};
+    var qs = [];
+    if (p.clientId) qs.push("clientId=" + encodeURIComponent(p.clientId));
+    if (p.leadId) qs.push("leadId=" + encodeURIComponent(p.leadId));
+    return apiGet("/reviewer/client-assessment" + (qs.length ? "?" + qs.join("&") : ""));
+  }
+
+  /**
    * Reviewer: Agent Control Center list. Returns { agents, summary }.
    * Requires reviewer auth.
    */
@@ -1261,6 +1289,53 @@
     return !!(a && a.archetype && a.archetypeCompletedAt);
   }
 
+  // --- Agent platform access (one-time $50 Stripe payment) -----------------
+
+  /**
+   * The signed-in agent's platform access + onboarding state, plus the
+   * archetype results copy for the assessment-results page. Safe fields only.
+   */
+  async function fetchAgentAccessStatus() {
+    return apiGet("/agent/access-status");
+  }
+
+  /**
+   * Record that the agent viewed their assessment results and clicked
+   * Continue. Bookkeeping only; never grants access.
+   */
+  async function acknowledgeAssessmentResults() {
+    return apiPost("/agent/access-status", {});
+  }
+
+  /**
+   * Create (or reuse) the Stripe Checkout Session for the one-time $50
+   * platform access fee. Returns { url } or { alreadyGranted, dashboardUrl }.
+   * The browser only ever receives the Checkout URL, never keys or prices.
+   */
+  async function createAccessCheckoutSession() {
+    return apiPost("/agent/create-access-checkout-session", {});
+  }
+
+  /** Reviewer: one agent's platform access + Stripe payment details. */
+  async function fetchAgentAccessDetails(agentId) {
+    return apiGet("/reviewer/agent-access-details?agentId=" + encodeURIComponent(agentId));
+  }
+
+  /** Reviewer: grant complimentary access. payload: { agentId, reason, note? } */
+  async function grantAgentComplimentaryAccess(payload) {
+    return apiPost("/reviewer/grant-agent-complimentary-access", payload);
+  }
+
+  /** Reviewer: revoke complimentary access (paid/grandfathered are restored). */
+  async function revokeAgentComplimentaryAccess(agentId) {
+    return apiPost("/reviewer/revoke-agent-complimentary-access", { agentId: agentId });
+  }
+
+  /** Reviewer: explicitly require payment again for one agent. */
+  async function resetAgentPaymentRequirement(agentId) {
+    return apiPost("/reviewer/reset-agent-payment-requirement", { agentId: agentId });
+  }
+
   /** Copy an assessment link to the clipboard. Resolves true on success. */
   async function copyAssessmentLink(text) {
     try {
@@ -1329,6 +1404,8 @@
     fetchReviewerPayments: fetchReviewerPayments,
     setReviewerPaymentStatus: setReviewerPaymentStatus,
     resendReviewerMatchEmail: resendReviewerMatchEmail,
+    resendReviewerClientEmail: resendReviewerClientEmail,
+    fetchReviewerClientAssessment: fetchReviewerClientAssessment,
     fetchReviewerAgents: fetchReviewerAgents,
     fetchReviewerAgentDetail: fetchReviewerAgentDetail,
     updateReviewerAgent: updateReviewerAgent,
@@ -1343,6 +1420,13 @@
     dismissAgentAnnouncement: dismissAgentAnnouncement,
     updateReviewerLocation: updateReviewerLocation,
     deleteReviewerLocation: deleteReviewerLocation,
+    fetchAgentAccessStatus: fetchAgentAccessStatus,
+    acknowledgeAssessmentResults: acknowledgeAssessmentResults,
+    createAccessCheckoutSession: createAccessCheckoutSession,
+    fetchAgentAccessDetails: fetchAgentAccessDetails,
+    grantAgentComplimentaryAccess: grantAgentComplimentaryAccess,
+    revokeAgentComplimentaryAccess: revokeAgentComplimentaryAccess,
+    resetAgentPaymentRequirement: resetAgentPaymentRequirement,
     copyAssessmentLink: copyAssessmentLink,
   };
 })(window);

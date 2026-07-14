@@ -214,6 +214,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } catch (e) {}
 
+    // --- Analytics (Vercel custom events; safe no-op wrapper) --------------
+    // Funnel instrumentation only. NEVER sends names, emails, phones, answer
+    // values, or the open-ended response; only categorical/numeric metadata.
+    const QUESTION_CATEGORIES = {
+        1: 'decision_makers', 2: 'decision_style', 3: 'property_priorities',
+        4: 'unexpected_support', 5: 'stress_support', 6: 'ideal_experience',
+        7: 'property_focus', 8: 'communication_style', 9: 'difficult_decisions',
+        10: 'biggest_concern', 11: 'confidence', 12: 'negotiation',
+        13: 'plan_changes', 14: 'timeline', 15: 'learning_style',
+        16: 'success_definition', 17: 'appreciation_style', 18: 'agent_expectations_notes'
+    };
+    const PROGRESS_MILESTONES = [25, 50, 75, 90];
+    const RESUME_KEY = 'requity_assessment_progress';
+    const assessmentStartTs = Date.now();
+    const viewedQuestionIds = {};
+    let assessmentCompleted = false;
+    let lastPausedAt = 0;
+    function rqTrack(name, props) {
+        try { if (window.RequityAnalytics) window.RequityAnalytics.track(name, props); } catch (e) { /* ignore */ }
+    }
+    function rqTrackOnce(flag, name, props) {
+        try { if (window.RequityAnalytics) window.RequityAnalytics.trackOnce(flag, name, props); } catch (e) { /* ignore */ }
+    }
+    function analyticsMarket() {
+        try {
+            return new URLSearchParams(window.location.search).get('market') ||
+                localStorage.getItem('requity_selected_market') || null;
+        } catch (e) { return null; }
+    }
+    function analyticsTransactionType() {
+        if (selectedGoal === 'both') return 'buying_and_selling';
+        if (selectedGoal === 'other') return 'general';
+        return selectedGoal || null;
+    }
+    function analyticsQuestionId(q) {
+        return q ? (QUESTION_CATEGORIES[q.id] || ('question_' + q.id)) : null;
+    }
+    function elapsedSeconds() { return Math.round((Date.now() - assessmentStartTs) / 1000); }
+    function completionPercent(index) {
+        return Math.round(((index + 1) / consumerAssessmentQuestions.length) * 100);
+    }
+    function baseQuestionProps(index) {
+        const q = consumerAssessmentQuestions[index];
+        return {
+            question_id: analyticsQuestionId(q),
+            question_category: q && q.field ? 'metadata' : 'scored',
+            question_index: index + 1,
+            total_questions: consumerAssessmentQuestions.length,
+            completion_percent: completionPercent(index),
+            transaction_type: analyticsTransactionType(),
+            market: analyticsMarket()
+        };
+    }
+
     // --- State ---
     // -1 = Contact Info, 0..(questions.length - 1) = Questions, length = Final Page.
     let currentStepIndex = -1;
@@ -495,6 +549,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedGoal !== 'both' && sameMarketToggle) sameMarketToggle.checked = false;
             updateMarketFields();
             checkContactValid();
+            // Analytics: transaction type chosen (skipped during prefill so a
+            // carried-forward selection is not counted as a fresh choice).
+            if (!isPrefilling) {
+                rqTrack('client_transaction_type_selected', {
+                    transaction_type: analyticsTransactionType(),
+                    market: analyticsMarket()
+                });
+            }
             // The conditional buying/selling market questions just rendered;
             // gently bring them on screen if they landed below the fold. Skipped
             // during prefill so page load keeps its immediate position.
@@ -547,6 +609,68 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     applyPrefill();
 
+    // --- Analytics: page view, resume detection, contact step --------------
+    (function initAssessmentAnalytics() {
+        const att = window.RequityAnalytics ? window.RequityAnalytics.getAttribution() : {};
+        // Best-effort resume detection: a previous unfinished session left a
+        // progress marker behind (cleared on successful completion).
+        let previous = null;
+        try { previous = JSON.parse(localStorage.getItem(RESUME_KEY) || 'null'); } catch (e) {}
+        if (previous && previous.ts && !previous.completed) {
+            rqTrack('client_assessment_resumed', {
+                last_question_id: previous.question_id || null,
+                last_question_index: previous.question_index || null,
+                completion_percent: previous.completion_percent || null,
+                hours_since_last_activity: Math.round(((Date.now() - previous.ts) / 3600000) * 10) / 10,
+                transaction_type: previous.transaction_type || null,
+                market: analyticsMarket()
+            });
+        }
+        rqTrack('client_assessment_viewed', {
+            market: analyticsMarket(),
+            transaction_type: analyticsTransactionType(),
+            source_page: document.referrer && window.RequityAnalytics ? window.RequityAnalytics.pathGroup() : 'direct',
+            utm_source: att.utm_source || null,
+            utm_campaign: att.utm_campaign || null
+        });
+        // Contact step started: first interaction with any intake field or goal.
+        let contactStarted = false;
+        const markContactStarted = function () {
+            if (contactStarted) return;
+            contactStarted = true;
+            rqTrackOnce('contact_started', 'client_contact_step_started', {
+                market: analyticsMarket(),
+                transaction_type: analyticsTransactionType()
+            });
+        };
+        inputs.forEach(function (inp) { if (inp) inp.addEventListener('input', markContactStarted, { once: true }); });
+        goalOptions.forEach(function (card) { card.addEventListener('click', markContactStarted, { once: true }); });
+    })();
+
+    // Best-effort drop-off: fire client_assessment_paused when the tab hides
+    // or the page unloads with an unfinished, started assessment. Throttled so
+    // rapid tab switches never spam duplicate events.
+    function maybeTrackPaused() {
+        if (assessmentCompleted || currentStepIndex < 0) return;
+        if (Date.now() - assessmentStartTs < 5000) return;
+        if (Date.now() - lastPausedAt < 30000) return;
+        lastPausedAt = Date.now();
+        const idx = Math.min(currentStepIndex, consumerAssessmentQuestions.length - 1);
+        const q = consumerAssessmentQuestions[idx];
+        rqTrack('client_assessment_paused', {
+            last_question_id: analyticsQuestionId(q),
+            last_question_index: idx + 1,
+            completion_percent: completionPercent(idx),
+            elapsed_seconds: elapsedSeconds(),
+            transaction_type: analyticsTransactionType(),
+            market: analyticsMarket()
+        });
+    }
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') maybeTrackPaused();
+    });
+    window.addEventListener('pagehide', maybeTrackPaused);
+
     // --- Agent link resolution (no visible banner) -------------------------
     // Silently validate the branded slug against the backend so an unresolved
     // (invalid/expired) link falls back to the reviewer queue instead of being
@@ -568,6 +692,22 @@ document.addEventListener('DOMContentLoaded', () => {
     initAgentLinkResolution();
 
     startAssessmentBtn.addEventListener('click', () => {
+        // Analytics: contact step completed + assessment started (once per
+        // session; reloads never double-count). Field values are never sent.
+        rqTrack('client_contact_step_completed', {
+            market: analyticsMarket(),
+            transaction_type: analyticsTransactionType(),
+            fields_completed_count: inputs.filter(function (inp) { return inp && inp.value.trim() !== ''; }).length,
+            has_phone: !!((document.getElementById('phone') || {}).value || '').trim(),
+            has_email: !!inputs[2].value.trim()
+        });
+        rqTrackOnce('assessment_started', 'client_assessment_started', {
+            market: analyticsMarket(),
+            source_page: window.RequityAnalytics ? window.RequityAnalytics.pathGroup() : null,
+            transaction_type: analyticsTransactionType(),
+            total_questions: consumerAssessmentQuestions.length,
+            device_type: window.RequityAnalytics ? window.RequityAnalytics.getDeviceType() : null
+        });
         currentStepIndex = 0;
         startLeadCapture();
         renderQuestion(currentStepIndex);
@@ -718,16 +858,55 @@ document.addEventListener('DOMContentLoaded', () => {
         // "Complete Assessment"; every other question keeps "Continue".
         setContinueLabel(index);
         backBtn.style.visibility = 'visible'; // Always visible in assessment
+
+        // Analytics: question viewed once per question (revisits via Back do
+        // not re-fire), progress milestones once per session, and a local
+        // resume marker for best-effort drop-off measurement.
+        if (!viewedQuestionIds[qData.id]) {
+            viewedQuestionIds[qData.id] = true;
+            rqTrack('client_assessment_question_viewed', baseQuestionProps(index));
+        }
+        const pct = completionPercent(index);
+        PROGRESS_MILESTONES.forEach(function (m) {
+            if (pct >= m) {
+                rqTrackOnce('progress_' + m, 'client_assessment_progress_' + m, {
+                    market: analyticsMarket(),
+                    transaction_type: analyticsTransactionType(),
+                    current_question_id: analyticsQuestionId(qData),
+                    elapsed_seconds: elapsedSeconds()
+                });
+            }
+        });
+        try {
+            localStorage.setItem(RESUME_KEY, JSON.stringify({
+                question_id: analyticsQuestionId(qData),
+                question_index: index + 1,
+                completion_percent: pct,
+                transaction_type: analyticsTransactionType(),
+                ts: Date.now()
+            }));
+        } catch (e) { /* ignore */ }
     }
 
     function selectAnswer(qIndex, value, cardElement) {
         if(isDemoRunning) return;
+        // Analytics: valid answer provided. The answer VALUE is never sent;
+        // only position/category metadata and whether a prior answer changed.
+        const hadPrevious = userAnswers[qIndex] !== undefined && userAnswers[qIndex] !== null;
+        const wasChanged = hadPrevious && userAnswers[qIndex] !== value;
         userAnswers[qIndex] = value;
-        
+
         const allCards = questionOptionsContainer.querySelectorAll('.option-card');
         allCards.forEach(c => c.classList.remove('selected'));
         cardElement.classList.add('selected');
-        
+
+        if (!hadPrevious || wasChanged) {
+            const props = baseQuestionProps(qIndex);
+            props.answer_type = 'single_choice';
+            props.was_changed = wasChanged;
+            rqTrack('client_assessment_question_answered', props);
+        }
+
         continueBtn.disabled = false;
         queueLeadProgress();
     }
@@ -775,6 +954,25 @@ document.addEventListener('DOMContentLoaded', () => {
             scrollAssessmentToTop('next-question');
             return;
         }
+        // Analytics: completion INTENT only. The confirmed completion event
+        // (client_assessment_completed) fires server-side after the database
+        // write succeeds. Presence flags only; never the note or style value.
+        rqTrack('client_assessment_complete_clicked', {
+            market: analyticsMarket(),
+            transaction_type: analyticsTransactionType(),
+            total_questions: consumerAssessmentQuestions.length,
+            elapsed_seconds: elapsedSeconds(),
+            has_expectations_notes: !!answerForField('agent_expectations_notes'),
+            has_appreciation_style: !!answerForField('appreciation_style')
+        });
+        // The final open-ended question counts as answered only when text was
+        // actually provided (it is optional; the text itself is never sent).
+        if (answerForField('agent_expectations_notes')) {
+            const finalProps = baseQuestionProps(consumerAssessmentQuestions.length - 1);
+            finalProps.answer_type = 'text';
+            finalProps.was_changed = false;
+            rqTrack('client_assessment_question_answered', finalProps);
+        }
         // Final step: the submission must succeed before we show the confirmation.
         // Never silently pretend success when the real API call fails.
         clearSubmitError();
@@ -783,6 +981,10 @@ document.addEventListener('DOMContentLoaded', () => {
         continueBtn.textContent = 'Submitting…';
         try {
             await submitAssessment();
+            // Analytics bookkeeping: stop paused events and clear the resume
+            // marker so this session never reads as abandoned.
+            assessmentCompleted = true;
+            try { localStorage.removeItem(RESUME_KEY); } catch (e) { /* ignore */ }
             currentStepIndex = consumerAssessmentQuestions.length;
             showWaitingPage();
         } catch (err) {
@@ -791,6 +993,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 code: err && err.code,
                 area: err && err.area,
                 serverError: err && err.serverError,
+            });
+            rqTrack('frontend_error_occurred', {
+                feature: 'client_assessment',
+                error_code: (err && (err.code || err.status)) ? String(err.code || err.status) : 'submit_failed',
+                route_group: 'client'
             });
             showSubmitError(err);
             continueBtn.disabled = false;
@@ -890,6 +1097,19 @@ document.addEventListener('DOMContentLoaded', () => {
             agentSlug: src.agentSlug,
             agentToken: src.agentToken,
         };
+        // Dev-only presence check for the two final questions. Flags only; the
+        // private open-ended response text is never logged.
+        try {
+            var host = window.location.hostname;
+            if (host === 'localhost' || host === '127.0.0.1' ||
+                (typeof localStorage !== 'undefined' && localStorage.requity_debug === '1')) {
+                console.log('[REQUITY] final-question payload check', {
+                    appreciationStylePresent: !!payload.appreciationStyle,
+                    expectationsNotesPresent: !!payload.agentExpectationsNotes,
+                    payloadContainsBothFields: ('appreciationStyle' in payload) && ('agentExpectationsNotes' in payload)
+                });
+            }
+        } catch (e) { /* ignore */ }
         // Return the promise so the caller only advances on a real success.
         return Promise.resolve(window.RequityAPI.submitClientAssessment(payload))
             .then(res => {
@@ -902,6 +1122,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     backBtn.addEventListener('click', () => {
         if(currentStepIndex > 0) {
+            const fromQ = consumerAssessmentQuestions[currentStepIndex];
+            const toQ = consumerAssessmentQuestions[currentStepIndex - 1];
+            rqTrack('client_assessment_back_clicked', {
+                from_question_id: analyticsQuestionId(fromQ),
+                from_question_index: currentStepIndex + 1,
+                to_question_id: analyticsQuestionId(toQ),
+                transaction_type: analyticsTransactionType(),
+                market: analyticsMarket()
+            });
             currentStepIndex--;
             renderQuestion(currentStepIndex);
             scrollAssessmentToTop('back-question');

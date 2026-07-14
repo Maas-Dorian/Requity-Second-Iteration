@@ -39,6 +39,10 @@ const EMAIL_SUBJECTS = {
   agentAssessmentCompleted: "Your REQUITY agent archetype is ready",
   matchReviewStarted: "Your REQUITY match is being reviewed",
   getToKnowAgent: "Get to know your REQUITY agent",
+  finalMatchBuying: "Your REQUITY buying agent match is ready",
+  finalMatchSelling: "Your REQUITY selling agent match is ready",
+  finalMatchTwoAgents: "Your REQUITY real estate agent matches are ready",
+  finalMatchOneAgent: "Your REQUITY real estate agent match is ready",
 } as const;
 
 function clean(value: unknown): string | null {
@@ -187,14 +191,14 @@ export function buildClientAssessmentEmailReport(input: ClientAssessmentReportIn
     rows: [
       {
         label: "How they feel valued",
-        value: formatAppreciationStyle(input.appreciationStyle) ?? "Not provided",
+        value: formatAppreciationStyle(input.appreciationStyle) ?? "Not answered",
       },
     ],
   });
   sections.push({ kind: "paragraph", text: "Expectations, questions, and additional information:" });
   sections.push({
     kind: "paragraph",
-    text: clean(input.expectationsOrQuestions) ?? "Not provided",
+    text: clean(input.expectationsOrQuestions) ?? "Not answered",
   });
   if (clean(input.reviewerNotes)) {
     sections.push({ kind: "heading", text: "Reviewer notes" });
@@ -392,26 +396,25 @@ export function buildGetToKnowAgentEmail(input: GetToKnowAgentInput): BuiltEmail
     ],
   };
 
+  // Client-facing: internal archetype labels are NEVER shown here. The
+  // archetype only drives the plain-language strengths below.
   const sections: EmailSection[] = [
     {
       kind: "details",
       rows: [
         { label: "Agent", value: agentName },
-        { label: "Agent archetype", value: name },
         { label: "Market", value: input.agentMarket },
       ],
     },
   ];
 
   if (details) {
-    sections.push({ kind: "heading", text: "Quick summary" });
-    sections.push({ kind: "paragraph", text: details.summary });
     sections.push({ kind: "heading", text: "What this means for you" });
     sections.push({
       kind: "paragraph",
       text: `Your agent's working style is ${lowerFirst(details.workingStyle)} Expect communication and guidance suited to how you like to make decisions during your buying or selling journey.`,
     });
-    sections.push({ kind: "bullets", heading: "Why this agent may be a good fit", items: details.strengths });
+    sections.push({ kind: "bullets", heading: "This agent\u2019s strengths are", items: details.strengths });
   } else {
     sections.push({
       kind: "paragraph",
@@ -449,4 +452,260 @@ function lowerFirst(value: string): string {
   if (!s) return "";
   const out = s.charAt(0).toLowerCase() + s.slice(1);
   return /[.!?]$/.test(out) ? out : `${out}.`;
+}
+
+// ---------------------------------------------------------------------------
+// Part 5: Client-facing FINAL match email (one email per completed match).
+// ---------------------------------------------------------------------------
+
+/**
+ * Plain-language agent strengths shown to clients. Internal archetype labels
+ * are NEVER exposed in this email; when the agent has an approved archetype we
+ * reuse its (already plain-language) strengths and pad with these to reach at
+ * least three bullets.
+ */
+const GENERIC_AGENT_STRENGTHS = [
+  "Communicates clearly and consistently",
+  "Offers a practical, organized approach",
+  "Has experience supporting clients in your market",
+  "Provides the level of guidance you requested",
+  "Keeps important decisions and next steps clear",
+];
+
+/** 3 to 5 plain-language strengths (no archetype names, no internal labels). */
+function clientFacingStrengths(agentArchetype: string | null | undefined): string[] {
+  const approved = isApprovedAgentArchetype(agentArchetype);
+  const name = approved ? normalizeArchetypeName(agentArchetype) : null;
+  const details = name ? AGENT_ARCHETYPE_DETAILS[name] ?? null : null;
+  const out = [...(details?.strengths ?? [])];
+  for (const s of GENERIC_AGENT_STRENGTHS) {
+    if (out.length >= 3) break;
+    if (!out.includes(s)) out.push(s);
+  }
+  return out.slice(0, 5);
+}
+
+/** Normalize a phone into a safe tel: href (US default), or null when absent. */
+export function telHref(phone: string | null | undefined): string | null {
+  const raw = clean(phone);
+  if (!raw) return null;
+  const digits = raw.replace(/[^\d+]/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("+")) return `tel:${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `tel:+${digits}`;
+  if (digits.length === 10) return `tel:+1${digits}`;
+  return `tel:${digits}`;
+}
+
+function mailtoHref(email: string | null | undefined): string | null {
+  const raw = clean(email);
+  return raw ? `mailto:${raw}` : null;
+}
+
+export type FinalMatchAgentInput = {
+  agentName?: string | null;
+  agentEmail?: string | null;
+  /** Normalized single phone value (see normalizeAgentPhone). */
+  agentPhone?: string | null;
+  /** Internal only: used to derive plain-language strengths, never shown. */
+  agentArchetype?: string | null;
+};
+
+export type ClientFinalMatchEmailInput = {
+  clientName?: string | null;
+  /** Agent for the buying side (two-agent or buying-only completions). */
+  buyingAgent?: FinalMatchAgentInput | null;
+  /** Agent for the selling side (two-agent or selling-only completions). */
+  sellingAgent?: FinalMatchAgentInput | null;
+  /** One agent covering both sides ("both" lane). */
+  bothAgent?: FinalMatchAgentInput | null;
+  /** Legacy/general single match. */
+  generalAgent?: FinalMatchAgentInput | null;
+  buyingMarket?: string | null;
+  sellingMarket?: string | null;
+  generalMarket?: string | null;
+};
+
+type FinalMatchType = "buying" | "selling" | "both_two_agents" | "both_one_agent" | "general";
+
+/** Contact rows for one agent. Email/phone always render ("Not provided" fallback). */
+function agentContactRows(
+  agent: FinalMatchAgentInput,
+  labels: { name: string; email: string; phone: string }
+): EmailSection {
+  const email = clean(agent.agentEmail);
+  const phone = clean(agent.agentPhone);
+  return {
+    kind: "details",
+    rows: [
+      { label: labels.name, value: clean(agent.agentName) ?? "Your REQUITY agent" },
+      { label: labels.email, value: email ?? "Not provided", href: mailtoHref(email) },
+      { label: labels.phone, value: phone ?? "Not provided", href: telHref(phone) },
+    ],
+  };
+}
+
+const WHAT_HAPPENS_NEXT_COPY =
+  "Your agent or agents now have the assessment information needed to understand your preferences. You can contact them directly using the information above, and they may also contact you to begin the conversation.";
+
+/**
+ * The ONE client-facing final match email, sent only when the client's full
+ * match is complete (both lanes for buying-and-selling clients). Speaks
+ * directly to the client, never exposes archetype or fit labels, and always
+ * includes each agent's email and phone (with "Not provided" fallbacks).
+ */
+export function buildClientFinalMatchEmail(input: ClientFinalMatchEmailInput): BuiltEmail {
+  const clientFirst = firstName(input.clientName);
+  const greeting = clientFirst ? `Hi ${clientFirst},` : "Hi,";
+
+  // Two-agent inputs where both lanes resolved to the SAME agent collapse to
+  // the one-agent presentation so the client never sees a duplicated agent.
+  let buying = input.buyingAgent ?? null;
+  let selling = input.sellingAgent ?? null;
+  let single = input.bothAgent ?? input.generalAgent ?? null;
+  if (buying && selling) {
+    const be = clean(buying.agentEmail)?.toLowerCase();
+    const se = clean(selling.agentEmail)?.toLowerCase();
+    if (be && se && be === se) {
+      single = buying;
+      buying = null;
+      selling = null;
+    }
+  }
+
+  let matchType: FinalMatchType;
+  if (buying && selling) matchType = "both_two_agents";
+  else if (input.bothAgent && single) matchType = "both_one_agent";
+  else if (buying) matchType = "buying";
+  else if (selling) matchType = "selling";
+  else matchType = "general";
+
+  const subject =
+    matchType === "buying"
+      ? EMAIL_SUBJECTS.finalMatchBuying
+      : matchType === "selling"
+        ? EMAIL_SUBJECTS.finalMatchSelling
+        : matchType === "both_two_agents"
+          ? EMAIL_SUBJECTS.finalMatchTwoAgents
+          : EMAIL_SUBJECTS.finalMatchOneAgent;
+
+  const sections: EmailSection[] = [];
+
+  // "Your match at a glance" (client-direct, adapted to the match type).
+  sections.push({ kind: "heading", text: "Your match at a glance" });
+  const agentWord = matchType === "both_two_agents" ? "agents" : "agent";
+  sections.push({
+    kind: "paragraph",
+    text: `REQUITY has completed its review and selected the ${agentWord} below based on your market, communication preferences, and the type of guidance you told us you want.`,
+  });
+
+  if (matchType === "buying" && buying) {
+    sections.push({
+      kind: "details",
+      rows: [
+        { label: "Your buying agent", value: clean(buying.agentName) ?? "Not provided" },
+        { label: "Buying market", value: clean(input.buyingMarket) ?? "Not provided" },
+      ],
+    });
+  } else if (matchType === "selling" && selling) {
+    sections.push({
+      kind: "details",
+      rows: [
+        { label: "Your selling agent", value: clean(selling.agentName) ?? "Not provided" },
+        { label: "Selling market", value: clean(input.sellingMarket) ?? "Not provided" },
+      ],
+    });
+  } else if (matchType === "both_two_agents" && buying && selling) {
+    sections.push({
+      kind: "details",
+      rows: [
+        { label: "Your buying agent", value: clean(buying.agentName) ?? "Not provided" },
+        { label: "Buying market", value: clean(input.buyingMarket) ?? "Not provided" },
+        { label: "Your selling agent", value: clean(selling.agentName) ?? "Not provided" },
+        { label: "Selling market", value: clean(input.sellingMarket) ?? "Not provided" },
+      ],
+    });
+  } else if (single) {
+    const rows = [
+      { label: "Your real estate agent", value: clean(single.agentName) ?? "Not provided" },
+    ] as { label: string; value: string }[];
+    if (matchType === "both_one_agent" || (clean(input.buyingMarket) && clean(input.sellingMarket))) {
+      rows.push({ label: "Buying market", value: clean(input.buyingMarket) ?? "Not provided" });
+      rows.push({ label: "Selling market", value: clean(input.sellingMarket) ?? "Not provided" });
+    } else {
+      const market =
+        clean(input.generalMarket) ?? clean(input.buyingMarket) ?? clean(input.sellingMarket);
+      if (market) rows.push({ label: "Market", value: market });
+    }
+    sections.push({ kind: "details", rows });
+  }
+
+  // Per-agent contact details (Name, Email, Phone; clickable in HTML).
+  if (buying) {
+    sections.push({ kind: "heading", text: "Buying agent" });
+    sections.push(
+      agentContactRows(buying, { name: "Name", email: "Email", phone: "Phone" })
+    );
+  }
+  if (selling) {
+    sections.push({ kind: "heading", text: "Selling agent" });
+    sections.push(
+      agentContactRows(selling, { name: "Name", email: "Email", phone: "Phone" })
+    );
+  }
+  if (!buying && !selling && single) {
+    sections.push({ kind: "heading", text: "Your agent" });
+    sections.push(
+      agentContactRows(single, { name: "Name", email: "Email", phone: "Phone" })
+    );
+  }
+
+  // Strengths: plain language only, never internal archetype/fit labels.
+  if (matchType === "both_two_agents" && buying && selling) {
+    sections.push({
+      kind: "bullets",
+      heading: "Your buying agent\u2019s strengths are",
+      items: clientFacingStrengths(buying.agentArchetype),
+    });
+    sections.push({
+      kind: "bullets",
+      heading: "Your selling agent\u2019s strengths are",
+      items: clientFacingStrengths(selling.agentArchetype),
+    });
+  } else {
+    const one = buying ?? selling ?? single;
+    if (one) {
+      sections.push({
+        kind: "bullets",
+        heading: "This agent\u2019s strengths are",
+        items: clientFacingStrengths(one.agentArchetype),
+      });
+    }
+  }
+
+  sections.push({ kind: "heading", text: "What happens next" });
+  sections.push({ kind: "paragraph", text: WHAT_HAPPENS_NEXT_COPY });
+
+  const title =
+    matchType === "both_two_agents"
+      ? "Your agent matches are ready"
+      : "Your agent match is ready";
+
+  const content: RichEmailContent = {
+    title,
+    preheader:
+      matchType === "both_two_agents"
+        ? "Your REQUITY buying and selling agent matches are complete."
+        : "Your REQUITY agent match is complete.",
+    intro: `${greeting} Your REQUITY match is complete.`,
+    sections,
+    footerNote: "No login is required. You can reach out to your agent directly to get started.",
+  };
+
+  return {
+    subject,
+    html: buildRequityReportHtml(content),
+    text: buildRequityReportText(content),
+    meta: { clientFacing: true, matchType, eventType: "client_match_complete" },
+  };
 }

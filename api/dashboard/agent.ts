@@ -8,6 +8,7 @@ import {
 } from "../_lib/http.js";
 import { getAgentDashboard } from "../../backend/lib/dashboard.js";
 import { requireAgent } from "../../backend/lib/auth.js";
+import { requireAgentPlatformAccess } from "../../backend/lib/agentAccess.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "dashboard/agent";
@@ -24,6 +25,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // Identity comes from the authenticated session, agentId is NOT required.
     // Admins may optionally pass ?agentId= to view another agent.
     const profile = await requireAgent(req);
+    // Hard access gate: unpaid new agents cannot load the dashboard. Allowed
+    // statuses only: grandfathered, paid, complimentary (admins bypass).
+    await requireAgentPlatformAccess(profile);
     const overrideId = getQueryParam(req, "agentId");
     const agentId =
       profile.role === "admin" && overrideId ? overrideId : profile.agentId;

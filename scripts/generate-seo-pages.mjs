@@ -19,7 +19,7 @@ import { CORE_PAGES } from "./seo-content/core.mjs";
 import { GUIDE_PAGES } from "./seo-content/guides.mjs";
 import { AUDIENCE_PAGES } from "./seo-content/audiences.mjs";
 import { HUB_PAGES } from "./seo-content/hub.mjs";
-import { LOGO, FOOTER } from "./seo-content/chrome.mjs";
+import { LOGO, FOOTER, FOUNDER_VIDEO_SECTION } from "./seo-content/chrome.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -121,6 +121,12 @@ ${page.intro.map((p, i) => `                <p class="support-copy${i > 0 ? " mt
             </div>
         </section>`);
 
+  // Founder introduction video on the buyer/seller landing pages only (the
+  // homepage and market pages carry their own copy of this shared section).
+  if (page.path.startsWith("buyers/") || page.path.startsWith("sellers/")) {
+    parts.push(FOUNDER_VIDEO_SECTION);
+  }
+
   if (page.linkGroups) {
     page.linkGroups.forEach((group, i) => {
       const bg = i % 2 === 0 ? " bg-soft-blue" : "";
@@ -146,7 +152,7 @@ ${group.links.map((l) => `                        <li><a href="${l.href}">${esc(
             <div class="container final-cta">
                 <h2 class="section-title">${esc(page.ctaTitle || "Ready to find your agent match?")}</h2>
                 <p class="support-copy mx-auto" style="max-width: 600px;">${page.ctaCopy || "Complete a short relationship style assessment and let Requity help you connect with a real estate agent who fits how you communicate."}</p>
-                <a href="/client/assessment.html" class="btn btn-primary mt-m">Find your agent match</a>
+                <a href="/client/assessment.html" class="btn btn-primary mt-m">Find your agent</a>
             </div>
         </section>`);
 
@@ -209,6 +215,13 @@ ${page.additionalReading.map((r) => `                        <li><a href="${r.hr
   return parts.join("\n\n");
 }
 
+// Analytics page_type for landing_page_viewed (categorical only, no PII).
+function pageTypeFor(page) {
+  if (page.path.startsWith("buyers/")) return "buyer";
+  if (page.path.startsWith("sellers/")) return "seller";
+  return "resource";
+}
+
 function renderPage(page) {
   const url = SITE + "/" + page.path;
   return `<!DOCTYPE html>
@@ -246,6 +259,8 @@ ${buildJsonLd(page)}
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/client/styles.css">
     <script defer src="/_vercel/insights/script.js"></script>
+    <script>window.REQUITY_PAGE_TYPE = "${pageTypeFor(page)}";</script>
+    <script defer src="/frontend/shared/analytics.js"></script>
 </head>
 <body>
 
@@ -255,7 +270,7 @@ ${buildJsonLd(page)}
             <div class="nav-links">
                 <a href="/">Home</a>
                 <a href="/resources.html">Resources</a>
-                <a href="/client/assessment.html">Find your match</a>
+                <a href="/client/assessment.html">Find your agent</a>
             </div>
         </div>
     </nav>

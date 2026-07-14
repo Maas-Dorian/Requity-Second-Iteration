@@ -149,6 +149,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return;
       }
       if (agentRow) {
+        // Platform access state (migration 0018). A pre-migration DB has no
+        // access_status column: those agents are treated as full access so a
+        // drifted live DB can never lock out existing agents.
+        const hasAccessColumns = Object.prototype.hasOwnProperty.call(agentRow, "access_status");
+        const accessStatus = hasAccessColumns ? agentRow.access_status ?? null : null;
+        const canAccess =
+          !hasAccessColumns ||
+          role === "admin" ||
+          accessStatus === "grandfathered" ||
+          accessStatus === "paid" ||
+          accessStatus === "complimentary";
         agent = {
           id: agentRow.id,
           profile_id: agentRow.profile_id,
@@ -159,6 +170,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           archetype: agentRow.archetype,
           archetype_completed_at: agentRow.archetype_completed_at ?? null,
           archetypeCompletedAt: Boolean(agentRow.archetype_completed_at),
+          accessStatus,
+          canAccessPlatform: canAccess,
         };
       }
     }

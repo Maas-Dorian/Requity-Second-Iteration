@@ -362,7 +362,7 @@
           "name": "What is Requity?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Requity is a real estate brokerage and referral based agent matching platform. It helps home buyers and sellers find agents who fit their communication style, needs, and market, and helps agents work with clients more effectively through human review and fit signals."
+            "text": "Requity is a real estate brokerage and referral based agent matching platform. It helps home buyers and sellers find agents who fit their communication style, needs, and market, and helps agents work with clients more effectively through relationship insights."
           }
         },
         {
@@ -443,6 +443,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/client/styles.css">
     <script defer src="/_vercel/insights/script.js"></script>
+    <script>window.REQUITY_PAGE_TYPE = "resource";</script>
+    <script defer src="/frontend/shared/analytics.js"></script>
 </head>
 <body>
 
@@ -464,7 +466,7 @@
             <div class="nav-links">
                 <a href="/">Home</a>
                 <a href="/resources.html">Resources</a>
-                <a href="/client/assessment.html">Find your match</a>
+                <a href="/client/assessment.html">Find your agent</a>
             </div>
         </div>
     </nav>
@@ -480,8 +482,8 @@
         <section class="section text-center">
             <div class="container final-cta">
                 <h2 class="section-title">Ready to find your agent match?</h2>
-                <p class="support-copy mx-auto" style="max-width: 600px;">Complete a short assessment and let Requity help you connect with a real estate agent you can feel confident moving forward with.</p>
-                <a href="/client/assessment.html" class="btn btn-primary mt-m">Find your agent match</a>
+                <p class="support-copy mx-auto" style="max-width: 600px;">Complete a short relationship style assessment and let Requity help you connect with a real estate agent who fits how you communicate.</p>
+                <a href="/client/assessment.html" class="btn btn-primary mt-m">Find your agent</a>
             </div>
         </section>
 
@@ -660,7 +662,7 @@
                 <div class="faq-list mt-m">
                     <details class="faq-item">
                         <summary class="faq-question">What is Requity?</summary>
-                        <p class="faq-answer">Requity is a real estate brokerage and referral based agent matching platform. It helps home buyers and sellers find agents who fit their communication style, needs, and market, and helps agents work with clients more effectively through human review and fit signals.</p>
+                        <p class="faq-answer">Requity is a real estate brokerage and referral based agent matching platform. It helps home buyers and sellers find agents who fit their communication style, needs, and market, and helps agents work with clients more effectively through relationship insights.</p>
                     </details>
                     <details class="faq-item">
                         <summary class="faq-question">How does Requity matching work?</summary>

@@ -31,6 +31,14 @@
         waived: 'Waived', refunded: 'Refunded', not_required: 'Not required'
     };
 
+    // Platform access statuses (Stripe one-time $50 access fee, migration 0018).
+    var ACCESS_LABELS = {
+        grandfathered: 'Grandfathered', assessment_required: 'Assessment required',
+        payment_required: 'Payment required', checkout_started: 'Checkout started',
+        payment_pending: 'Payment pending', paid: 'Paid', complimentary: 'Complimentary',
+        payment_failed: 'Payment failed', refunded: 'Refunded', suspended: 'Suspended'
+    };
+
     var state = {
         loaded: false,
         loading: false,
@@ -626,7 +634,10 @@
                 (isCurrent ? ' disabled' : '') + ' data-drawer-act="pay" data-pay-status="' + esc(s) + '">' + esc(label) + '</button>';
         }).join('');
         drawerBodyEl.innerHTML =
-            '<p class="helper-text">Agent payments only. Consumer buyers and sellers are never billed. Every update is kept as history.</p>' +
+            '<div class="drawer-section-title" style="margin-top:0;">Platform access</div>' +
+            '<div id="drawer-access"><p class="helper-text">Loading platform access…</p></div>' +
+            '<div class="drawer-section-title">Manual payment log</div>' +
+            '<p class="helper-text">Agent payments only. Consumer buyers and sellers are never billed. Every update is kept as history. Stripe-confirmed access payments appear automatically; this manual log never marks a Stripe Checkout as successful.</p>' +
             '<div class="drawer-grid">' +
                 fieldHtml('Current status', p.statusLabel || 'Unpaid') +
                 fieldHtml('Amount', amount) +
@@ -639,6 +650,110 @@
                 '<textarea id="drawer-pay-note" class="form-input" rows="2" placeholder="Optional note kept on the payment record"></textarea>' +
             '</details>' +
             '<div id="drawer-msg" class="drawer-msg"></div>';
+        renderAccessSection(state.drawer.agentId);
+    }
+
+    // --- Platform access (Stripe one-time $50 access fee) ---------------------
+    function renderAccessSection(agentId) {
+        var host = drawerBodyEl ? drawerBodyEl.querySelector('#drawer-access') : null;
+        if (!host || !agentId) return;
+        var A = api();
+        if (!A || !A.fetchAgentAccessDetails) { host.innerHTML = ''; return; }
+        Promise.resolve(A.fetchAgentAccessDetails(agentId)).then(function (acc) {
+            if (state.drawer.agentId !== agentId) return;
+            var hostNow = drawerBodyEl.querySelector('#drawer-access');
+            if (!hostNow) return;
+            if (!acc || acc.accessSchemaReady === false) {
+                hostNow.innerHTML = '<p class="helper-text">Platform access tracking is not available yet. Apply migration 0018 to enable it.</p>';
+                return;
+            }
+            var status = acc.accessStatus || 'unknown';
+            var stripeAmount = (typeof acc.stripeAmountPaid === 'number')
+                ? '$' + (acc.stripeAmountPaid / 100).toFixed(2) + ' ' + String(acc.stripeCurrency || 'usd').toUpperCase()
+                : null;
+            var actions = [];
+            if (acc.complimentaryAccess) {
+                actions.push('<button type="button" class="btn btn-outline btn-sm" data-drawer-act="revoke-comp">Revoke complimentary access</button>');
+            } else {
+                actions.push('<button type="button" class="btn btn-primary btn-sm" data-drawer-act="grant-comp">Grant complimentary access</button>');
+            }
+            if (!acc.grandfathered && acc.stripePaymentStatus !== 'paid' && !acc.complimentaryAccess && status !== 'payment_required') {
+                actions.push('<button type="button" class="btn btn-outline btn-sm" data-drawer-act="require-payment">Mark payment required</button>');
+            }
+            hostNow.innerHTML =
+                '<div class="drawer-grid">' +
+                    fieldHtml('Access status', ACCESS_LABELS[status] || acc.accessStatusLabel || status) +
+                    fieldHtml('Dashboard access', acc.canAccess ? 'Allowed' : 'Blocked') +
+                    fieldHtml('Grandfathered', acc.grandfathered ? ('Yes' + (acc.grandfatheredAt ? ' (' + fmtDate(acc.grandfatheredAt) + ')' : '')) : 'No') +
+                    fieldHtml('Complimentary', acc.complimentaryAccess ? ('Yes' + (acc.complimentaryAccessGrantedAt ? ' (' + fmtDate(acc.complimentaryAccessGrantedAt) + ')' : '')) : 'No') +
+                    fieldHtml('Stripe payment', acc.stripePaymentStatus || 'None') +
+                    fieldHtml('Stripe amount', stripeAmount) +
+                    fieldHtml('Stripe paid', acc.stripePaidAt ? fmtDate(acc.stripePaidAt) : null) +
+                    fieldHtml('Checkout session', acc.stripeCheckoutSessionId) +
+                    fieldHtml('Grant reason', acc.accessGrantReason) +
+                    fieldHtml('Complimentary note', acc.complimentaryAccessNote) +
+                '</div>' +
+                '<div class="drawer-actions" style="margin-top:0.75rem;">' + actions.join('') + '</div>';
+        }).catch(function () {
+            var hostNow = drawerBodyEl ? drawerBodyEl.querySelector('#drawer-access') : null;
+            if (hostNow) hostNow.innerHTML = '<p class="helper-text">We could not load the platform access details.</p>';
+        });
+    }
+
+    function grantComplimentary(agentId) {
+        var a = agentById(agentId);
+        var reason = window.prompt('Grant complimentary access?\n\nThis agent will be able to use the REQUITY agent platform without paying the $50 access fee.\n\nEnter a reason (required):', '');
+        if (reason == null) return;
+        reason = reason.trim();
+        if (!reason) { window.alert('A reason is required to grant complimentary access.'); return; }
+        var note = window.prompt('Optional internal note (leave blank to skip):', '') || '';
+        var A = api();
+        if (!A || !A.grantAgentComplimentaryAccess) return;
+        Promise.resolve(A.grantAgentComplimentaryAccess({ agentId: agentId, reason: reason, note: note.trim() || null })).then(function () {
+            drawerMsg('ok', 'Complimentary access granted' + ((a && a.name) ? ' for ' + a.name : '') + '.');
+            renderAccessSection(agentId);
+            if (typeof window.__reviewerRefreshPayments === 'function') window.__reviewerRefreshPayments();
+        }).catch(function (err) {
+            window.alert('Could not grant complimentary access. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
+        });
+    }
+
+    function revokeComplimentary(agentId) {
+        confirmAction({
+            title: 'Revoke complimentary access?',
+            body: 'If this agent previously paid or is grandfathered, their access is restored to that status. Otherwise payment becomes required and their dashboard is blocked until they pay.',
+            confirmLabel: 'Revoke access'
+        }).then(function (ok) {
+            if (!ok) return;
+            var A = api();
+            if (!A || !A.revokeAgentComplimentaryAccess) return;
+            Promise.resolve(A.revokeAgentComplimentaryAccess(agentId)).then(function (res) {
+                drawerMsg('ok', 'Complimentary access revoked. Status is now ' + ((res && res.accessStatusLabel) || 'updated') + '.');
+                renderAccessSection(agentId);
+                if (typeof window.__reviewerRefreshPayments === 'function') window.__reviewerRefreshPayments();
+            }).catch(function (err) {
+                window.alert('Could not revoke complimentary access. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
+            });
+        });
+    }
+
+    function requirePayment(agentId) {
+        confirmAction({
+            title: 'Mark payment required?',
+            body: 'This blocks dashboard access until the agent completes the one-time $50 access payment. Grandfathered agents and agents with a confirmed Stripe payment cannot be marked.',
+            confirmLabel: 'Mark payment required'
+        }).then(function (ok) {
+            if (!ok) return;
+            var A = api();
+            if (!A || !A.resetAgentPaymentRequirement) return;
+            Promise.resolve(A.resetAgentPaymentRequirement(agentId)).then(function () {
+                drawerMsg('ok', 'Payment is now required for this agent.');
+                renderAccessSection(agentId);
+                if (typeof window.__reviewerRefreshPayments === 'function') window.__reviewerRefreshPayments();
+            }).catch(function (err) {
+                window.alert('Could not update the payment requirement. ' + ((err && (err.serverError || err.message)) || 'Please try again.'));
+            });
+        });
     }
 
     function renderNotesTab(d) {
@@ -757,6 +872,9 @@
         if (act === 'request-update') { requestAssessmentUpdate(agentId); return; }
         if (act === 'archive') { archiveAgent(agentId); return; }
         if (act === 'restore') { restoreAgent(agentId); return; }
+        if (act === 'grant-comp') { grantComplimentary(agentId); return; }
+        if (act === 'revoke-comp') { revokeComplimentary(agentId); return; }
+        if (act === 'require-payment') { requirePayment(agentId); return; }
 
         // Match actions
         var matchId = btn.getAttribute('data-match-id');

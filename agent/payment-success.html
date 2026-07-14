@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment Confirmation | Requity</title>
+  <meta name="description" content="Your REQUITY agent access payment confirmation." />
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://www.requityapp.com/agent/payment-success.html" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --deep-blue: #07366E;
+      --primary-blue: #1E3F7A;
+      --accent-orange: #FF7500;
+      --white: #FFFFFF;
+      --soft-blue: #EEF4FB;
+      --light-surface: #F3F7FC;
+      --blue-border: #D3E0F2;
+      --primary-text: #102033;
+      --secondary-text: #4A607C;
+      --requity-blue: #003366;
+      --requity-orange: #FF6A00;
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --shadow-md: 0 4px 20px rgba(7, 54, 110, 0.06);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-family);
+      color: var(--primary-text);
+      background: var(--light-surface);
+      line-height: 1.55;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 2.5rem 1.25rem;
+    }
+    .re, .uity { font-family: 'Nunito', sans-serif; }
+    .shell { width: 100%; max-width: 480px; }
+    .logo {
+      display: flex; align-items: baseline; justify-content: center;
+      font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em;
+      color: var(--requity-blue); line-height: 1; margin-bottom: 1.75rem;
+    }
+    .q-container { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 0.9em; height: 0.9em; margin: 0 0.05em; transform: translateY(0.05em); color: var(--requity-orange); }
+    .q-ring { position: absolute; width: 0.85em; height: 0.85em; border: 0.15em solid currentColor; border-radius: 50%; }
+    .q-tail { position: absolute; bottom: 0.13em; right: -0.08em; width: 0.5em; height: 0.16em; background-color: currentColor; transform: rotate(42deg); transform-origin: center; border-radius: 1em; }
+    .card {
+      background: var(--white);
+      border: 1px solid var(--blue-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      padding: 2.25rem;
+      text-align: center;
+    }
+    h1 { font-size: 1.4rem; color: var(--deep-blue); margin-bottom: 0.5rem; }
+    p { color: var(--secondary-text); font-size: 0.95rem; margin-bottom: 1.25rem; }
+    .spinner {
+      width: 36px; height: 36px; margin: 0 auto 1.25rem;
+      border: 4px solid var(--blue-border); border-top-color: var(--accent-orange);
+      border-radius: 50%; animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .check {
+      width: 52px; height: 52px; margin: 0 auto 1.25rem; border-radius: 50%;
+      background: #E6F4EA; color: #137333; display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; font-weight: 800;
+    }
+    .btn-primary {
+      display: inline-block; width: 100%; text-align: center;
+      background: var(--accent-orange); color: var(--white); padding: 0.9rem 1.5rem; font-size: 1rem;
+      border: none; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer; font-family: inherit;
+      transition: background 0.2s ease; text-decoration: none;
+    }
+    .btn-primary:hover { background: #E66A00; }
+    .btn-secondary {
+      display: inline-block; width: 100%; text-align: center; margin-top: 0.7rem;
+      background: var(--white); color: var(--primary-blue); padding: 0.85rem 1.5rem; font-size: 0.95rem;
+      border: 1px solid var(--blue-border); border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; font-family: inherit;
+      text-decoration: none;
+    }
+    .btn-secondary:hover { background: var(--soft-blue); }
+    [hidden] { display: none !important; }
+  </style>
+  <script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <div class="logo">
+      <span class="re">RE</span>
+      <div class="q-container"><div class="q-ring"></div><div class="q-tail"></div></div>
+      <span class="uity">UITY</span>
+    </div>
+
+    <div class="card">
+      <div id="pending-view">
+        <div class="spinner"></div>
+        <h1>Confirming your payment</h1>
+        <p>We are confirming your payment. This usually takes only a moment.</p>
+      </div>
+
+      <div id="success-view" hidden>
+        <div class="check">&#10003;</div>
+        <h1>Your REQUITY access is active</h1>
+        <p>Your payment was confirmed and your agent account is ready.</p>
+        <a class="btn-primary" href="dashboard.html">Go to dashboard</a>
+      </div>
+
+      <div id="slow-view" hidden>
+        <h1>Payment confirmation is taking a moment</h1>
+        <p>Your payment is being confirmed by our payment provider. This can take a short while for some payment methods. You can check again in a minute; your access unlocks automatically once the payment is confirmed.</p>
+        <button class="btn-primary" id="retry-btn" type="button">Check again</button>
+        <a class="btn-secondary" href="activate-access.html">Back to activation page</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
+  <script src="../frontend/shared/analytics.js"></script>
+  <script src="../frontend/shared/api.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async function () {
+      var API = window.RequityAPI;
+      var pendingView = document.getElementById("pending-view");
+      var successView = document.getElementById("success-view");
+      var slowView = document.getElementById("slow-view");
+      var retryBtn = document.getElementById("retry-btn");
+
+      // The session_id query param is NEVER treated as proof of payment. The
+      // only trusted signal is the server access status, which the verified
+      // Stripe webhook updates.
+      if (!API) { window.location.replace("login.html"); return; }
+      var session = await API.requireAgentSession();
+      if (!session.ok) {
+        if (session.reason === "no_session") { window.location.replace("login.html"); return; }
+      }
+
+      function showSuccess() {
+        pendingView.hidden = true;
+        slowView.hidden = true;
+        successView.hidden = false;
+      }
+      function showSlow() {
+        pendingView.hidden = true;
+        successView.hidden = true;
+        slowView.hidden = false;
+      }
+
+      async function checkOnce() {
+        try {
+          var status = await API.fetchAgentAccessStatus();
+          if (status && status.canAccess === true) return true;
+        } catch (e) { /* transient errors: keep polling */ }
+        return false;
+      }
+
+      // Poll every 2 seconds for up to 30 seconds while the webhook lands.
+      async function poll() {
+        pendingView.hidden = false;
+        slowView.hidden = true;
+        for (var i = 0; i < 15; i++) {
+          var granted = await checkOnce();
+          if (granted) { showSuccess(); return; }
+          await new Promise(function (resolve) { setTimeout(resolve, 2000); });
+        }
+        showSlow();
+      }
+
+      retryBtn.addEventListener("click", function () { poll(); });
+      await poll();
+    });
+  </script>
+</body>
+</html>

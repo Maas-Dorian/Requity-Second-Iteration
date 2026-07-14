@@ -931,6 +931,18 @@ body.demo-active {
 .paired-team-line.is-needs { color: var(--warning-amber); }
 
 .paired-details { margin-top: 0.6rem; border-top: 1px dashed var(--blue-border); padding-top: 0.6rem; }
+
+/* Paired "Client assessment" dropdown (loaded on demand, cached per session). */
+.paired-assessment {
+    margin-top: 0.6rem;
+    border-top: 1px dashed var(--blue-border);
+    padding-top: 0.7rem;
+}
+.paired-assessment .profile-grid { margin-bottom: 0.4rem; }
+.paired-assessment .report-list { margin: 0.15rem 0 0 1.1rem; padding: 0; }
+.paired-assessment .report-list li { font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.15rem; }
+.paired-assessment [data-paired-full-report] { margin-top: 0.6rem; }
+.paired-full-report { margin-top: 0.6rem; }
 .paired-detail-line { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.3rem; }
 .paired-detail-line strong { color: var(--text-primary); }
 

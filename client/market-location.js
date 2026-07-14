@@ -28,6 +28,14 @@
         try { localStorage.setItem(key, value); } catch (e) { /* ignore */ }
     }
 
+    // Safe analytics: no-ops when the shared helper is unavailable. Only
+    // categorical values are sent, never coordinates.
+    function track(name, props) {
+        try {
+            if (window.RequityAnalytics) window.RequityAnalytics.track(name, props);
+        } catch (e) { /* ignore */ }
+    }
+
     var markets = Array.isArray(window.REQUITY_MARKETS) ? window.REQUITY_MARKETS : [];
     if (!markets.length) return;
     if (!("geolocation" in navigator)) return;
@@ -98,8 +106,11 @@
             if (banner.parentNode) banner.parentNode.removeChild(banner);
         }
 
+        track("location_prompt_shown", { page_type: "generic" });
+
         banner.querySelector(".mlb-secondary").addEventListener("click", function () {
             storageSet(CHOICE_KEY, "declined");
+            track("location_permission_declined", { page_type: "generic" });
             remove();
         });
 
@@ -111,8 +122,14 @@
                 function (pos) {
                     storageSet(CHOICE_KEY, "allowed");
                     var m = nearestMarket(pos.coords.latitude, pos.coords.longitude);
+                    track("location_permission_allowed", {
+                        page_type: "generic",
+                        nearest_market: m ? m.slug : null,
+                        within_market_radius: !!m
+                    });
                     if (m) {
                         storageSet(MARKET_KEY, m.slug);
+                        track("market_page_routed", { page_type: "generic", market: m.slug });
                         window.location.href = m.url;
                     } else {
                         remove(); // outside every market: stay on the homepage
@@ -120,6 +137,7 @@
                 },
                 function () {
                     storageSet(CHOICE_KEY, "unavailable");
+                    track("location_permission_unavailable", { page_type: "generic" });
                     remove();
                 },
                 { timeout: 8000, maximumAge: 600000 }

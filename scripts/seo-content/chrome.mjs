@@ -36,6 +36,43 @@ export const FOOTER_LOGO = `<div class="footer-logo"><div class="requity-animate
     <span class="rq-uity">UITY</span>
 </div></div>`;
 
+/**
+ * Founder introduction video section, shared by the buyer/seller landing
+ * pages. Must stay in sync with the same section in client/index.html (which
+ * the market page generator clones). client/script.js hides the section when
+ * the MP4 is missing, so a broken player can never show in production.
+ */
+export const FOUNDER_VIDEO_SECTION = `        <!-- Founder introduction video (shared section; keep in sync with client/index.html) -->
+        <section id="meet-the-founder" class="section founder-video-section">
+            <div class="container" style="max-width: 980px;">
+                <h2 class="section-title text-center">Meet the founder of REQUITY</h2>
+                <p class="support-copy text-center mx-auto" style="max-width: 720px;">Learn why REQUITY was created and how our human-reviewed matching process helps buyers and sellers make a more informed choice when selecting a real estate agent.</p>
+                <div class="founder-video-frame mt-l">
+                    <video controls playsinline preload="metadata" aria-label="Introduction to REQUITY from the founder" data-founder-video>
+                        <source src="/assets/videos/requity-founder-introduction.mp4" type="video/mp4" />
+                        <!-- TODO: add a <track kind="captions"> when /assets/videos/requity-founder-introduction.vtt exists -->
+                        Your browser does not support the video element.
+                    </video>
+                </div>
+            </div>
+        </section>
+        <script>
+        (function () {
+            var video = document.querySelector('[data-founder-video]');
+            if (!video) return;
+            var section = video.closest('.founder-video-section');
+            function hideSection() {
+                if (section) section.style.display = 'none';
+                if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+                    console.warn('[REQUITY] Founder introduction video failed to load; hiding the section.');
+                }
+            }
+            video.addEventListener('error', hideSection);
+            var sources = video.querySelectorAll('source');
+            if (sources.length) sources[sources.length - 1].addEventListener('error', hideSection);
+        })();
+        </script>`;
+
 export const FOOTER = `    <footer class="site-footer">
         <div class="footer-container" style="grid-template-columns: 1.4fr 1.2fr 1fr;">
             <div class="footer-brand">

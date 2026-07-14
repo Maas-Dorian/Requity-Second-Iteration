@@ -216,11 +216,20 @@
   </div>
 
   <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
+  <script src="../frontend/shared/analytics.js"></script>
   <script src="../frontend/shared/api.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       var API = window.RequityAPI;
       var msg = document.getElementById("auth-msg");
+
+      // --- Analytics (safe no-op wrapper; never sends emails/passwords) ----
+      function rqTrack(name, props) {
+        try { if (window.RequityAnalytics) window.RequityAnalytics.track(name, props); } catch (e) {}
+      }
+      function rqTrackOnce(flag, name, props) {
+        try { if (window.RequityAnalytics) window.RequityAnalytics.trackOnce(flag, name, props); } catch (e) {}
+      }
       var tabs = document.querySelectorAll(".tab");
       var signinForm = document.getElementById("signin-form");
       var signupForm = document.getElementById("signup-form");
@@ -279,6 +288,9 @@
       // returning agents who already completed it go to the dashboard. Resolutions
       // agents (@resolutions.realtor) skip the assessment entirely and always land
       // on the dashboard, this is a deliberate bypass, not an auth failure.
+      // New agents whose one-time access payment is not confirmed yet are sent
+      // to their results/payment flow; the server enforces the same gate on
+      // every protected API, so this is routing convenience, not security.
       function destinationForAgent(me) {
         var agent = me && me.agent;
         var email = (agent && agent.email) || (me && me.user && me.user.email) || (me && me.email) || null;
@@ -287,12 +299,26 @@
           if (localStorage.requity_debug === "1") {
             console.log("agent:assessment-bypass", { assessmentDisabled: true, reason: "resolutions_email_domain" });
           }
+          // Resolutions agents skip the assessment but NOT the access payment:
+          // a post-launch unpaid Resolutions agent goes to payment activation.
+          if (agent && agent.canAccessPlatform === false) {
+            if (agent.accessStatus === "payment_pending") return "payment-success.html";
+            return "activate-access.html";
+          }
           return "dashboard.html";
         }
         var hasCompletedAgentAssessment = Boolean(
           agent && (agent.archetype || agent.archetype_completed_at || agent.archetypeCompletedAt)
         );
-        return hasCompletedAgentAssessment ? "dashboard.html" : "assessment.html";
+        if (!hasCompletedAgentAssessment) return "assessment.html";
+        // canAccessPlatform is false ONLY for post-launch agents whose payment
+        // is outstanding (grandfathered/paid/complimentary are always true, and
+        // a pre-migration server omits the field entirely = full access).
+        if (agent && agent.canAccessPlatform === false) {
+          if (agent.accessStatus === "payment_pending") return "payment-success.html";
+          return "assessment-results.html";
+        }
+        return "dashboard.html";
       }
 
       // Routes to the right place once we have a verified /auth/me payload.
@@ -339,6 +365,7 @@
         if (isSubmitting) { dbgAuth("auth:submit-blocked-duplicate", { mode: "signin" }); return; }
         isSubmitting = true;
         clearMsg();
+        rqTrack("login_attempted", { user_type: "agent" });
         dbgAuth("auth:submit-start", { mode: "signin" });
         var btn = document.getElementById("signin-btn");
         var reEnable = function () { isSubmitting = false; btn.disabled = false; btn.textContent = "Sign in"; };
@@ -346,6 +373,7 @@
         try {
           // Exactly one signInWithPassword call. No signup/resend/reset fallback.
           await API.signIn(document.getElementById("si-email").value.trim(), document.getElementById("si-password").value);
+          rqTrack("login_succeeded", { user_type: "agent" });
           // requireAgentSession distinguishes a 500 (server can't verify) from a
           // 401 (no valid session), so we never clear a good session on a 500.
           var session = await API.requireAgentSession();
@@ -363,6 +391,10 @@
           reEnable();
         } catch (err) {
           // Rate-limit and all other errors: show the message, do NOT auto-retry.
+          rqTrack("login_failed", {
+            user_type: "agent",
+            failure_category: err && err.rateLimited ? "locked" : "invalid_credentials"
+          });
           showMsg(err.message || "Sign in failed.", "error");
           reEnable();
         }
@@ -377,10 +409,20 @@
         // Terms of Service are mandatory for account creation. Block the request
         // (no Supabase signup, no profile/agent rows) until the box is checked.
         if (!document.getElementById("su-terms").checked) {
+          rqTrack("agent_signup_validation_error", {
+            step_id: "account",
+            field_category: "other",
+            error_type: "terms_required"
+          });
           showMsg("You must agree to the Terms of Service before creating an account.", "error");
           return;
         }
         isSubmitting = true;
+        rqTrack("agent_signup_submit_clicked", {
+          completion_percent: 100,
+          has_phone: !!document.getElementById("su-phone").value.trim(),
+          has_location: false
+        });
         dbgAuth("auth:submit-start", { mode: "signup" });
         var btn = document.getElementById("signup-btn");
         var reEnable = function () { isSubmitting = false; btn.disabled = false; btn.textContent = "Create agent account"; };
@@ -426,9 +468,38 @@
           reEnable();
         } catch (err) {
           // Rate-limit and all other errors: show the message, do NOT auto-retry.
+          rqTrack("agent_signup_validation_error", {
+            step_id: "account",
+            field_category: "other",
+            error_type: err && err.rateLimited ? "rate_limited" : "signup_failed"
+          });
           showMsg(err.message || "Sign up failed.", "error");
           reEnable();
         }
+      });
+
+      // --- Analytics: signup funnel page/start events -----------------------
+      // agent_signup_page_viewed on load; agent_signup_started on the FIRST
+      // meaningful interaction with the signup form (once per session, so
+      // reloads never double-count). Confirmed account creation is tracked
+      // server-side (agent_account_created / agent_signup_completed).
+      rqTrack("agent_signup_page_viewed", {
+        source_page: window.RequityAnalytics ? window.RequityAnalytics.pathGroup() : null,
+        device_type: window.RequityAnalytics ? window.RequityAnalytics.getDeviceType() : null
+      });
+      rqTrack("login_page_viewed", { user_type: "agent" });
+      var signupStarted = false;
+      function markSignupStarted() {
+        if (signupStarted) return;
+        signupStarted = true;
+        rqTrackOnce("agent_signup_started", "agent_signup_started", {
+          source_page: "agent_login_page",
+          signup_version: "v1"
+        });
+      }
+      ["su-name", "su-email", "su-password", "su-phone"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener("input", markSignupStarted, { once: true });
       });
 
       // --- Forgot password ------------------------------------------------
@@ -509,6 +580,10 @@
       var recoveryConsumed = API && API.consumeRecoverySession ? API.consumeRecoverySession() : false;
       var isResetMode = qp.get("mode") === "reset-password" || recoveryConsumed;
       if (isResetMode) {
+        rqTrack("password_reset_link_opened", {
+          token_present: !!recoveryConsumed,
+          page_status: hashError ? "missing_token" : "ready"
+        });
         enterResetMode();
         if (hashError) {
           showMsg("This password reset link has expired or has already been used. Please request a new one.", "error");

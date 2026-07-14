@@ -24,6 +24,7 @@ import {
 } from "./supabaseWrite.js";
 import { logger } from "./logger.js";
 import { resolveMarketLocation } from "./location.js";
+import { trackServerEventInBackground, marketSlug } from "./vercelAnalytics.js";
 
 /**
  * Thrown only when NO durable client-assessment storage exists on the live DB
@@ -590,6 +591,17 @@ export async function submitClientAssessmentWithContact(
   const appreciationStyle = (params.appreciationStyle ?? "").trim().toLowerCase() || null;
   const agentExpectationsNotes = (params.agentExpectationsNotes ?? "").trim() || null;
 
+  // Dev-only presence check for the final assessment answers. Presence flags
+  // only; the private open-ended response text is NEVER logged.
+  if (process.env.NODE_ENV !== "production") {
+    console.log("CLIENT_ASSESSMENT_FINAL_QUESTIONS", {
+      appreciationStylePresent: Boolean(appreciationStyle),
+      expectationsNotesPresent: Boolean(agentExpectationsNotes),
+      payloadContainsBothFields:
+        params.appreciationStyle !== undefined && params.agentExpectationsNotes !== undefined,
+    });
+  }
+
   // Resolve structured location (state + coordinates) per market. Geocoding is
   // cached + never throws, so a failure never blocks the assessment submit; we
   // still save city/state text and fall back to text matching.
@@ -947,6 +959,31 @@ export async function submitClientAssessmentWithContact(
   // state on completion. Let the client know their match is being reviewed. This
   // is best-effort and never blocks the saved assessment.
   if (dbSource !== "qr" && (params.contact.email ?? "").trim()) {
+    // Analytics: the client entered the reviewer queue. Fire-and-forget with
+    // categorical values only; never blocks or fails the saved assessment.
+    trackServerEventInBackground("reviewer_client_review_started", {
+      transaction_type:
+        transactionIntent === "both"
+          ? "buying_and_selling"
+          : transactionIntent === "other"
+            ? "general"
+            : (transactionIntent ?? null),
+      market: marketSlug(buyingMarketCity ?? sellingMarketCity ?? marketCity),
+      client_status: status ?? null,
+      has_appreciation_style: Boolean(appreciationStyle),
+      has_expectations_notes: Boolean(agentExpectationsNotes),
+      assessment_version: "v2_final_questions",
+    });
+    trackServerEventInBackground("client_match_review_started", {
+      transaction_type:
+        transactionIntent === "both"
+          ? "buying_and_selling"
+          : transactionIntent === "other"
+            ? "general"
+            : (transactionIntent ?? null),
+      market: marketSlug(buyingMarketCity ?? sellingMarketCity ?? marketCity),
+      required_lane_count: transactionIntent === "both" ? 2 : 1,
+    });
     try {
       await sendClientMatchReviewStartedEmail({
         clientIdOrLeadId: clientId ?? assessmentId ?? params.leadId ?? null,

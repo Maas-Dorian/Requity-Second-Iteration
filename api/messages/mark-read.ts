@@ -8,6 +8,7 @@ import {
 } from "../_lib/http.js";
 import { markNotificationRead } from "../../backend/lib/messages.js";
 import { requireAgent } from "../../backend/lib/auth.js";
+import { requireAgentPlatformAccess } from "../../backend/lib/agentAccess.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "messages/mark-read";
@@ -22,7 +23,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     ensureMethod(req, "POST");
     logApiStart(ROUTE);
 
-    await requireAgent(req);
+    const profile = await requireAgent(req);
+    // Hard access gate: unpaid new agents cannot use platform features.
+    await requireAgentPlatformAccess(profile);
 
     const body = getJsonBody(req);
     const messageId = requireString(body, "messageId");

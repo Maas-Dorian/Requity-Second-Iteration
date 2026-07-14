@@ -11,6 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body class="assessment-page">
     <header id="header" class="scrolled">
@@ -128,7 +129,7 @@
                         <strong>What happens next</strong>
                         <p>REQUITY will use your communication style, negotiation approach, and client-support preferences to help match you with clients who fit your strengths. New matches and client activity appear in your dashboard.</p>
                     </div>
-                    <a class="btn btn-primary" href="dashboard.html">Go to your dashboard</a>
+                    <a class="btn btn-primary" href="assessment-results.html">Continue to your results</a>
                 </div>
 
                 <div class="agent-result-card review-complete-card" id="agent-error-card" hidden>
@@ -183,6 +184,7 @@
 
     <!-- Supabase config (copy frontend/shared/config.example.js to config.js with real public values). -->
     <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
+    <script src="../frontend/shared/analytics.js"></script>
     <script src="../frontend/shared/api.js"></script>
     <!-- Auth gate: the agent assessment is only for signed-in agents/admins. -->
     <script>
@@ -244,7 +246,13 @@
               });
             } catch (e) {}
             if (hasCompletedAgentAssessment && !isRetake) {
-              window.location.replace("dashboard.html");
+              // Completed agents whose access payment is still outstanding go
+              // to their results/payment flow; everyone else to the dashboard.
+              if (agentRow && agentRow.canAccessPlatform === false) {
+                window.location.replace("assessment-results.html");
+              } else {
+                window.location.replace("dashboard.html");
+              }
               return;
             }
           })

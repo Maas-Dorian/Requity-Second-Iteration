@@ -9,6 +9,7 @@ import {
 import { requestAgentAssessmentUpdate } from "../../backend/lib/reviewerAgents.js";
 import { requireReviewer } from "../../backend/lib/auth.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
+import { trackServerEvent, ANALYTICS_EVENTS } from "../../backend/lib/vercelAnalytics.js";
 
 const ROUTE = "reviewer/request-agent-assessment-update";
 
@@ -37,6 +38,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         reviewerProfileId: reviewer.profileId,
         agentId,
         emailed: result.emailed,
+      });
+      await trackServerEvent(ANALYTICS_EVENTS.AGENT_ASSESSMENT_UPDATE_REQUESTED, {
+        reason_category: "reviewer_requested",
+        has_existing_archetype: Boolean(
+          (result as { hadArchetype?: unknown } | null)?.hadArchetype
+        ),
       });
       sendJson(res, 200, result);
     } catch (error) {

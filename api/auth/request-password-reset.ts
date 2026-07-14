@@ -14,6 +14,7 @@ import {
   requestPasswordReset,
   logPasswordResetConfig,
 } from "../../backend/lib/passwordReset.js";
+import { trackServerEvent, ANALYTICS_EVENTS } from "../../backend/lib/vercelAnalytics.js";
 
 /**
  * POST /api/auth/request-password-reset
@@ -70,6 +71,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     try {
       await requestPasswordReset({ email, requestedIp: ip, userAgent: userAgent ?? null });
+      // Internal server-side event only. account_found is intentionally NOT
+      // included so analytics can never become an account-enumeration oracle;
+      // the email address is never sent.
+      await trackServerEvent(ANALYTICS_EVENTS.PASSWORD_RESET_REQUESTED, {
+        user_type: "agent",
+        email_provider_status: "attempted",
+      });
     } catch (error) {
       // Never surface internals; the response stays generic either way.
       console.error(`[api] ${ROUTE} failed:`, error instanceof Error ? error.message : error);

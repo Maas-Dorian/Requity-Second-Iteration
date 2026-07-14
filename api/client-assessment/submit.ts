@@ -25,6 +25,7 @@ import {
 import { checkRateLimit } from "../../backend/lib/rateLimit.js";
 import { APPRECIATION_STYLE_VALUES } from "../../backend/lib/clientReport.js";
 import { logApiStart, logValidationFailure, logSupabaseError } from "../../backend/lib/logger.js";
+import { trackServerEvent, ANALYTICS_EVENTS, marketSlug } from "../../backend/lib/vercelAnalytics.js";
 
 const ROUTE = "client-assessment/submit";
 
@@ -220,7 +221,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       agentExpectationsNotes = trimmed || null;
     }
 
+    // Safe categorical analytics context. Never includes contact info,
+    // answers, or the open-ended response.
+    const analyticsTransactionType =
+      transactionIntent === "both"
+        ? "buying_and_selling"
+        : transactionIntent === "other"
+          ? "general"
+          : transactionIntent;
+    const analyticsMarket = marketSlug(buyingMarketCity ?? sellingMarketCity ?? marketCity);
+
     try {
+      const leadId = optionalString(body, "leadId") ?? null;
       const result = await submitClientAssessmentWithContact({
         token,
         source,
@@ -230,7 +242,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         agentSlug,
         agentToken,
         archetypeResult,
-        leadId: optionalString(body, "leadId") ?? null,
+        leadId,
         transactionIntent,
         transactionIntentLabel,
         transactionIntentOther,
@@ -243,9 +255,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         appreciationStyle,
         agentExpectationsNotes,
       });
+      // Source-of-truth completion event: fires ONLY after the database write
+      // succeeded. Analytics failures never affect the API response.
+      await trackServerEvent(ANALYTICS_EVENTS.CLIENT_ASSESSMENT_COMPLETED, {
+        market: analyticsMarket,
+        transaction_type: analyticsTransactionType,
+        total_questions: Object.keys(answers ?? {}).length + 2,
+        source_page: source,
+        has_expectations_notes: Boolean(agentExpectationsNotes),
+        has_appreciation_style: Boolean(appreciationStyle),
+        assessment_version: "v2_final_questions",
+        is_returning_session: Boolean(leadId),
+        submission_type: leadId ? "resumed" : "new",
+      });
       sendJson(res, 200, result);
     } catch (error) {
       logSupabaseError(ROUTE, error, { source });
+      await trackServerEvent(ANALYTICS_EVENTS.CLIENT_ASSESSMENT_SUBMISSION_FAILED, {
+        failure_stage: error instanceof HttpError && error.status < 500 ? "validation" : "database",
+        transaction_type: analyticsTransactionType,
+        market: analyticsMarket,
+        error_code:
+          error instanceof HttpError ? String(error.status) : "unknown",
+      });
       throw asSubmitError(error, "CLIENT_ASSESSMENT_SUBMIT_FAILED", "public.clients");
     }
   });

@@ -10,6 +10,29 @@ import {
 } from "../_lib/http.js";
 import { checkRateLimit } from "../../backend/lib/rateLimit.js";
 import { completePasswordReset } from "../../backend/lib/passwordReset.js";
+import { trackServerEvent, ANALYTICS_EVENTS } from "../../backend/lib/vercelAnalytics.js";
+
+/** Map internal reset failure codes to safe analytics categories. */
+function resetFailureCategory(code: string | null | undefined): string {
+  switch (code) {
+    case "INVALID_TOKEN":
+      return "invalid_token";
+    case "EXPIRED_TOKEN":
+      return "expired_token";
+    case "USED_TOKEN":
+      return "used_token";
+    case "WEAK_PASSWORD":
+    case "PASSWORD_MISMATCH":
+    case "SAME_PASSWORD":
+      return "weak_password";
+    case "UPDATE_FAILED":
+    case "CONFIG_MISSING":
+    case "TABLE_MISSING":
+      return "server";
+    default:
+      return "unknown";
+  }
+}
 
 /**
  * POST /api/auth/complete-password-reset
@@ -110,6 +133,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const isServerFailure = SERVER_FAILURE_CODES.has(result.code);
       const status = isServerFailure ? 500 : 400;
       console.log(`api:done ${ROUTE} status=${status} code=${result.code}`);
+      await trackServerEvent(ANALYTICS_EVENTS.PASSWORD_RESET_FAILED, {
+        failure_category: resetFailureCategory(result.code),
+      });
       if (isServerFailure) {
         sendJson(res, 500, { ok: false, error: "password_reset_failed", code: result.code });
         return;
@@ -119,6 +145,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     console.log(`api:done ${ROUTE} status=200`);
+    await trackServerEvent(ANALYTICS_EVENTS.PASSWORD_RESET_COMPLETED, { user_type: "agent" });
     sendJson(res, 200, {
       ok: true,
       message: "Your password has been updated. You can sign in now.",

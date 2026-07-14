@@ -51,6 +51,8 @@ export {
   sendAgentAssessmentCompletedEmail,
   sendClientMatchReviewStartedEmail,
   sendClientMatchedGetToKnowAgentEmail,
+  sendClientFinalMatchEmail,
+  buildClientFinalMatchEmail,
   resolveEmailProvider,
   buildRequityEmailHtml,
   buildPlainTextEmail,

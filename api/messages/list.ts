@@ -9,6 +9,7 @@ import {
 } from "../_lib/http.js";
 import { getAgentNotifications } from "../../backend/lib/messages.js";
 import { requireAgent } from "../../backend/lib/auth.js";
+import { requireAgentPlatformAccess } from "../../backend/lib/agentAccess.js";
 import { logApiStart, logSupabaseError } from "../../backend/lib/logger.js";
 
 const ROUTE = "messages/list";
@@ -24,6 +25,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     logApiStart(ROUTE);
 
     const profile = await requireAgent(req);
+    // Hard access gate: unpaid new agents cannot use platform features.
+    await requireAgentPlatformAccess(profile);
     let agentId: string;
     if (profile.role === "admin") {
       agentId = requireQueryParam(req, "agentId");

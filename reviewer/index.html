@@ -14,6 +14,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Nunito:wght@800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
@@ -771,6 +772,7 @@
     <!-- Supabase/API config (copy frontend/shared/config.example.js to config.js with real public values). -->
     <!-- Load order matters: config.js → api.js → page/auth code. -->
     <script src="../frontend/shared/config.js" onerror="this.remove()"></script>
+    <script src="../frontend/shared/analytics.js"></script>
     <script src="../frontend/shared/api.js"></script>
     <script src="script.js"></script>
     <script src="agents.js"></script>
@@ -1795,18 +1797,37 @@
 
         function rowHtml(r) {
             var amount = fmtAmount(r.amountCents);
+            // Stripe-confirmed platform access state (source of truth for
+            // dashboard access). Never includes card data.
+            var acc = r.access || null;
+            var accessBadge = '';
+            var accessMeta = '';
+            if (acc && acc.accessStatus) {
+                accessBadge = '<span class="badge badge-source">Access: ' + esc(acc.accessStatusLabel || acc.accessStatus) + '</span>';
+                var accBits = [];
+                if (acc.grandfathered) accBits.push('Grandfathered');
+                if (acc.complimentaryAccess) accBits.push('Complimentary');
+                if (acc.stripePaidAt) accBits.push('Stripe paid ' + fmtDate(acc.stripePaidAt));
+                if (typeof acc.stripeAmountPaid === 'number') accBits.push(fmtAmount(acc.stripeAmountPaid));
+                if (acc.stripeCheckoutSessionId) accBits.push('Session ' + acc.stripeCheckoutSessionId);
+                if (accBits.length) {
+                    accessMeta = '<span>Platform access <strong>' + accBits.map(esc).join(' · ') + '</strong></span>';
+                }
+            }
             return '<div class="lead-card" data-pay-key="' + esc(r.entityType + ':' + r.entityId) + '">' +
                 '<div class="lead-top">' +
                     '<div><div class="lead-name">' + esc(r.name || 'Unknown') + '</div>' +
                     '<div class="lead-contact">' + esc(r.email || 'no email') + '</div></div>' +
                     '<div class="lead-badges">' +
                         '<span class="badge badge-internal">Agent</span>' +
+                        accessBadge +
                         payPill(r.status, r.statusLabel) +
                     '</div>' +
                 '</div>' +
                 '<div class="lead-meta">' +
                     (r.relatedMatch ? ('<span>Matches <strong>' + esc(r.relatedMatch) + '</strong></span>') : '') +
                     (amount ? ('<span>Amount <strong>' + esc(amount) + '</strong></span>') : '') +
+                    accessMeta +
                     '<span>Last updated <strong>' + fmtDate(r.updatedAt) + '</strong></span>' +
                 '</div>' +
                 (r.note ? ('<div class="lead-note">' + esc(r.note) + '</div>') : '') +
